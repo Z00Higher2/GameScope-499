@@ -21,6 +21,7 @@ def get_reviews(app_id, max_reviews=1000, language="english"):
 
     language:
         Language of reviews to collect.
+        Default is English.
     """
 
     url = f"https://store.steampowered.com/appreviews/{app_id}"
@@ -39,19 +40,19 @@ def get_reviews(app_id, max_reviews=1000, language="english"):
         params = {
             "json": 1,
 
-            # Get recent reviews
+            # Get reviews
             "filter": "recent",
 
             # Review language
             "language": language,
 
-            # Get positive and negative reviews
+            # Get both positive and negative reviews
             "review_type": "all",
 
             # Include all purchase types
             "purchase_type": "all",
 
-            # Maximum reviews per request
+            # Maximum allowed per request
             "num_per_page": 100,
 
             # Pagination
@@ -105,8 +106,7 @@ def get_reviews(app_id, max_reviews=1000, language="english"):
             review_data = {
 
                 # Game information
-                "app_id":
-                    app_id,
+                "app_id": app_id,
 
                 # Review information
                 "review_id":
@@ -130,6 +130,14 @@ def get_reviews(app_id, max_reviews=1000, language="english"):
                         2
                     ),
 
+                "playtime_at_review_hours":
+                    round(
+                        author.get(
+                            "playtime_at_review", 0
+                        ) / 60,
+                        2
+                    ),
+
                 # Community feedback
                 "helpful_votes":
                     review.get("votes_up", 0),
@@ -137,7 +145,7 @@ def get_reviews(app_id, max_reviews=1000, language="english"):
                 "funny_votes":
                     review.get("votes_funny", 0),
 
-                # Other information
+                # Review information
                 "received_for_free":
                     review.get(
                         "received_for_free"
@@ -146,7 +154,8 @@ def get_reviews(app_id, max_reviews=1000, language="english"):
                 "early_access":
                     review.get(
                         "written_during_early_access"
-                    )
+                    ),
+
             }
 
             reviews.append(review_data)
