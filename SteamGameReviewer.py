@@ -1,3 +1,4 @@
+
 import requests
 import csv
 import time
@@ -108,19 +109,11 @@ def get_reviews(app_id, max_reviews=1000, language="english"):
                 # Game information
                 "app_id": app_id,
 
-                # Review information
-                "review_id":
-                    review.get("recommendationid"),
-
                 "review_text":
                     review.get("review"),
 
                 "recommended":
                     review.get("voted_up"),
-
-                # Player information
-                "steam_id":
-                    author.get("steamid"),
 
                 "playtime_hours":
                     round(
@@ -142,20 +135,7 @@ def get_reviews(app_id, max_reviews=1000, language="english"):
                 "helpful_votes":
                     review.get("votes_up", 0),
 
-                "funny_votes":
-                    review.get("votes_funny", 0),
-
-                # Review information
-                "received_for_free":
-                    review.get(
-                        "received_for_free"
-                    ),
-
-                "early_access":
-                    review.get(
-                        "written_during_early_access"
-                    ),
-
+                
             }
 
             reviews.append(review_data)
@@ -341,3 +321,4 @@ if __name__ == "__main__":
         reviews,
         app_id
     )
+
