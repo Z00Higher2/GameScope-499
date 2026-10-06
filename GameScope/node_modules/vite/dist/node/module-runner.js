@@ -39,6 +39,19 @@ function promiseWithResolvers() {
 		reject
 	};
 }
+const percentEncodedRE = /(?:%[0-9a-f]{2})+/gi, whitespaceOnlyRE = /^\s+$/;
+/** Reverses {@link encodeSourceURL}. */
+function decodeSourceURL(url) {
+	return url.replace(percentEncodedRE, (match) => {
+		let decoded;
+		try {
+			decoded = decodeURIComponent(match);
+		} catch {
+			return match;
+		}
+		return whitespaceOnlyRE.test(decoded) ? decoded : match;
+	});
+}
 //#endregion
 //#region ../../node_modules/.pnpm/@jridgewell+sourcemap-codec@1.6.0/node_modules/@jridgewell/sourcemap-codec/dist/sourcemap-codec.mjs
 var comma = 44, chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/", intToChar = /* @__PURE__ */ new Uint8Array(64), charToInt = /* @__PURE__ */ new Uint8Array(128);
@@ -940,10 +953,11 @@ function supportRelativeURL(file, url) {
 	return protocol && /^\/\w:/.test(startPath) ? (protocol += "/", protocol + slash(posixResolve(startPath, url))) : protocol + posixResolve(startPath, url);
 }
 function getRunnerSourceMap(position) {
+	let id = decodeSourceURL(position.source);
 	for (let moduleGraph of evaluatedModulesCache) {
-		let sourceMap = moduleGraph.getModuleSourceMapById(position.source);
+		let sourceMap = moduleGraph.getModuleSourceMapById(id);
 		if (sourceMap) return {
-			url: position.source,
+			url: id,
 			map: sourceMap,
 			vite: !0
 		};

@@ -4,9 +4,9 @@ import { esmExternalRequirePlugin, esmExternalRequirePlugin as esmExternalRequir
 import { TsconfigCache, Visitor, minify, minifySync, parse, parseSync, parseSync as parseSync$1, transformSync } from "rolldown/utils";
 import crypto, { randomBytes } from "node:crypto";
 import * as fs$1 from "node:fs";
-import fs, { existsSync, readFileSync } from "node:fs";
+import fs, { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from "node:fs";
 import fsp, { constants } from "node:fs/promises";
-import path, { basename, dirname, extname, isAbsolute, join, normalize, posix, relative, resolve, sep } from "node:path";
+import path, { basename, delimiter, dirname, extname, isAbsolute, join, normalize, posix, relative, resolve, sep } from "node:path";
 import { performance as performance$1 } from "node:perf_hooks";
 import { URL as URL$1, fileURLToPath, pathToFileURL } from "node:url";
 import { format, formatWithOptions, inspect, isDeepStrictEqual, parseEnv, promisify, stripVTControlCharacters } from "node:util";
@@ -15,7 +15,7 @@ import pm from "picomatch";
 import { VERSION as rolldownVersion, rolldown } from "rolldown";
 import { escapePath, glob, globSync, isDynamicPattern } from "tinyglobby";
 import { dev, oxcRuntimePlugin, resolveTsconfig, scan, viteAliasPlugin, viteBuildImportAnalysisPlugin, viteDynamicImportVarsPlugin, viteImportGlobPlugin, viteJsonPlugin, viteLoadFallbackPlugin, viteManifestPlugin, viteModulePreloadPolyfillPlugin, viteReporterPlugin, viteResolvePlugin, viteTransformPlugin, viteWebWorkerPostPlugin } from "rolldown/experimental";
-import childProcess, { exec, execFile, execSync } from "node:child_process";
+import childProcess, { exec, execFile, execSync, spawn } from "node:child_process";
 import { promises } from "node:dns";
 import net from "node:net";
 import os from "node:os";
@@ -23,14 +23,16 @@ import { isatty } from "node:tty";
 import path$1, { isAbsolute as isAbsolute$1, join as join$1, posix as posix$1, resolve as resolve$1, win32 } from "path";
 import { exactRegex, makeIdFiltersToMatchWithQuery, prefixRegex, withFilter } from "rolldown/filter";
 import { Buffer as Buffer$1 } from "node:buffer";
-import { readdirSync, statSync } from "fs";
+import { readdirSync, statSync as statSync$1 } from "fs";
 import assert from "node:assert";
-import process$1 from "node:process";
+import process$1, { cwd } from "node:process";
 import v8 from "node:v8";
 import { EventEmitter } from "node:events";
 import { STATUS_CODES, createServer, get } from "node:http";
 import { createServer as createServer$1, get as get$1 } from "node:https";
 import readline from "node:readline";
+import { pipeline } from "node:stream/promises";
+import { PassThrough } from "node:stream";
 import { ESModulesEvaluator, ModuleRunner, createNodeImportMeta } from "vite/module-runner";
 import * as qs from "node:querystring";
 import zlib from "zlib";
@@ -494,7 +496,7 @@ const MODULE_RUNNER_SOURCEMAPPING_SOURCE = "//# sourceMappingSource=vite-generat
 const ERR_OUTDATED_OPTIMIZED_DEP = "ERR_OUTDATED_OPTIMIZED_DEP";
 //#endregion
 //#region src/shared/utils.ts
-const isWindows = typeof process !== "undefined" && process.platform === "win32";
+const isWindows$1 = typeof process !== "undefined" && process.platform === "win32";
 /**
 * Prepend `/@id/` and replace null byte so the id is URL-safe.
 * This is prepended to resolved ids that are not valid browser
@@ -539,6 +541,25 @@ function promiseWithResolvers() {
 		resolve,
 		reject
 	};
+}
+const whitespaceRE$1 = /\s/g;
+const percentEncodedRE = /(?:%[0-9a-f]{2})+/gi;
+const whitespaceOnlyRE = /^\s+$/;
+/** Percent-encodes whitespace, which terminates a `//# sourceURL=` value in V8. */
+function encodeSourceURL(id) {
+	return id.replace(whitespaceRE$1, encodeURIComponent);
+}
+/** Reverses {@link encodeSourceURL}. */
+function decodeSourceURL(url) {
+	return url.replace(percentEncodedRE, (match) => {
+		let decoded;
+		try {
+			decoded = decodeURIComponent(match);
+		} catch {
+			return match;
+		}
+		return whitespaceOnlyRE.test(decoded) ? decoded : match;
+	});
 }
 //#endregion
 //#region src/node/baseEnvironment.ts
@@ -628,7 +649,7 @@ var BaseEnvironment = class extends PartialEnvironment {
 };
 //#endregion
 //#region package.json
-var version = "8.3.1";
+var version = "8.3.2";
 //#endregion
 //#region src/node/constants.ts
 const ROLLUP_HOOKS = [
@@ -726,6 +747,8 @@ const CLIENT_ENTRY = resolve(VITE_PACKAGE_DIR, "dist/client/client.mjs");
 const BUNDLED_DEV_CLIENT_ENTRY = resolve(VITE_PACKAGE_DIR, "dist/client/bundledDevClient.mjs");
 /** URL filename the bundled-dev server serves the vite client under */
 const BUNDLED_DEV_CLIENT_FILENAME = "bundledDevClient.mjs";
+/** URL directory the bundled-dev server serves rolldown's dev runtime files under */
+const BUNDLED_DEV_ROLLDOWN_RUNTIME_DIR = "@rolldown";
 const ENV_ENTRY = resolve(VITE_PACKAGE_DIR, "dist/client/env.mjs");
 const CLIENT_DIR = path.dirname(CLIENT_ENTRY);
 const KNOWN_ASSET_TYPES = [
@@ -2115,7 +2138,7 @@ function testCaseInsensitiveFS() {
 const isCaseInsensitiveFS = testCaseInsensitiveFS();
 const VOLUME_RE = /^[A-Z]:/i;
 function normalizePath(id) {
-	return path.posix.normalize(isWindows ? slash(id) : id);
+	return path.posix.normalize(isWindows$1 ? slash(id) : id);
 }
 function fsPathFromId(id) {
 	const fsPath = normalizePath(id.startsWith(FS_PREFIX) ? id.slice(FS_PREFIX.length) : id);
@@ -2187,7 +2210,7 @@ function removeUrlQuery(url) {
 }
 function injectQuery(url, queryToInject) {
 	const { file, postfix } = splitFileAndPostfix(url);
-	return `${isWindows ? slash(file) : file}?${queryToInject}${postfix[0] === "?" ? `&${postfix.slice(1)}` : postfix}`;
+	return `${isWindows$1 ? slash(file) : file}?${queryToInject}${postfix[0] === "?" ? `&${postfix.slice(1)}` : postfix}`;
 }
 const timestampRE = /(\?|&)t=\d{13}(?:&|$)/;
 function removeTimestampQuery(url) {
@@ -2428,7 +2451,7 @@ async function recursiveReaddir(dir) {
 		return dirent.isDirectory() ? recursiveReaddir(res) : normalizePath(res);
 	}))).flat(1);
 }
-let safeRealpathSync = isWindows ? windowsSafeRealPathSync : fs.realpathSync.native;
+let safeRealpathSync = isWindows$1 ? windowsSafeRealPathSync : fs.realpathSync.native;
 const windowsNetworkMap = /* @__PURE__ */ new Map();
 function windowsMappedRealpathSync(path) {
 	const realPath = fs.realpathSync.native(path);
@@ -3460,7 +3483,7 @@ function alias$1(options = {}) {
 	};
 }
 //#endregion
-//#region ../../node_modules/.pnpm/magic-string@1.4.1/node_modules/magic-string/dist/index.mjs
+//#region ../../node_modules/.pnpm/magic-string@1.4.2/node_modules/magic-string/dist/index.mjs
 var BitSet = class BitSet {
 	constructor(arg) {
 		this.bits = arg instanceof BitSet ? arg.bits.slice() : [];
@@ -3554,7 +3577,7 @@ var Chunk = class Chunk {
 		this.outro = "";
 		this.end = index;
 		if (this.edited) {
-			newChunk.edit("", false);
+			newChunk.edit("", false, true);
 			this.content = "";
 		} else this.content = originalBefore;
 		newChunk.next = this.next;
@@ -4516,7 +4539,7 @@ var MagicString = class MagicString {
 	* Content appended or prepended at positions strictly inside the range is removed with it, while
 	* content attached at `start` or `end` is preserved — use `s.overwrite(start, end, '')` to remove
 	* the range including its edge inserts.
-	* Removing the same content twice, or making removals that partially overlap, will cause an error.
+	* Repeated removals and removals with partially overlapping ranges are allowed.
 	*/
 	remove(start, end) {
 		start = start + this.offset;
@@ -4798,10 +4821,16 @@ var MagicString = class MagicString {
 	* @internal
 	*/
 	_hasRemovedContent(start, end) {
-		let chunk = this.firstChunk;
-		while (chunk) {
-			if (chunk.content === "" && chunk.start < end && chunk.end > start) return true;
-			chunk = chunk.next;
+		let chunk = this.byStart.get(start);
+		if (!chunk) {
+			chunk = this.lastSearchedChunk;
+			const searchForward = start >= chunk.end;
+			while (chunk && !chunk.contains(start)) chunk = searchForward ? this.byStart.get(chunk.end) : this.byEnd.get(chunk.start);
+			if (chunk) this.lastSearchedChunk = chunk;
+		}
+		while (chunk && chunk.start < end) {
+			if (chunk.content === "") return true;
+			chunk = this.byStart.get(chunk.end);
 		}
 		return false;
 	}
@@ -4865,6 +4894,7 @@ var MagicString = class MagicString {
 		const stringLength = string.length;
 		if (stringLength === 0) {
 			for (let index = 0; index <= original.length; index += 1) {
+				if (this._hasRemovedContent(index, index)) continue;
 				const _replacement = typeof replacement === "function" ? replacement("", index, original) : expandReplacement(replacement, "", index, original, [], void 0);
 				if (_replacement !== "") this.appendRight(index, _replacement);
 			}
@@ -6440,11 +6470,11 @@ var WorkerWithFallback = class {
 //#endregion
 //#region ../../node_modules/.pnpm/lilconfig@3.1.3/node_modules/lilconfig/src/index.js
 var require_src$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
-	const path$10 = __require("path");
-	const fs$10 = __require("fs");
+	const path$7 = __require("path");
+	const fs$7 = __require("fs");
 	const os$3 = __require("os");
 	const url$2 = __require("url");
-	const fsReadFileAsync = fs$10.promises.readFile;
+	const fsReadFileAsync = fs$7.promises.readFile;
 	/** @type {(name: string, sync: boolean) => string[]} */
 	function getDefaultSearchPlaces(name, sync) {
 		return [
@@ -6473,7 +6503,7 @@ var require_src$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	* And on Windows, this will never happen. ('C:\build' -> 'C:')
 	*/
 	function parentDir(p) {
-		return path$10.dirname(p) || path$10.sep;
+		return path$7.dirname(p) || path$7.sep;
 	}
 	/** @type {import('./index').LoaderSync} */
 	const jsonLoader = (_, content) => JSON.parse(content);
@@ -6533,7 +6563,7 @@ var require_src$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 			}
 		};
 		conf.searchPlaces.forEach((place) => {
-			const key = path$10.extname(place) || "noExt";
+			const key = path$7.extname(place) || "noExt";
 			const loader = conf.loaders[key];
 			if (!loader) throw new Error(`Missing loader for extension "${place}"`);
 			if (typeof loader !== "function") throw new Error(`Loader for extension "${place}" is not a function: Received ${typeof loader}.`);
@@ -6585,14 +6615,14 @@ var require_src$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 						visited.add(dir);
 					}
 					for (const searchPlace of searchPlaces) {
-						const filepath = path$10.join(dir, searchPlace);
+						const filepath = path$7.join(dir, searchPlace);
 						try {
-							await fs$10.promises.access(filepath);
+							await fs$7.promises.access(filepath);
 						} catch {
 							continue;
 						}
 						const content = String(await fsReadFileAsync(filepath));
-						const loaderKey = path$10.extname(searchPlace) || "noExt";
+						const loaderKey = path$7.extname(searchPlace) || "noExt";
 						const loader = loaders[loaderKey];
 						if (searchPlace === "package.json") {
 							const pkg = await loader(filepath, content);
@@ -6625,9 +6655,9 @@ var require_src$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 			},
 			async load(filepath) {
 				validateFilePath(filepath);
-				const absPath = path$10.resolve(process.cwd(), filepath);
+				const absPath = path$7.resolve(process.cwd(), filepath);
 				if (cache && loadCache.has(absPath)) return loadCache.get(absPath);
-				const { base, ext } = path$10.parse(absPath);
+				const { base, ext } = path$7.parse(absPath);
 				const loaderKey = ext || "noExt";
 				const loader = loaders[loaderKey];
 				validateLoader(loader, loaderKey);
@@ -6697,15 +6727,15 @@ var require_src$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 						visited.add(dir);
 					}
 					for (const searchPlace of searchPlaces) {
-						const filepath = path$10.join(dir, searchPlace);
+						const filepath = path$7.join(dir, searchPlace);
 						try {
-							fs$10.accessSync(filepath);
+							fs$7.accessSync(filepath);
 						} catch {
 							continue;
 						}
-						const loaderKey = path$10.extname(searchPlace) || "noExt";
+						const loaderKey = path$7.extname(searchPlace) || "noExt";
 						const loader = loaders[loaderKey];
-						const content = String(fs$10.readFileSync(filepath));
+						const content = String(fs$7.readFileSync(filepath));
 						if (searchPlace === "package.json") {
 							const pkg = loader(filepath, content);
 							const maybeConfig = getPackageProp(packageProp, pkg);
@@ -6737,13 +6767,13 @@ var require_src$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 			},
 			load(filepath) {
 				validateFilePath(filepath);
-				const absPath = path$10.resolve(process.cwd(), filepath);
+				const absPath = path$7.resolve(process.cwd(), filepath);
 				if (cache && loadCache.has(absPath)) return loadCache.get(absPath);
-				const { base, ext } = path$10.parse(absPath);
+				const { base, ext } = path$7.parse(absPath);
 				const loaderKey = ext || "noExt";
 				const loader = loaders[loaderKey];
 				validateLoader(loader, loaderKey);
-				const content = String(fs$10.readFileSync(absPath));
+				const content = String(fs$7.readFileSync(absPath));
 				if (base === "package.json") {
 					const pkg = loader(absPath, content);
 					return transform({
@@ -9099,15 +9129,15 @@ var require_dist = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 //#endregion
 //#region ../../node_modules/.pnpm/readdirp@3.6.0/node_modules/readdirp/index.js
 var require_readdirp = /* @__PURE__ */ __commonJSMin(((exports, module) => {
-	const fs$9 = __require("fs");
+	const fs$6 = __require("fs");
 	const { Readable: Readable$1 } = __require("stream");
 	const sysPath$3 = __require("path");
 	const { promisify: promisify$4 } = __require("util");
 	const picomatch$1 = __require("picomatch");
-	const readdir = promisify$4(fs$9.readdir);
-	const stat = promisify$4(fs$9.stat);
-	const lstat = promisify$4(fs$9.lstat);
-	const realpath = promisify$4(fs$9.realpath);
+	const readdir = promisify$4(fs$6.readdir);
+	const stat = promisify$4(fs$6.stat);
+	const lstat = promisify$4(fs$6.lstat);
+	const realpath = promisify$4(fs$6.realpath);
 	/**
 	* @typedef {Object} EntryInfo
 	* @property {String} path
@@ -9201,7 +9231,7 @@ var require_readdirp = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 			].includes(type);
 			this._wantsEverything = type === EVERYTHING_TYPE;
 			this._root = sysPath$3.resolve(root);
-			this._isDirent = "Dirent" in fs$9 && !opts.alwaysStat;
+			this._isDirent = "Dirent" in fs$6 && !opts.alwaysStat;
 			this._statsProp = this._isDirent ? "dirent" : "stats";
 			this._rdOptions = {
 				encoding: "utf8",
@@ -10250,7 +10280,7 @@ var require_constants$2 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 }));
 //#endregion
 //#region ../../node_modules/.pnpm/braces@3.0.3/node_modules/braces/lib/parse.js
-var require_parse$2 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
+var require_parse$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	const stringify = require_stringify();
 	/**
 	* Constants
@@ -10541,7 +10571,7 @@ var require_braces = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	const stringify = require_stringify();
 	const compile = require_compile();
 	const expand = require_expand();
-	const parse = require_parse$2();
+	const parse = require_parse$1();
 	/**
 	* Expand the given pattern or create a regex-compatible string.
 	*
@@ -10937,10 +10967,10 @@ var require_binary_extensions = /* @__PURE__ */ __commonJSMin(((exports, module)
 //#endregion
 //#region ../../node_modules/.pnpm/is-binary-path@2.1.0/node_modules/is-binary-path/index.js
 var require_is_binary_path = /* @__PURE__ */ __commonJSMin(((exports, module) => {
-	const path$9 = __require("path");
+	const path$6 = __require("path");
 	const binaryExtensions = require_binary_extensions();
 	const extensions = new Set(binaryExtensions);
-	module.exports = (filePath) => extensions.has(path$9.extname(filePath).slice(1).toLowerCase());
+	module.exports = (filePath) => extensions.has(path$6.extname(filePath).slice(1).toLowerCase());
 }));
 //#endregion
 //#region ../../node_modules/.pnpm/chokidar@3.6.0_patch_hash=e17269188c54412478078f7ac7877c1d5a475a2f2438328e3a7e725513ccbf1f/node_modules/chokidar/lib/constants.js
@@ -11009,17 +11039,17 @@ var require_constants$1 = /* @__PURE__ */ __commonJSMin(((exports) => {
 //#endregion
 //#region ../../node_modules/.pnpm/chokidar@3.6.0_patch_hash=e17269188c54412478078f7ac7877c1d5a475a2f2438328e3a7e725513ccbf1f/node_modules/chokidar/lib/nodefs-handler.js
 var require_nodefs_handler = /* @__PURE__ */ __commonJSMin(((exports, module) => {
-	const fs$8 = __require("fs");
+	const fs$5 = __require("fs");
 	const sysPath$2 = __require("path");
 	const { promisify: promisify$3 } = __require("util");
 	const isBinaryPath = require_is_binary_path();
 	const { isWindows, isLinux, EMPTY_FN, EMPTY_STR, KEY_LISTENERS, KEY_ERR, KEY_RAW, HANDLER_KEYS, EV_CHANGE, EV_ADD, EV_ADD_DIR, EV_ERROR, STR_DATA, STR_END, BRACE_START, STAR } = require_constants$1();
 	const THROTTLE_MODE_WATCH = "watch";
-	const open = promisify$3(fs$8.open);
-	const stat = promisify$3(fs$8.stat);
-	const lstat = promisify$3(fs$8.lstat);
-	const close = promisify$3(fs$8.close);
-	const fsrealpath = promisify$3(fs$8.realpath);
+	const open = promisify$3(fs$5.open);
+	const stat = promisify$3(fs$5.stat);
+	const lstat = promisify$3(fs$5.lstat);
+	const close = promisify$3(fs$5.close);
+	const fsrealpath = promisify$3(fs$5.realpath);
 	const statMethods = {
 		lstat,
 		stat
@@ -11075,7 +11105,7 @@ var require_nodefs_handler = /* @__PURE__ */ __commonJSMin(((exports, module) =>
 			if (evPath && path !== evPath) fsWatchBroadcast(sysPath$2.resolve(path, evPath), KEY_LISTENERS, sysPath$2.join(path, evPath));
 		};
 		try {
-			return fs$8.watch(path, options, handleEvent);
+			return fs$5.watch(path, options, handleEvent);
 		} catch (error) {
 			errHandler(error);
 		}
@@ -11165,7 +11195,7 @@ var require_nodefs_handler = /* @__PURE__ */ __commonJSMin(((exports, module) =>
 		let cont = FsWatchFileInstances.get(fullPath);
 		const copts = cont && cont.options;
 		if (copts && (copts.persistent < options.persistent || copts.interval > options.interval)) {
-			fs$8.unwatchFile(fullPath);
+			fs$5.unwatchFile(fullPath);
 			cont = void 0;
 		}
 		if (cont) {
@@ -11176,7 +11206,7 @@ var require_nodefs_handler = /* @__PURE__ */ __commonJSMin(((exports, module) =>
 				listeners: listener,
 				rawEmitters: rawEmitter,
 				options,
-				watcher: fs$8.watchFile(fullPath, options, (curr, prev) => {
+				watcher: fs$5.watchFile(fullPath, options, (curr, prev) => {
 					foreach(cont.rawEmitters, (rawEmitter) => {
 						rawEmitter(EV_CHANGE, fullPath, {
 							curr,
@@ -11194,7 +11224,7 @@ var require_nodefs_handler = /* @__PURE__ */ __commonJSMin(((exports, module) =>
 			delFromSet(cont, KEY_RAW, rawEmitter);
 			if (isEmptySet(cont.listeners)) {
 				FsWatchFileInstances.delete(fullPath);
-				fs$8.unwatchFile(fullPath);
+				fs$5.unwatchFile(fullPath);
 				cont.options = cont.watcher = void 0;
 				Object.freeze(cont);
 			}
@@ -11467,7 +11497,7 @@ var require_nodefs_handler = /* @__PURE__ */ __commonJSMin(((exports, module) =>
 //#endregion
 //#region ../../node_modules/.pnpm/chokidar@3.6.0_patch_hash=e17269188c54412478078f7ac7877c1d5a475a2f2438328e3a7e725513ccbf1f/node_modules/chokidar/lib/fsevents-handler.js
 var require_fsevents_handler = /* @__PURE__ */ __commonJSMin(((exports, module) => {
-	const fs$7 = __require("fs");
+	const fs$4 = __require("fs");
 	const sysPath$1 = __require("path");
 	const { promisify: promisify$2 } = __require("util");
 	let fsevents;
@@ -11484,9 +11514,9 @@ var require_fsevents_handler = /* @__PURE__ */ __commonJSMin(((exports, module) 
 	}
 	const { EV_ADD, EV_CHANGE, EV_ADD_DIR, EV_UNLINK, EV_ERROR, STR_DATA, STR_END, FSEVENT_CREATED, FSEVENT_MODIFIED, FSEVENT_DELETED, FSEVENT_MOVED, FSEVENT_UNKNOWN, FSEVENT_FLAG_MUST_SCAN_SUBDIRS, FSEVENT_TYPE_FILE, FSEVENT_TYPE_DIRECTORY, FSEVENT_TYPE_SYMLINK, ROOT_GLOBSTAR, DIR_SUFFIX, DOT_SLASH, FUNCTION_TYPE, EMPTY_FN, IDENTITY_FN } = require_constants$1();
 	const Depth = (value) => isNaN(value) ? {} : { depth: value };
-	const stat = promisify$2(fs$7.stat);
-	const lstat = promisify$2(fs$7.lstat);
-	const realpath = promisify$2(fs$7.realpath);
+	const stat = promisify$2(fs$4.stat);
+	const lstat = promisify$2(fs$4.lstat);
+	const realpath = promisify$2(fs$4.realpath);
 	const statMethods = {
 		stat,
 		lstat
@@ -11806,7 +11836,7 @@ var require_fsevents_handler = /* @__PURE__ */ __commonJSMin(((exports, module) 
 //#region ../../node_modules/.pnpm/chokidar@3.6.0_patch_hash=e17269188c54412478078f7ac7877c1d5a475a2f2438328e3a7e725513ccbf1f/node_modules/chokidar/index.js
 var require_chokidar = /* @__PURE__ */ __commonJSMin(((exports) => {
 	const { EventEmitter: EventEmitter$4 } = __require("events");
-	const fs$6 = __require("fs");
+	const fs$3 = __require("fs");
 	const sysPath = __require("path");
 	const { promisify: promisify$1 } = __require("util");
 	const readdirp = require_readdirp();
@@ -11818,8 +11848,8 @@ var require_chokidar = /* @__PURE__ */ __commonJSMin(((exports) => {
 	const NodeFsHandler = require_nodefs_handler();
 	const FsEventsHandler = require_fsevents_handler();
 	const { EV_ALL, EV_READY, EV_ADD, EV_CHANGE, EV_UNLINK, EV_ADD_DIR, EV_UNLINK_DIR, EV_RAW, EV_ERROR, STR_CLOSE, STR_END, BACK_SLASH_RE, DOUBLE_SLASH_RE, SLASH_OR_BACK_SLASH_RE, DOT_RE, REPLACER_RE, SLASH, SLASH_SLASH, BRACE_START, BANG, ONE_DOT, TWO_DOTS, GLOBSTAR, SLASH_GLOBSTAR, ANYMATCH_OPTS, STRING_TYPE, FUNCTION_TYPE, EMPTY_STR, EMPTY_FN, isWindows, isMacos, isIBMi } = require_constants$1();
-	const stat = promisify$1(fs$6.stat);
-	const readdir = promisify$1(fs$6.readdir);
+	const stat = promisify$1(fs$3.stat);
+	const readdir = promisify$1(fs$3.readdir);
 	/**
 	* @typedef {String} Path
 	* @typedef {'all'|'add'|'addDir'|'change'|'unlink'|'unlinkDir'|'raw'|'error'|'ready'} EventName
@@ -12307,7 +12337,7 @@ var require_chokidar = /* @__PURE__ */ __commonJSMin(((exports) => {
 			if (this.options.cwd && !sysPath.isAbsolute(path)) fullPath = sysPath.join(this.options.cwd, path);
 			const now = /* @__PURE__ */ new Date();
 			const awaitWriteFinish = (prevStat) => {
-				fs$6.stat(fullPath, (err, curStat) => {
+				fs$3.stat(fullPath, (err, curStat) => {
 					if (err || !this._pendingWrites.has(path)) {
 						if (err && err.code !== "ENOENT") awfEmit(err);
 						return;
@@ -13861,7 +13891,7 @@ var require_quote = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 }));
 //#endregion
 //#region ../../node_modules/.pnpm/shell-quote@1.8.4/node_modules/shell-quote/parse.js
-var require_parse$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
+var require_parse = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	var CONTROL = "(?:" + [
 		"\\|\\|",
 		"\\&\\&",
@@ -14003,7 +14033,7 @@ var require_parse$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 //#region ../../node_modules/.pnpm/shell-quote@1.8.4/node_modules/shell-quote/index.js
 var require_shell_quote = /* @__PURE__ */ __commonJSMin(((exports) => {
 	exports.quote = require_quote();
-	exports.parse = require_parse$1();
+	exports.parse = require_parse();
 }));
 //#endregion
 //#region ../../node_modules/.pnpm/launch-editor@2.14.1/node_modules/launch-editor/editor-info/macos.js
@@ -14076,7 +14106,7 @@ var require_linux = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 }));
 //#endregion
 //#region ../../node_modules/.pnpm/launch-editor@2.14.1/node_modules/launch-editor/editor-info/windows.js
-var require_windows$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
+var require_windows = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = [
 		"Brackets.exe",
 		"Code.exe",
@@ -14110,12 +14140,12 @@ var require_windows$1 = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 //#endregion
 //#region ../../node_modules/.pnpm/launch-editor@2.14.1/node_modules/launch-editor/guess.js
 var require_guess = /* @__PURE__ */ __commonJSMin(((exports, module) => {
-	const path$8 = __require("path");
+	const path$5 = __require("path");
 	const shellQuote = require_shell_quote();
 	const childProcess$2 = __require("child_process");
 	const COMMON_EDITORS_MACOS = require_macos();
 	const COMMON_EDITORS_LINUX = require_linux();
-	const COMMON_EDITORS_WIN = require_windows$1();
+	const COMMON_EDITORS_WIN = require_windows();
 	function getEditorFromMacProcesses(output) {
 		const processNames = Object.keys(COMMON_EDITORS_MACOS);
 		const processList = output.split("\n");
@@ -14134,7 +14164,7 @@ var require_guess = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 		const runningProcesses = output.split("\r\n");
 		for (let i = 0; i < runningProcesses.length; i++) {
 			const fullProcessPath = runningProcesses[i].trim();
-			const shortProcessName = path$8.win32.basename(fullProcessPath);
+			const shortProcessName = path$5.win32.basename(fullProcessPath);
 			if (COMMON_EDITORS_WIN.indexOf(shortProcessName) !== -1) return fullProcessPath;
 		}
 	}
@@ -14185,9 +14215,9 @@ var require_guess = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 //#endregion
 //#region ../../node_modules/.pnpm/launch-editor@2.14.1/node_modules/launch-editor/get-args.js
 var require_get_args = /* @__PURE__ */ __commonJSMin(((exports, module) => {
-	const path$7 = __require("path");
+	const path$4 = __require("path");
 	module.exports = function getArgumentsForPosition(editor, fileName, lineNumber, columnNumber = 1) {
-		switch (path$7.basename(editor).replace(/\.(exe|cmd|bat)$/i, "")) {
+		switch (path$4.basename(editor).replace(/\.(exe|cmd|bat)$/i, "")) {
 			case "atom":
 			case "Atom":
 			case "Atom Beta":
@@ -14273,9 +14303,9 @@ var require_launch_editor = /* @__PURE__ */ __commonJSMin(((exports, module) => 
 	*
 	* Modified by Yuxi Evan You
 	*/
-	const fs$5 = __require("fs");
+	const fs$2 = __require("fs");
 	const os$1 = __require("os");
-	const path$6 = __require("path");
+	const path$3 = __require("path");
 	const colors = require_picocolors();
 	const childProcess$1 = __require("child_process");
 	const guessEditor = require_guess();
@@ -14283,7 +14313,7 @@ var require_launch_editor = /* @__PURE__ */ __commonJSMin(((exports, module) => 
 	function wrapErrorCallback(cb) {
 		return (fileName, errorMessage) => {
 			console.log();
-			console.log(colors.red("Could not open " + path$6.basename(fileName) + " in the editor."));
+			console.log(colors.red("Could not open " + path$3.basename(fileName) + " in the editor."));
 			if (errorMessage) {
 				if (errorMessage[errorMessage.length - 1] !== ".") errorMessage += ".";
 				console.log(colors.red("The editor process exited with an error: " + errorMessage));
@@ -14316,8 +14346,8 @@ var require_launch_editor = /* @__PURE__ */ __commonJSMin(((exports, module) => 
 		const parsed = parseFile(file);
 		let { fileName } = parsed;
 		const { lineNumber, columnNumber } = parsed;
-		if (process.platform === "win32" && path$6.resolve(fileName).startsWith("\\\\")) return onErrorCallback(fileName, "UNC paths are not supported on Windows to avoid security issues. See https://github.com/vitejs/launch-editor/tree/main/packages/launch-editor#unc-paths-on-windows for details.");
-		if (!fs$5.existsSync(fileName)) return;
+		if (process.platform === "win32" && path$3.resolve(fileName).startsWith("\\\\")) return onErrorCallback(fileName, "UNC paths are not supported on Windows to avoid security issues. See https://github.com/vitejs/launch-editor/tree/main/packages/launch-editor#unc-paths-on-windows for details.");
+		if (!fs$2.existsSync(fileName)) return;
 		if (typeof specifiedEditor === "function") {
 			onErrorCallback = specifiedEditor;
 			specifiedEditor = void 0;
@@ -14328,7 +14358,7 @@ var require_launch_editor = /* @__PURE__ */ __commonJSMin(((exports, module) => 
 			onErrorCallback(fileName, null);
 			return;
 		}
-		if (process.platform === "linux" && fileName.startsWith("/mnt/") && /Microsoft/i.test(os$1.release())) fileName = path$6.relative("", fileName);
+		if (process.platform === "linux" && fileName.startsWith("/mnt/") && /Microsoft/i.test(os$1.release())) fileName = path$3.relative("", fileName);
 		if (lineNumber) {
 			const extraArgs = getArgumentsForPosition(editor, fileName, lineNumber, columnNumber);
 			args.push.apply(args, extraArgs);
@@ -14364,7 +14394,7 @@ var require_launch_editor = /* @__PURE__ */ __commonJSMin(((exports, module) => 
 //#endregion
 //#region ../../node_modules/.pnpm/launch-editor-middleware@2.14.1/node_modules/launch-editor-middleware/index.js
 var require_launch_editor_middleware = /* @__PURE__ */ __commonJSMin(((exports, module) => {
-	const path$5 = __require("path");
+	const path$2 = __require("path");
 	const launch = require_launch_editor();
 	module.exports = (specifiedEditor, srcRoot, onErrorCallback) => {
 		if (typeof specifiedEditor === "function") {
@@ -14391,7 +14421,7 @@ var require_launch_editor_middleware = /* @__PURE__ */ __commonJSMin(((exports, 
 				res.statusCode = 500;
 				res.end(`launch-editor-middleware: required query param "file" is missing.`);
 			} else {
-				const resolved = file.startsWith("file://") ? file : path$5.resolve(srcRoot, file);
+				const resolved = file.startsWith("file://") ? file : path$2.resolve(srcRoot, file);
 				launch(resolved, specifiedEditor, onErrorCallback);
 				res.end();
 			}
@@ -14646,408 +14676,6 @@ function printServerUrls(urls, optionsHost, info) {
 	});
 	if (urls.network.length === 0 && optionsHost === void 0) info(import_picocolors.default.dim(`  ${import_picocolors.default.green("➜")}  ${import_picocolors.default.bold("Network")}: use `) + import_picocolors.default.bold("--host") + import_picocolors.default.dim(" to expose"));
 }
-//#endregion
-//#region ../../node_modules/.pnpm/isexe@2.0.0/node_modules/isexe/windows.js
-var require_windows = /* @__PURE__ */ __commonJSMin(((exports, module) => {
-	module.exports = isexe;
-	isexe.sync = sync;
-	var fs$4 = __require("fs");
-	function checkPathExt(path, options) {
-		var pathext = options.pathExt !== void 0 ? options.pathExt : process.env.PATHEXT;
-		if (!pathext) return true;
-		pathext = pathext.split(";");
-		if (pathext.indexOf("") !== -1) return true;
-		for (var i = 0; i < pathext.length; i++) {
-			var p = pathext[i].toLowerCase();
-			if (p && path.substr(-p.length).toLowerCase() === p) return true;
-		}
-		return false;
-	}
-	function checkStat(stat, path, options) {
-		if (!stat.isSymbolicLink() && !stat.isFile()) return false;
-		return checkPathExt(path, options);
-	}
-	function isexe(path, options, cb) {
-		fs$4.stat(path, function(er, stat) {
-			cb(er, er ? false : checkStat(stat, path, options));
-		});
-	}
-	function sync(path, options) {
-		return checkStat(fs$4.statSync(path), path, options);
-	}
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/isexe@2.0.0/node_modules/isexe/mode.js
-var require_mode = /* @__PURE__ */ __commonJSMin(((exports, module) => {
-	module.exports = isexe;
-	isexe.sync = sync;
-	var fs$3 = __require("fs");
-	function isexe(path, options, cb) {
-		fs$3.stat(path, function(er, stat) {
-			cb(er, er ? false : checkStat(stat, options));
-		});
-	}
-	function sync(path, options) {
-		return checkStat(fs$3.statSync(path), options);
-	}
-	function checkStat(stat, options) {
-		return stat.isFile() && checkMode(stat, options);
-	}
-	function checkMode(stat, options) {
-		var mod = stat.mode;
-		var uid = stat.uid;
-		var gid = stat.gid;
-		var myUid = options.uid !== void 0 ? options.uid : process.getuid && process.getuid();
-		var myGid = options.gid !== void 0 ? options.gid : process.getgid && process.getgid();
-		var u = parseInt("100", 8);
-		var g = parseInt("010", 8);
-		var o = parseInt("001", 8);
-		var ug = u | g;
-		return mod & o || mod & g && gid === myGid || mod & u && uid === myUid || mod & ug && myUid === 0;
-	}
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/isexe@2.0.0/node_modules/isexe/index.js
-var require_isexe = /* @__PURE__ */ __commonJSMin(((exports, module) => {
-	__require("fs");
-	var core;
-	if (process.platform === "win32" || global.TESTING_WINDOWS) core = require_windows();
-	else core = require_mode();
-	module.exports = isexe;
-	isexe.sync = sync;
-	function isexe(path, options, cb) {
-		if (typeof options === "function") {
-			cb = options;
-			options = {};
-		}
-		if (!cb) {
-			if (typeof Promise !== "function") throw new TypeError("callback not provided");
-			return new Promise(function(resolve, reject) {
-				isexe(path, options || {}, function(er, is) {
-					if (er) reject(er);
-					else resolve(is);
-				});
-			});
-		}
-		core(path, options || {}, function(er, is) {
-			if (er) {
-				if (er.code === "EACCES" || options && options.ignoreErrors) {
-					er = null;
-					is = false;
-				}
-			}
-			cb(er, is);
-		});
-	}
-	function sync(path, options) {
-		try {
-			return core.sync(path, options || {});
-		} catch (er) {
-			if (options && options.ignoreErrors || er.code === "EACCES") return false;
-			else throw er;
-		}
-	}
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/which@2.0.2/node_modules/which/which.js
-var require_which = /* @__PURE__ */ __commonJSMin(((exports, module) => {
-	const isWindows = process.platform === "win32" || process.env.OSTYPE === "cygwin" || process.env.OSTYPE === "msys";
-	const path$4 = __require("path");
-	const COLON = isWindows ? ";" : ":";
-	const isexe = require_isexe();
-	const getNotFoundError = (cmd) => Object.assign(/* @__PURE__ */ new Error(`not found: ${cmd}`), { code: "ENOENT" });
-	const getPathInfo = (cmd, opt) => {
-		const colon = opt.colon || COLON;
-		const pathEnv = cmd.match(/\//) || isWindows && cmd.match(/\\/) ? [""] : [...isWindows ? [process.cwd()] : [], ...(opt.path || process.env.PATH || 
-		/* istanbul ignore next: very unusual */ "").split(colon)];
-		const pathExtExe = isWindows ? opt.pathExt || process.env.PATHEXT || ".EXE;.CMD;.BAT;.COM" : "";
-		const pathExt = isWindows ? pathExtExe.split(colon) : [""];
-		if (isWindows) {
-			if (cmd.indexOf(".") !== -1 && pathExt[0] !== "") pathExt.unshift("");
-		}
-		return {
-			pathEnv,
-			pathExt,
-			pathExtExe
-		};
-	};
-	const which = (cmd, opt, cb) => {
-		if (typeof opt === "function") {
-			cb = opt;
-			opt = {};
-		}
-		if (!opt) opt = {};
-		const { pathEnv, pathExt, pathExtExe } = getPathInfo(cmd, opt);
-		const found = [];
-		const step = (i) => new Promise((resolve, reject) => {
-			if (i === pathEnv.length) return opt.all && found.length ? resolve(found) : reject(getNotFoundError(cmd));
-			const ppRaw = pathEnv[i];
-			const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw;
-			const pCmd = path$4.join(pathPart, cmd);
-			const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd : pCmd;
-			resolve(subStep(p, i, 0));
-		});
-		const subStep = (p, i, ii) => new Promise((resolve, reject) => {
-			if (ii === pathExt.length) return resolve(step(i + 1));
-			const ext = pathExt[ii];
-			isexe(p + ext, { pathExt: pathExtExe }, (er, is) => {
-				if (!er && is) {
-					if (opt.all) found.push(p + ext);
-					else return resolve(p + ext);
-				}
-				return resolve(subStep(p, i, ii + 1));
-			});
-		});
-		return cb ? step(0).then((res) => cb(null, res), cb) : step(0);
-	};
-	const whichSync = (cmd, opt) => {
-		opt = opt || {};
-		const { pathEnv, pathExt, pathExtExe } = getPathInfo(cmd, opt);
-		const found = [];
-		for (let i = 0; i < pathEnv.length; i++) {
-			const ppRaw = pathEnv[i];
-			const pathPart = /^".*"$/.test(ppRaw) ? ppRaw.slice(1, -1) : ppRaw;
-			const pCmd = path$4.join(pathPart, cmd);
-			const p = !pathPart && /^\.[\\\/]/.test(cmd) ? cmd.slice(0, 2) + pCmd : pCmd;
-			for (let j = 0; j < pathExt.length; j++) {
-				const cur = p + pathExt[j];
-				try {
-					if (isexe.sync(cur, { pathExt: pathExtExe })) {
-						if (opt.all) found.push(cur);
-						else return cur;
-					}
-				} catch (ex) {}
-			}
-		}
-		if (opt.all && found.length) return found;
-		if (opt.nothrow) return null;
-		throw getNotFoundError(cmd);
-	};
-	module.exports = which;
-	which.sync = whichSync;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/path-key@3.1.1/node_modules/path-key/index.js
-var require_path_key = /* @__PURE__ */ __commonJSMin(((exports, module) => {
-	const pathKey = (options = {}) => {
-		const environment = options.env || process.env;
-		if ((options.platform || process.platform) !== "win32") return "PATH";
-		return Object.keys(environment).reverse().find((key) => key.toUpperCase() === "PATH") || "Path";
-	};
-	module.exports = pathKey;
-	module.exports.default = pathKey;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/cross-spawn@7.0.6/node_modules/cross-spawn/lib/util/resolveCommand.js
-var require_resolveCommand = /* @__PURE__ */ __commonJSMin(((exports, module) => {
-	const path$3 = __require("path");
-	const which = require_which();
-	const getPathKey = require_path_key();
-	function resolveCommandAttempt(parsed, withoutPathExt) {
-		const env = parsed.options.env || process.env;
-		const cwd = process.cwd();
-		const hasCustomCwd = parsed.options.cwd != null;
-		const shouldSwitchCwd = hasCustomCwd && process.chdir !== void 0 && !process.chdir.disabled;
-		if (shouldSwitchCwd) try {
-			process.chdir(parsed.options.cwd);
-		} catch (err) {}
-		let resolved;
-		try {
-			resolved = which.sync(parsed.command, {
-				path: env[getPathKey({ env })],
-				pathExt: withoutPathExt ? path$3.delimiter : void 0
-			});
-		} catch (e) {} finally {
-			if (shouldSwitchCwd) process.chdir(cwd);
-		}
-		if (resolved) resolved = path$3.resolve(hasCustomCwd ? parsed.options.cwd : "", resolved);
-		return resolved;
-	}
-	function resolveCommand(parsed) {
-		return resolveCommandAttempt(parsed) || resolveCommandAttempt(parsed, true);
-	}
-	module.exports = resolveCommand;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/cross-spawn@7.0.6/node_modules/cross-spawn/lib/util/escape.js
-var require_escape = /* @__PURE__ */ __commonJSMin(((exports, module) => {
-	const metaCharsRegExp = /([()\][%!^"`<>&|;, *?])/g;
-	function escapeCommand(arg) {
-		arg = arg.replace(metaCharsRegExp, "^$1");
-		return arg;
-	}
-	function escapeArgument(arg, doubleEscapeMetaChars) {
-		arg = `${arg}`;
-		arg = arg.replace(/(?=(\\+?)?)\1"/g, "$1$1\\\"");
-		arg = arg.replace(/(?=(\\+?)?)\1$/, "$1$1");
-		arg = `"${arg}"`;
-		arg = arg.replace(metaCharsRegExp, "^$1");
-		if (doubleEscapeMetaChars) arg = arg.replace(metaCharsRegExp, "^$1");
-		return arg;
-	}
-	module.exports.command = escapeCommand;
-	module.exports.argument = escapeArgument;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/shebang-regex@3.0.0/node_modules/shebang-regex/index.js
-var require_shebang_regex = /* @__PURE__ */ __commonJSMin(((exports, module) => {
-	module.exports = /^#!(.*)/;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/shebang-command@2.0.0/node_modules/shebang-command/index.js
-var require_shebang_command = /* @__PURE__ */ __commonJSMin(((exports, module) => {
-	const shebangRegex = require_shebang_regex();
-	module.exports = (string = "") => {
-		const match = string.match(shebangRegex);
-		if (!match) return null;
-		const [path, argument] = match[0].replace(/#! ?/, "").split(" ");
-		const binary = path.split("/").pop();
-		if (binary === "env") return argument;
-		return argument ? `${binary} ${argument}` : binary;
-	};
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/cross-spawn@7.0.6/node_modules/cross-spawn/lib/util/readShebang.js
-var require_readShebang = /* @__PURE__ */ __commonJSMin(((exports, module) => {
-	const fs$2 = __require("fs");
-	const shebangCommand = require_shebang_command();
-	function readShebang(command) {
-		const size = 150;
-		const buffer = Buffer.alloc(size);
-		let fd;
-		try {
-			fd = fs$2.openSync(command, "r");
-			fs$2.readSync(fd, buffer, 0, size, 0);
-			fs$2.closeSync(fd);
-		} catch (e) {}
-		return shebangCommand(buffer.toString());
-	}
-	module.exports = readShebang;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/cross-spawn@7.0.6/node_modules/cross-spawn/lib/parse.js
-var require_parse = /* @__PURE__ */ __commonJSMin(((exports, module) => {
-	const path$2 = __require("path");
-	const resolveCommand = require_resolveCommand();
-	const escape = require_escape();
-	const readShebang = require_readShebang();
-	const isWin = process.platform === "win32";
-	const isExecutableRegExp = /\.(?:com|exe)$/i;
-	const isCmdShimRegExp = /node_modules[\\/].bin[\\/][^\\/]+\.cmd$/i;
-	function detectShebang(parsed) {
-		parsed.file = resolveCommand(parsed);
-		const shebang = parsed.file && readShebang(parsed.file);
-		if (shebang) {
-			parsed.args.unshift(parsed.file);
-			parsed.command = shebang;
-			return resolveCommand(parsed);
-		}
-		return parsed.file;
-	}
-	function parseNonShell(parsed) {
-		if (!isWin) return parsed;
-		const commandFile = detectShebang(parsed);
-		const needsShell = !isExecutableRegExp.test(commandFile);
-		if (parsed.options.forceShell || needsShell) {
-			const needsDoubleEscapeMetaChars = isCmdShimRegExp.test(commandFile);
-			parsed.command = path$2.normalize(parsed.command);
-			parsed.command = escape.command(parsed.command);
-			parsed.args = parsed.args.map((arg) => escape.argument(arg, needsDoubleEscapeMetaChars));
-			parsed.args = [
-				"/d",
-				"/s",
-				"/c",
-				`"${[parsed.command].concat(parsed.args).join(" ")}"`
-			];
-			parsed.command = process.env.comspec || "cmd.exe";
-			parsed.options.windowsVerbatimArguments = true;
-		}
-		return parsed;
-	}
-	function parse(command, args, options) {
-		if (args && !Array.isArray(args)) {
-			options = args;
-			args = null;
-		}
-		args = args ? args.slice(0) : [];
-		options = Object.assign({}, options);
-		const parsed = {
-			command,
-			args,
-			options,
-			file: void 0,
-			original: {
-				command,
-				args
-			}
-		};
-		return options.shell ? parsed : parseNonShell(parsed);
-	}
-	module.exports = parse;
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/cross-spawn@7.0.6/node_modules/cross-spawn/lib/enoent.js
-var require_enoent = /* @__PURE__ */ __commonJSMin(((exports, module) => {
-	const isWin = process.platform === "win32";
-	function notFoundError(original, syscall) {
-		return Object.assign(/* @__PURE__ */ new Error(`${syscall} ${original.command} ENOENT`), {
-			code: "ENOENT",
-			errno: "ENOENT",
-			syscall: `${syscall} ${original.command}`,
-			path: original.command,
-			spawnargs: original.args
-		});
-	}
-	function hookChildProcess(cp, parsed) {
-		if (!isWin) return;
-		const originalEmit = cp.emit;
-		cp.emit = function(name, arg1) {
-			if (name === "exit") {
-				const err = verifyENOENT(arg1, parsed);
-				if (err) return originalEmit.call(cp, "error", err);
-			}
-			return originalEmit.apply(cp, arguments);
-		};
-	}
-	function verifyENOENT(status, parsed) {
-		if (isWin && status === 1 && !parsed.file) return notFoundError(parsed.original, "spawn");
-		return null;
-	}
-	function verifyENOENTSync(status, parsed) {
-		if (isWin && status === 1 && !parsed.file) return notFoundError(parsed.original, "spawnSync");
-		return null;
-	}
-	module.exports = {
-		hookChildProcess,
-		verifyENOENT,
-		verifyENOENTSync,
-		notFoundError
-	};
-}));
-//#endregion
-//#region ../../node_modules/.pnpm/cross-spawn@7.0.6/node_modules/cross-spawn/index.js
-var require_cross_spawn = /* @__PURE__ */ __commonJSMin(((exports, module) => {
-	const cp = __require("child_process");
-	const parse = require_parse();
-	const enoent = require_enoent();
-	function spawn(command, args, options) {
-		const parsed = parse(command, args, options);
-		const spawned = cp.spawn(parsed.command, parsed.args, parsed.options);
-		enoent.hookChildProcess(spawned, parsed);
-		return spawned;
-	}
-	function spawnSync(command, args, options) {
-		const parsed = parse(command, args, options);
-		const result = cp.spawnSync(parsed.command, parsed.args, parsed.options);
-		result.error = result.error || enoent.verifyENOENTSync(result.status, parsed);
-		return result;
-	}
-	module.exports = spawn;
-	module.exports.spawn = spawn;
-	module.exports.sync = spawnSync;
-	module.exports._parse = parse;
-	module.exports._enoent = enoent;
-}));
 //#endregion
 //#region ../../node_modules/.pnpm/is-docker@3.0.0/node_modules/is-docker/index.js
 let isDockerCached;
@@ -15505,6 +15133,347 @@ defineLazyProperty(apps, "edge", () => detectPlatformBinary({
 defineLazyProperty(apps, "browser", () => "browser");
 defineLazyProperty(apps, "browserPrivate", () => "browserPrivate");
 //#endregion
+//#region ../../node_modules/.pnpm/tinyexec@1.3.1/node_modules/tinyexec/dist/main.mjs
+const isPathLikePattern = /^path$/i;
+const defaultEnvPathInfo = {
+	key: "PATH",
+	value: ""
+};
+function getPathFromEnv(env) {
+	for (const key in env) {
+		if (!Object.prototype.hasOwnProperty.call(env, key) || !isPathLikePattern.test(key)) continue;
+		const value = env[key];
+		if (!value) return defaultEnvPathInfo;
+		return {
+			key,
+			value
+		};
+	}
+	return defaultEnvPathInfo;
+}
+function addNodeBinToPath(cwd, path) {
+	const parts = path.value.split(delimiter);
+	const nodeBinPaths = [];
+	let currentPath = typeof cwd === "string" ? cwd : fileURLToPath(cwd, { windows: false });
+	let lastPath;
+	do {
+		nodeBinPaths.push(resolve(currentPath, "node_modules", ".bin"));
+		lastPath = currentPath;
+		currentPath = dirname(currentPath);
+	} while (currentPath !== lastPath);
+	nodeBinPaths.push(dirname(process.execPath));
+	const newPath = nodeBinPaths.concat(parts).join(delimiter);
+	return {
+		key: path.key,
+		value: newPath
+	};
+}
+function computeEnv(cwd, env, nodePath = true) {
+	const envWithDefault = {
+		...process.env,
+		...env
+	};
+	if (!nodePath) return envWithDefault;
+	const envPathInfo = addNodeBinToPath(cwd, getPathFromEnv(envWithDefault));
+	envWithDefault[envPathInfo.key] = envPathInfo.value;
+	return envWithDefault;
+}
+const combineStreams = (streams) => {
+	let streamCount = streams.length;
+	const combined = new PassThrough();
+	const maybeEmitEnd = () => {
+		if (--streamCount === 0) combined.end();
+	};
+	for (const stream of streams) pipeline(stream, combined, { end: false }).then(maybeEmitEnd).catch(maybeEmitEnd);
+	return combined;
+};
+const metaCharsRegExp = /([()\][%!^"`<>&|;, *?])/g;
+const shebangRegExp = /^#!\s*(.+)/;
+const isWindowsExecutableRegExp = /\.(?:com|exe)$/i;
+const isNodeModulesCmdRegExp = /node_modules[\\/]\.bin[\\/][^\\/]+\.cmd$/i;
+const isWindows = process.platform === "win32";
+const defaultPathExt = [
+	".EXE",
+	".CMD",
+	".BAT",
+	".COM"
+];
+const noPathExt = [""];
+/**
+* Normalizes the command and arguments to work cross-platform.
+* On Windows, this basically handles things like shebangs, calling
+* `node_modules/.bin` commands, and escaping meta characters.
+* On other platforms, it just returns the command and arguments as-is.
+*/
+function normalizeSpawnCommand(command, args = [], options = {}) {
+	if (options.shell === true || !isWindows) return {
+		command,
+		args,
+		options
+	};
+	let file = resolveCommand(command, options);
+	let shebang = null;
+	if (file !== null) {
+		const size = 150;
+		const buffer = Buffer.alloc(size);
+		let fd = null;
+		try {
+			fd = openSync(file, "r");
+			readSync(fd, buffer, 0, size, 0);
+		} catch {} finally {
+			if (fd !== null) closeSync(fd);
+		}
+		const match = buffer.toString().match(shebangRegExp);
+		if (match !== null) {
+			const line = match[1].trim();
+			const separatorIndex = line.indexOf(" ");
+			const path = separatorIndex !== -1 ? line.slice(0, separatorIndex) : line;
+			const argument = separatorIndex !== -1 ? line.slice(separatorIndex + 1) : "";
+			const binary = basename(path);
+			shebang = binary === "env" ? argument || null : binary;
+		}
+	}
+	if (shebang !== null && file !== null) {
+		args = [file, ...args];
+		command = shebang;
+		file = resolveCommand(command, options);
+	}
+	if (file === null || !isWindowsExecutableRegExp.test(file)) {
+		const needsDoubleEscapeMetaChars = file !== null && isNodeModulesCmdRegExp.test(file);
+		command = normalize(command);
+		command = command.replace(metaCharsRegExp, "^$1");
+		args = args.map((arg) => {
+			arg = arg.replace(/(?=(\\+?)?)\1"/g, "$1$1\\\"");
+			arg = arg.replace(/(?=(\\+?)?)\1$/, "$1$1");
+			arg = `"${arg}"`;
+			arg = arg.replace(metaCharsRegExp, "^$1");
+			if (needsDoubleEscapeMetaChars) arg = arg.replace(metaCharsRegExp, "^$1");
+			return arg;
+		});
+		args = [
+			"/d",
+			"/s",
+			"/c",
+			`"${[command, ...args].join(" ")}"`
+		];
+		command = options.env?.comspec ?? "cmd.exe";
+		options = {
+			...options,
+			windowsVerbatimArguments: true
+		};
+	}
+	return {
+		command,
+		args,
+		options
+	};
+}
+/**
+* Resolves the command to an absolute path if possible.
+* Handles things like traversing PATH and adding extensions from PATHEXT
+*/
+function resolveCommand(command, options) {
+	const cwd$3 = (options.cwd ?? cwd()).toString();
+	const env = options.env ?? process.env;
+	const PATH = getPathFromEnv(env).value;
+	const pathEnv = command.includes("/") || command.includes("\\") ? [""] : [cwd$3, ...PATH.split(delimiter)];
+	let pathExt = env.PATHEXT ? env.PATHEXT.split(delimiter) : defaultPathExt;
+	if (command.includes(".") && pathExt[0] !== "") pathExt = ["", ...pathExt];
+	for (const extensions of [pathExt, noPathExt]) for (const path of pathEnv) {
+		const unquoted = path.startsWith("\"") && path.endsWith("\"") && path.length > 1 ? path.slice(1, -1) : path;
+		const dest = resolve(cwd$3, unquoted, command);
+		for (const ext of extensions) {
+			const destWithExt = dest + ext;
+			try {
+				if (statSync(destWithExt).isFile()) return destWithExt;
+			} catch {}
+		}
+	}
+	return null;
+}
+var NonZeroExitError = class extends Error {
+	result;
+	output;
+	exitCode;
+	get signalCode() {
+		return this.result.signalCode;
+	}
+	constructor(result, output, command, args) {
+		let target = "The process";
+		if (command) target = `The command \`${args?.length ? `${command} ${args.map((a) => /[ "'`()]/.test(a) ? JSON.stringify(a) : a).join(" ")}` : command}\``;
+		const exitCode = result.exitCode ?? 1;
+		super(result.signalCode !== null ? `${target} was killed by the signal ${result.signalCode}` : `${target} exited with a non-zero status (${exitCode})`);
+		this.result = result;
+		this.output = output;
+		this.exitCode = exitCode;
+		Object.defineProperty(this, "result", {
+			enumerable: false,
+			writable: false,
+			configurable: false
+		});
+	}
+};
+const defaultOptions = {
+	timeout: void 0,
+	persist: false
+};
+const defaultNodeOptions = { windowsHide: true };
+function combineSignals(signals) {
+	const controller = new AbortController();
+	for (const signal of signals) {
+		if (signal.aborted) {
+			controller.abort();
+			return signal;
+		}
+		const onAbort = () => {
+			controller.abort(signal.reason);
+		};
+		signal.addEventListener("abort", onAbort, { signal: controller.signal });
+	}
+	return controller.signal;
+}
+async function readStream(stream) {
+	let output = "";
+	try {
+		for await (const chunk of stream) output += chunk.toString();
+	} catch {}
+	return output;
+}
+var ExecProcess = class {
+	_process;
+	_aborted = false;
+	_options;
+	_command;
+	_args;
+	_resolveClose;
+	_processClosed;
+	_thrownError;
+	get process() {
+		return this._process;
+	}
+	get pid() {
+		return this._process?.pid;
+	}
+	get exitCode() {
+		if (this._process && this._process.exitCode !== null) return this._process.exitCode;
+	}
+	get signalCode() {
+		return this._process?.signalCode ?? null;
+	}
+	constructor(command, args, options) {
+		this._options = {
+			...defaultOptions,
+			...options
+		};
+		this._command = command;
+		this._args = args ?? [];
+		this._processClosed = new Promise((resolve) => {
+			this._resolveClose = resolve;
+		});
+	}
+	kill(signal) {
+		return this._process?.kill(signal) === true;
+	}
+	get aborted() {
+		return this._aborted;
+	}
+	get killed() {
+		return this._process?.killed === true;
+	}
+	pipe(command, args, options) {
+		return exec$1(command, args, {
+			...options,
+			stdin: this
+		});
+	}
+	async *[Symbol.asyncIterator]() {
+		const proc = this._process;
+		if (!proc) return;
+		const streams = [];
+		if (this._streamErr) streams.push(this._streamErr);
+		if (this._streamOut) streams.push(this._streamOut);
+		const streamCombined = combineStreams(streams);
+		const rl = readline.createInterface({ input: streamCombined });
+		for await (const chunk of rl) yield chunk.toString();
+		await this._processClosed;
+		proc.removeAllListeners();
+		if (this._thrownError) throw this._thrownError;
+		if (this._options?.throwOnError && (this.exitCode !== 0 && this.exitCode !== void 0 || this.signalCode !== null)) throw new NonZeroExitError(this, void 0, this._command, this._args);
+	}
+	async _waitForOutput() {
+		const proc = this._process;
+		if (!proc) throw new Error("No process was started");
+		const [stdout, stderr] = await Promise.all([this._streamOut ? readStream(this._streamOut) : "", this._streamErr ? readStream(this._streamErr) : ""]);
+		await this._processClosed;
+		const { stdin } = this._options;
+		if (stdin && typeof stdin !== "string") await stdin;
+		proc.removeAllListeners();
+		if (this._thrownError) throw this._thrownError;
+		const result = {
+			stderr,
+			stdout,
+			exitCode: this.exitCode
+		};
+		if (this._options.throwOnError && (this.exitCode !== 0 && this.exitCode !== void 0 || this.signalCode !== null)) throw new NonZeroExitError(this, result, this._command, this._args);
+		return result;
+	}
+	then(onfulfilled, onrejected) {
+		return this._waitForOutput().then(onfulfilled, onrejected);
+	}
+	_streamOut;
+	_streamErr;
+	spawn() {
+		const options = this._options;
+		const nodeOptions = {
+			...defaultNodeOptions,
+			...options.nodeOptions
+		};
+		const cwd$1 = nodeOptions?.cwd ?? cwd();
+		const signals = [];
+		this._resetState();
+		if (options.timeout !== void 0) signals.push(AbortSignal.timeout(options.timeout));
+		if (options.signal !== void 0) signals.push(options.signal);
+		if (options.persist === true) nodeOptions.detached = true;
+		if (signals.length > 0) nodeOptions.signal = combineSignals(signals);
+		nodeOptions.env = computeEnv(cwd$1, nodeOptions.env, options.nodePath);
+		const crossResult = normalizeSpawnCommand(this._command, this._args, nodeOptions);
+		const handle = spawn(crossResult.command, crossResult.args, crossResult.options);
+		if (handle.stderr) this._streamErr = handle.stderr;
+		if (handle.stdout) this._streamOut = handle.stdout;
+		this._process = handle;
+		handle.once("error", this._onError);
+		handle.once("close", this._onClose);
+		if (handle.stdin) {
+			const { stdin } = options;
+			if (typeof stdin === "string") handle.stdin.end(stdin);
+			else stdin?.process?.stdout?.pipe(handle.stdin);
+		}
+	}
+	_resetState() {
+		this._aborted = false;
+		this._processClosed = new Promise((resolve) => {
+			this._resolveClose = resolve;
+		});
+		this._thrownError = void 0;
+	}
+	_onError = (err) => {
+		if (err.name === "AbortError" && (!(err.cause instanceof Error) || err.cause.name !== "TimeoutError")) {
+			this._aborted = true;
+			return;
+		}
+		this._thrownError = err;
+	};
+	_onClose = () => {
+		if (this._resolveClose) this._resolveClose();
+	};
+};
+const x = (command, args, userOptions) => {
+	const proc = new ExecProcess(command, args, userOptions);
+	proc.spawn();
+	return proc;
+};
+const exec$1 = x;
+//#endregion
 //#region src/node/server/openBrowser.ts
 /**
 * The following is modified based on source found in
@@ -15515,7 +15484,6 @@ defineLazyProperty(apps, "browserPrivate", () => "browserPrivate");
 * https://github.com/react/create-react-app/blob/main/LICENSE
 *
 */
-var import_cross_spawn = /* @__PURE__ */ __toESM(require_cross_spawn(), 1);
 /**
 * Reads the BROWSER environment variable and decides what to do with it.
 */
@@ -15526,12 +15494,12 @@ function openBrowser(url, opt, logger) {
 }
 function executeNodeScript(scriptPath, url, logger) {
 	const extraArgs = process.argv.slice(2);
-	(0, import_cross_spawn.default)(process.execPath, [
+	x(process.execPath, [
 		scriptPath,
 		...extraArgs,
 		url
-	], { stdio: "inherit" }).on("close", (code) => {
-		if (code !== 0) logger.error(import_picocolors.default.red(`\nThe script specified as BROWSER environment variable failed.\n\n${import_picocolors.default.cyan(scriptPath)} exited with code ${code}.`), { error: null });
+	], { nodeOptions: { stdio: "inherit" } }).then(({ exitCode }) => {
+		if (exitCode !== 0) logger.error(import_picocolors.default.red(`\nThe script specified as BROWSER environment variable failed.\n\n${import_picocolors.default.cyan(scriptPath)} exited with code ${exitCode}.`), { error: null });
 	});
 }
 const supportedChromiumBrowsers = [
@@ -15770,8 +15738,9 @@ function ssrRewriteStacktrace(stack, moduleGraph) {
 	let alreadyRewritten = false;
 	return {
 		result: stack.split("\n").map((line) => {
-			return line.replace(/^ {4}at (?:(\S.*?)\s\()?(.+?):(\d+)(?::(\d+))?\)?/, (input, varName, id, originalLine, originalColumn) => {
-				if (!id) return input;
+			return line.replace(/^ {4}at (?:(\S.*?)\s\()?(.+?):(\d+)(?::(\d+))?\)?/, (input, varName, rawId, originalLine, originalColumn) => {
+				if (!rawId) return input;
+				const id = decodeSourceURL(rawId);
 				const rawSourceMap = moduleGraph.getModuleById(id)?.transformResult?.map;
 				if (!rawSourceMap) return input;
 				const traced = new TraceMap(rawSourceMap);
@@ -16543,10 +16512,13 @@ async function ssrTransformScript(code, inMap, url, originalCode) {
 	let map;
 	if (inMap?.mappings === "") map = inMap;
 	else {
-		map = s.generateMap({ hires: "boundary" });
-		map.sources = [path.basename(url)];
-		map.sourcesContent = [originalCode];
-		if (inMap && inMap.mappings && "sources" in inMap && inMap.sources.length > 0) map = combineSourcemaps(url, [map, inMap]);
+		const shouldCombine = !!(inMap && inMap.mappings && "sources" in inMap && inMap.sources.length > 0);
+		const mapOptions = { hires: "boundary" };
+		const nextMap = shouldCombine ? s.generateDecodedMap(mapOptions) : s.generateMap(mapOptions);
+		nextMap.sources = [path.basename(url)];
+		nextMap.sourcesContent = [originalCode];
+		if (shouldCombine) map = combineSourcemaps(url, [nextMap, inMap]);
+		else map = nextMap;
 	}
 	return {
 		code: s.toString(),
@@ -17166,9 +17138,26 @@ async function createClientConfigValueReplacer(config) {
 	const serverForwardConsoleReplacement = escapeReplacement(config.server.forwardConsole);
 	return (code) => code.replace(`__MODE__`, modeReplacement).replace(/__BASE__/g, baseReplacement).replace(`__SERVER_HOST__`, serverHostReplacement).replace(`__HMR_PROTOCOL__`, hmrProtocolReplacement).replace(`__HMR_HOSTNAME__`, hmrHostnameReplacement).replace(`__HMR_PORT__`, hmrPortReplacement).replace(`__HMR_DIRECT_TARGET__`, hmrDirectTargetReplacement).replace(`__HMR_BASE__`, hmrBaseReplacement).replace(`__HMR_TIMEOUT__`, hmrTimeoutReplacement).replace(`__HMR_ENABLE_OVERLAY__`, hmrEnableOverlayReplacement).replace(`__HMR_CONFIG_NAME__`, hmrConfigNameReplacement).replace(`__WS_TOKEN__`, wsTokenReplacement).replace(`__SERVER_FORWARD_CONSOLE__`, serverForwardConsoleReplacement);
 }
+const ROLLDOWN_DEV_RUNTIME_ENTRY = "rolldown/experimental/runtime";
 async function getHmrImplementation(config) {
 	const content = fs.readFileSync(normalizedBundledDevClientEntry, "utf-8");
-	return (await createClientConfigValueReplacer(config))(content).replace(/import\s*['"]@vite\/env['"]/, "");
+	return (await createClientConfigValueReplacer(config))(content).replace(/import\s*['"]@vite\/env['"]/, "").replace(new RegExp(`(from\\s*['"])${ROLLDOWN_DEV_RUNTIME_ENTRY}(['"])`), (_, before, after) => `${before}${path.posix.join(config.base, BUNDLED_DEV_ROLLDOWN_RUNTIME_DIR, path.basename(rolldownDevRuntimeEntryPath()))}${after}`);
+}
+function rolldownDevRuntimeEntryPath() {
+	return fileURLToPath(import.meta.resolve(ROLLDOWN_DEV_RUNTIME_ENTRY));
+}
+/**
+* The dev runtime must match the rolldown that generates the bundle, so it is read from the
+* installed package at serve time instead of being bundled into the client. The entry imports
+* its helper file with a relative path, so both are served under the same directory.
+*/
+function getRolldownDevRuntimeFiles() {
+	const entry = rolldownDevRuntimeEntryPath();
+	const dir = path.dirname(entry);
+	const files = /* @__PURE__ */ new Map();
+	for (const name of fs.readdirSync(dir)) if (name.startsWith("experimental-runtime") && name.endsWith(".mjs")) files.set(`${BUNDLED_DEV_ROLLDOWN_RUNTIME_DIR}/${name}`, fs.readFileSync(path.join(dir, name), "utf-8"));
+	if (!files.has(`@rolldown/${path.basename(entry)}`)) throw new Error(`rolldown dev runtime entry ${entry} was not found`);
+	return files;
 }
 //#endregion
 //#region ../../node_modules/.pnpm/convert-source-map@2.0.0/node_modules/convert-source-map/index.js
@@ -17554,7 +17543,7 @@ function totalist(dir, callback, pre = "") {
 	let i = 0, abs, stats;
 	for (; i < arr.length; i++) {
 		abs = join$1(dir, arr[i]);
-		stats = statSync(abs);
+		stats = statSync$1(abs);
 		stats.isDirectory() ? totalist(abs, callback, join$1(pre, arr[i])) : callback(join$1(pre, arr[i]), abs, stats);
 	}
 }
@@ -17841,7 +17830,7 @@ function serveRawFsMiddleware(server) {
 			const pathname = decodeURIIfPossible(url.pathname);
 			if (pathname === void 0) return next();
 			let newPathname = pathname.slice(FS_PREFIX.length);
-			if (isWindows) newPathname = newPathname.replace(/^[A-Z]:/i, "");
+			if (isWindows$1) newPathname = newPathname.replace(/^[A-Z]:/i, "");
 			url.pathname = encodeURI(newPathname);
 			req.url = url.href.slice(url.origin.length);
 			try {
@@ -17885,8 +17874,8 @@ function looksLikeWindowsShortNamePath(filePath) {
 function isFileLoadingAllowed(config, filePath) {
 	const { fs } = config.server;
 	if (!fs.strict) return true;
-	if (isWindows && looksLikeWindowsShortNamePath(filePath)) return false;
-	if ((isWindows && windowsDriveRE.test(filePath) ? filePath.slice(2) : filePath).includes(":")) return false;
+	if (isWindows$1 && looksLikeWindowsShortNamePath(filePath)) return false;
+	if ((isWindows$1 && windowsDriveRE.test(filePath) ? filePath.slice(2) : filePath).includes(":")) return false;
 	const filePathWithoutTrailingSlash = filePath.endsWith("/") ? filePath.slice(0, -1) : filePath;
 	if (config.fsDenyGlob(filePathWithoutTrailingSlash)) return false;
 	if (config.safeModulePaths.has(filePath)) return true;
@@ -19855,6 +19844,7 @@ function rejectInvalidRequestMiddleware() {
 //#endregion
 //#region src/node/server/middlewares/time.ts
 const logTime = createDebugger("vite:time");
+const isTimeDebugEnabled = logTime !== void 0;
 function timeMiddleware(root) {
 	return function viteTimeMiddleware(req, res, next) {
 		const start = performance$1.now();
@@ -20782,7 +20772,7 @@ function searchForWorkspaceRoot(current, root = searchForPackageRoot(current)) {
 	return searchForWorkspaceRoot(dir, root);
 }
 //#endregion
-//#region ../../node_modules/.pnpm/ws@8.21.3/node_modules/ws/lib/constants.js
+//#region ../../node_modules/.pnpm/ws@8.22.0/node_modules/ws/lib/constants.js
 var require_constants = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	const BINARY_TYPES = [
 		"nodebuffer",
@@ -20805,7 +20795,7 @@ var require_constants = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/ws@8.21.3/node_modules/ws/lib/buffer-util.js
+//#region ../../node_modules/.pnpm/ws@8.22.0/node_modules/ws/lib/buffer-util.js
 var require_buffer_util = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	const { EMPTY_BUFFER } = require_constants();
 	const FastBuffer = Buffer[Symbol.species];
@@ -20905,7 +20895,7 @@ var require_buffer_util = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	} catch (e) {}
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/ws@8.21.3/node_modules/ws/lib/limiter.js
+//#region ../../node_modules/.pnpm/ws@8.22.0/node_modules/ws/lib/limiter.js
 var require_limiter = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	const kDone = Symbol("kDone");
 	const kRun = Symbol("kRun");
@@ -20956,7 +20946,7 @@ var require_limiter = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = Limiter;
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/ws@8.21.3/node_modules/ws/lib/permessage-deflate.js
+//#region ../../node_modules/.pnpm/ws@8.22.0/node_modules/ws/lib/permessage-deflate.js
 var require_permessage_deflate = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	const zlib$1 = __require("zlib");
 	const bufferUtil = require_buffer_util();
@@ -21292,7 +21282,7 @@ var require_permessage_deflate = /* @__PURE__ */ __commonJSMin(((exports, module
 	}
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/ws@8.21.3/node_modules/ws/lib/validation.js
+//#region ../../node_modules/.pnpm/ws@8.22.0/node_modules/ws/lib/validation.js
 var require_validation = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	const { isUtf8 } = __require("buffer");
 	const { hasBlob } = require_constants();
@@ -21488,7 +21478,7 @@ var require_validation = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	} catch (e) {}
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/ws@8.21.3/node_modules/ws/lib/receiver.js
+//#region ../../node_modules/.pnpm/ws@8.22.0/node_modules/ws/lib/receiver.js
 var require_receiver = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	const { Writable } = __require("stream");
 	const PerMessageDeflate = require_permessage_deflate();
@@ -21951,7 +21941,7 @@ var require_receiver = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = Receiver;
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/ws@8.21.3/node_modules/ws/lib/sender.js
+//#region ../../node_modules/.pnpm/ws@8.22.0/node_modules/ws/lib/sender.js
 var require_sender = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	const { Duplex: Duplex$3 } = __require("stream");
 	const { randomFillSync } = __require("crypto");
@@ -22449,7 +22439,7 @@ var require_sender = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	}
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/ws@8.21.3/node_modules/ws/lib/event-target.js
+//#region ../../node_modules/.pnpm/ws@8.22.0/node_modules/ws/lib/event-target.js
 var require_event_target = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	const { kForOnEventAttribute, kListener } = require_constants();
 	const kCode = Symbol("kCode");
@@ -22680,7 +22670,7 @@ var require_event_target = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	}
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/ws@8.21.3/node_modules/ws/lib/extension.js
+//#region ../../node_modules/.pnpm/ws@8.22.0/node_modules/ws/lib/extension.js
 var require_extension = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	const { tokenChars } = require_validation();
 	/**
@@ -22826,7 +22816,7 @@ var require_extension = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	};
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/ws@8.21.3/node_modules/ws/lib/websocket.js
+//#region ../../node_modules/.pnpm/ws@8.22.0/node_modules/ws/lib/websocket.js
 var require_websocket = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	const EventEmitter$2 = __require("events");
 	const https = __require("https");
@@ -22886,11 +22876,16 @@ var require_websocket = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 				this._bufferedAmount = 0;
 				this._isServer = false;
 				this._redirects = 0;
-				if (protocols === void 0) protocols = [];
-				else if (!Array.isArray(protocols)) {
+				if (protocols === void 0) {
+					if (!options || options.protocols === void 0) protocols = [];
+					else if (Array.isArray(options.protocols)) protocols = options.protocols;
+					else protocols = [options.protocols];
+				} else if (!Array.isArray(protocols)) {
 					if (typeof protocols === "object" && protocols !== null) {
 						options = protocols;
-						protocols = [];
+						if (options.protocols === void 0) protocols = [];
+						else if (Array.isArray(options.protocols)) protocols = options.protocols;
+						else protocols = [options.protocols];
 					} else protocols = [protocols];
 				}
 				initAsClient(this, address, protocols, options);
@@ -23080,12 +23075,12 @@ var require_websocket = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 				if (this._closeFrameSent && (this._closeFrameReceived || this._receiver._writableState.errorEmitted)) this._socket.end();
 				return;
 			}
-			this._readyState = WebSocket.CLOSING;
 			this._sender.close(code, data, !this._isServer, (err) => {
 				if (err) return;
 				this._closeFrameSent = true;
 				if (this._closeFrameReceived || this._receiver._writableState.errorEmitted) this._socket.end();
 			});
+			this._readyState = WebSocket.CLOSING;
 			setCloseTimer(this);
 		}
 		/**
@@ -23368,6 +23363,7 @@ var require_websocket = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 			socketPath: void 0,
 			hostname: void 0,
 			protocol: void 0,
+			protocols: void 0,
 			timeout: void 0,
 			method: "GET",
 			host: void 0,
@@ -23819,7 +23815,7 @@ var require_websocket = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	}
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/ws@8.21.3/node_modules/ws/lib/stream.js
+//#region ../../node_modules/.pnpm/ws@8.22.0/node_modules/ws/lib/stream.js
 var require_stream = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	require_websocket();
 	const { Duplex: Duplex$1 } = __require("stream");
@@ -23935,7 +23931,7 @@ var require_stream = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = createWebSocketStream;
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/ws@8.21.3/node_modules/ws/lib/subprotocol.js
+//#region ../../node_modules/.pnpm/ws@8.22.0/node_modules/ws/lib/subprotocol.js
 var require_subprotocol = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	const { tokenChars } = require_validation();
 	/**
@@ -23974,7 +23970,7 @@ var require_subprotocol = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	module.exports = { parse };
 }));
 //#endregion
-//#region ../../node_modules/.pnpm/ws@8.21.3/node_modules/ws/lib/websocket-server.js
+//#region ../../node_modules/.pnpm/ws@8.22.0/node_modules/ws/lib/websocket-server.js
 var require_websocket_server = /* @__PURE__ */ __commonJSMin(((exports, module) => {
 	const EventEmitter$1 = __require("events");
 	const http = __require("http");
@@ -24655,6 +24651,9 @@ async function _createServer(inlineConfig = {}, options) {
 		...getEnvFilesForMode(config.mode, config.envDir),
 		...publicDir && publicFiles ? [publicDir] : []
 	], resolvedWatchOptions)) : createNoopWatcher(resolvedWatchOptions);
+	watcher.on("error", (error) => {
+		config.logger.error(import_picocolors.default.red(`file watcher error: ${error.message}`));
+	});
 	const environments = {};
 	await Promise.all(Object.entries(config.environments).map(async ([name, environmentOptions]) => {
 		const environment = await environmentOptions.dev.createEnvironment(name, config, { ws });
@@ -24664,6 +24663,7 @@ async function _createServer(inlineConfig = {}, options) {
 			previousInstance: options.previousEnvironments?.[environment.name]
 		});
 	}));
+	options.previousEnvironments = void 0;
 	let moduleGraph = new ModuleGraph({
 		client: () => environments.client.moduleGraph,
 		ssr: () => environments.ssr.moduleGraph
@@ -24869,7 +24869,7 @@ async function _createServer(inlineConfig = {}, options) {
 	if (!middlewareMode && httpServer) httpServer.once("listening", () => {
 		serverConfig.port = httpServer.address().port;
 	});
-	if (process.env.DEBUG) middlewares.use(timeMiddleware(root));
+	if (isTimeDebugEnabled) middlewares.use(timeMiddleware(root));
 	middlewares.use(rejectInvalidRequestMiddleware());
 	const { cors } = serverConfig;
 	if (cors !== false) middlewares.use((0, import_lib.default)(typeof cors === "boolean" ? {} : cors));
@@ -26714,6 +26714,9 @@ const preloadMethod = `__vitePreload`;
 const preloadMarker = `__VITE_PRELOAD__`;
 const preloadHelperId = "\0vite/preload-helper.js";
 const preloadMarkerRE = new RegExp(preloadMarker, "g");
+function isCssPreloadUrl(url) {
+	return url.pathname.endsWith(".css");
+}
 function toRelativePath(filename, importer) {
 	const relPath = path.posix.relative(path.posix.dirname(importer), filename);
 	return relPath[0] === "." ? relPath : `./${relPath}`;
@@ -26759,7 +26762,7 @@ function detectScriptRel() {
 function preload(baseModule, deps, importerUrl) {
 	let promise = Promise.resolve();
 	if (__VITE_IS_MODERN__ && deps && deps.length > 0) {
-		const links = document.getElementsByTagName("link");
+		let preloadedHrefs;
 		const cspNonceMeta = document.querySelector("meta[property=csp-nonce]");
 		const cspNonce = cspNonceMeta?.nonce || cspNonceMeta?.getAttribute("nonce");
 		function allSettled(promises) {
@@ -26772,28 +26775,37 @@ function preload(baseModule, deps, importerUrl) {
 			}))));
 		}
 		function importMetaResolve(specifier) {
-			if (import.meta.resolve) return import.meta.resolve(specifier);
+			if (import.meta.resolve) return new URL(import.meta.resolve(specifier));
 			return new URL(
 				specifier,
 				/** #__KEEP__ */
 				import.meta.url
-			).href;
+			);
 		}
-		promise = allSettled(deps.map((dep) => {
-			dep = assetsURL(dep, importerUrl);
-			dep = importMetaResolve(dep);
-			if (dep in seen) return;
-			seen[dep] = true;
-			const isCss = dep.endsWith(".css");
-			for (let i = links.length - 1; i >= 0; i--) {
-				const link = links[i];
-				if (link.href === dep && (!isCss || link.rel === "stylesheet")) return;
+		promise = allSettled(deps.map((depString) => {
+			depString = assetsURL(depString, importerUrl);
+			const dep = importMetaResolve(depString);
+			if (dep.href in seen) return;
+			seen[dep.href] = true;
+			const isCss = isCssPreloadUrl(dep);
+			if (preloadedHrefs === void 0) {
+				preloadedHrefs = {
+					all: /* @__PURE__ */ new Set(),
+					styles: /* @__PURE__ */ new Set()
+				};
+				const links = document.getElementsByTagName("link");
+				for (let i = links.length - 1; i >= 0; i--) {
+					const link = links[i];
+					preloadedHrefs.all.add(link.href);
+					if (link.rel === "stylesheet") preloadedHrefs.styles.add(link.href);
+				}
 			}
+			if ((isCss ? preloadedHrefs.styles : preloadedHrefs.all).has(dep.href)) return;
 			const link = document.createElement("link");
 			link.rel = isCss ? "stylesheet" : scriptRel;
 			if (!isCss) link.as = "script";
 			link.crossOrigin = "";
-			link.href = dep;
+			link.href = dep.href;
 			if (cspNonce) link.setAttribute("nonce", cspNonce);
 			document.head.appendChild(link);
 			if (isCss) return new Promise((res, rej) => {
@@ -26821,7 +26833,7 @@ function getPreloadCode(environment, renderBuiltUrlBoolean, isRelativeBase) {
 	const scriptRel = modulePreload && modulePreload.polyfill ? `'modulepreload'` : `/* @__PURE__ */ (${detectScriptRel.toString()})()`;
 	const assetsURL = renderBuiltUrlBoolean || isRelativeBase ? `function(dep, importerUrl) { return new URL(dep, importerUrl).href }` : `function(dep) { return ${JSON.stringify(environment.config.base)}+dep }`;
 	const preloadMethodCode = preload.toString().replaceAll("𝐢𝐦𝐩𝐨𝐫𝐭", "import");
-	return `const scriptRel = ${scriptRel};const assetsURL = ${assetsURL};const seen = {};export const ${preloadMethod} = ${preloadMethodCode}`;
+	return `const scriptRel = ${scriptRel};const assetsURL = ${assetsURL};const seen = {};const isCssPreloadUrl = ${isCssPreloadUrl.toString()};export const ${preloadMethod} = ${preloadMethodCode}`;
 }
 /**
 * Build only. During serve this is performed as part of ./importAnalysis.
@@ -27021,7 +27033,7 @@ function buildImportAnalysisPlugin(config) {
 					if (s.hasChanged()) {
 						chunk.code = s.toString();
 						if (buildSourcemap && chunk.map) {
-							const nextMap = s.generateMap({
+							const nextMap = s.generateDecodedMap({
 								source: chunk.fileName,
 								hires: "boundary"
 							});
@@ -27234,6 +27246,7 @@ function rolldownDepPlugin(environment, qualified, external) {
 		return (kind.startsWith("require") ? _resolveRequire : _resolve)(environment, id, _importer);
 	};
 	const resolveResult = (id, resolved, kind) => {
+		if (resolved === "__vite-browser-external") return { id: browserExternalId };
 		if (resolved.startsWith("__vite-browser-external")) return { id: browserExternalNamespace + id };
 		if (resolved.startsWith("__vite-optional-peer-dep")) return { id: optionalPeerDepNamespace + resolved };
 		if (allExternalTypesReg.test(resolved)) return resolveAssets(resolved, kind);
@@ -27263,7 +27276,7 @@ function rolldownDepPlugin(environment, qualified, external) {
 				const resolved = await resolve(id, importer, kind);
 				if (resolved) {
 					if (JS_TYPES_RE.test(resolved)) return {
-						id: isWindows ? resolved.replaceAll("/", "\\") : resolved,
+						id: isWindows$1 ? resolved.replaceAll("/", "\\") : resolved,
 						external: false
 					};
 					return resolveAssets(resolved, kind);
@@ -27303,8 +27316,13 @@ function rolldownDepPlugin(environment, qualified, external) {
 			}
 		},
 		load: {
-			filter: { id: [prefixRegex(browserExternalNamespace), prefixRegex(optionalPeerDepNamespace)] },
+			filter: { id: [
+				exactRegex(browserExternalId),
+				prefixRegex(browserExternalNamespace),
+				prefixRegex(optionalPeerDepNamespace)
+			] },
 			handler(id) {
+				if (id === "__vite-browser-external") return { code: "module.exports = {}" };
 				if (id.startsWith(browserExternalNamespace)) {
 					const path = id.slice(17);
 					if (isProduction) return { code: "module.exports = {}" };
@@ -27356,20 +27374,31 @@ function rolldownDepPlugin(environment, qualified, external) {
 	}];
 }
 const matchesEntireLine = (text) => `^${escapeRegex(text)}$`;
-function rolldownCjsExternalPlugin(externals, platform) {
+function rolldownCjsExternalPlugin(externals, platform, environment) {
 	if (platform === "node") return;
 	if (platform === "neutral") return;
 	const filter = new RegExp(externals.map(matchesEntireLine).join("|"));
+	const packageCache = /* @__PURE__ */ new Map();
+	const resolveRequire = createBackCompatIdResolver(environment.getTopLevelConfig(), {
+		asSrc: false,
+		isRequire: true,
+		scan: true,
+		packageCache
+	});
 	return {
 		name: "cjs-external",
 		resolveId: {
 			filter: { id: [prefixRegex(nonFacadePrefix), filter] },
-			handler(id, _importer, options) {
+			async handler(id, importer, options) {
 				if (id.startsWith(nonFacadePrefix)) return {
 					id: id.slice(25),
 					external: "absolute"
 				};
-				if (options.kind === "require-call") return { id: cjsExternalFacadeNamespace + id };
+				if (options.kind === "require-call") {
+					const resolved = await resolveRequire(environment, id, importer).catch(() => void 0);
+					if (resolved?.startsWith("__vite-optional-peer-dep")) return { id: optionalPeerDepNamespace + resolved };
+					return { id: cjsExternalFacadeNamespace + id };
+				}
 				return {
 					id,
 					external: "absolute"
@@ -28323,7 +28352,7 @@ function runOptimizeDeps(environment, depsInfo) {
 			fs.writeFileSync(dataPath, stringifyDepsOptimizerMetadata(metadata, depsCacheDir));
 			const temporaryPath = depsCacheDir + getTempSuffix();
 			const depsCacheDirPresent = fs.existsSync(depsCacheDir);
-			if (isWindows) {
+			if (isWindows$1) {
 				if (depsCacheDirPresent) {
 					debug$4?.(import_picocolors.default.green(`renaming ${depsCacheDir} to ${temporaryPath}`));
 					await safeRename(depsCacheDir, temporaryPath);
@@ -28430,7 +28459,7 @@ async function prepareRolldownOptimizerRun(environment, depsInfo, processingCach
 		const exportsData = await (depsInfo[id].exportsData ?? extractExportsData(environment, src));
 		if (exportsData.jsxLoader) jsxLoader = true;
 		const flatId = flattenId(id);
-		flatIdDeps[flatId] = isWindows ? src.replaceAll("/", "\\") : src;
+		flatIdDeps[flatId] = isWindows$1 ? src.replaceAll("/", "\\") : src;
 		idToExports[id] = exportsData;
 	}));
 	if (optimizerContext.cancelled) return {
@@ -28444,7 +28473,7 @@ async function prepareRolldownOptimizerRun(environment, depsInfo, processingCach
 	const platform = optimizeDeps.rolldownOptions?.platform ?? (environment.config.consumer === "client" || environment.config.ssr.target === "webworker" ? "browser" : "node");
 	const external = [...optimizeDeps.exclude ?? []];
 	const plugins = await asyncFlatten(arraify(pluginsFromConfig));
-	if (external.length) plugins.push(rolldownCjsExternalPlugin(external, platform));
+	if (external.length) plugins.push(rolldownCjsExternalPlugin(external, platform, environment));
 	plugins.push(...rolldownDepPlugin(environment, flatIdDeps, external));
 	let canceled = false;
 	async function build() {
@@ -29784,8 +29813,8 @@ function cssPostPlugin(config) {
 						const relativePath = normalizePath(path.relative(cssAssetDirname, filename));
 						return relativePath[0] === "." ? relativePath : "./" + relativePath;
 					};
-					chunkCSS = chunkCSS.replace(assetUrlRE, (_, fileHash) => {
-						const filename = this.getFileName(fileHash);
+					chunkCSS = chunkCSS.replace(assetUrlRE, (_, fileHash, urlId) => {
+						const filename = this.getFileName(fileHash) + getAssetUrlPostfix(this.environment, urlId);
 						chunk.viteMetadata.importedAssets.add(cleanUrl(filename));
 						return encodeURIPath(toOutputFilePathInCss(filename, "asset", cssAssetName, "css", config, toRelative));
 					});
@@ -30091,7 +30120,7 @@ function createCSSResolvers(config) {
 					skipMainField: true
 				});
 				sassResolve = async (...args) => {
-					if (args[1].startsWith("file://")) args[1] = fileURLToPath(args[1], { windows: isWindows && !fileURLWithWindowsDriveRE.test(args[1]) ? false : void 0 });
+					if (args[1].startsWith("file://")) args[1] = fileURLToPath(args[1], { windows: isWindows$1 && !fileURLWithWindowsDriveRE.test(args[1]) ? false : void 0 });
 					return resolver(...args);
 				};
 			}
@@ -31612,7 +31641,7 @@ function buildHtmlPlugin(config) {
 						const processedEncodedUrl = await processSrcSet(attr.value, async ({ url }) => {
 							const decodedUrl = decodeURIIfPossible(url);
 							if (decodedUrl !== void 0 && !isExcludedUrl(decodedUrl)) {
-								const result = await processAssetUrl(url, getLinkShouldInline(node, attr.attributes));
+								const result = await processAssetUrl(decodedUrl, getLinkShouldInline(node, attr.attributes));
 								return result !== decodedUrl ? encodeURIPath(result) : url;
 							}
 							return url;
@@ -31794,10 +31823,10 @@ function buildHtmlPlugin(config) {
 					bundle,
 					chunk
 				});
-				result = result.replace(assetUrlRE, (_, fileHash) => {
+				result = result.replace(assetUrlRE, (_, fileHash, urlId) => {
 					const file = this.getFileName(fileHash);
 					if (chunk) chunk.viteMetadata.importedAssets.add(cleanUrl(file));
-					return encodeURIPath(toOutputAssetFilePath(file));
+					return encodeURIPath(toOutputAssetFilePath(file)) + getAssetUrlPostfix(this.environment, urlId);
 				});
 				result = result.replace(publicAssetUrlRE, (_, fileHash) => {
 					const publicAssetPath = toOutputPublicAssetFilePath(getPublicAssetFilename(fileHash, config));
@@ -32128,7 +32157,7 @@ function getImportMap(bundle, options) {
 }
 //#endregion
 //#region src/node/plugins/asset.ts
-const assetUrlRE = /__VITE_ASSET__([\w$]+)__/g;
+const assetUrlRE = /__VITE_ASSET__([\w$]{22})(?:_([a-f\d]{24}))?__/g;
 const encodedHashPlaceholderRE = /!~%7B([\w$]{1,17})%7D~/g;
 function unescapeHashPlaceholders(uri) {
 	return uri.replace(encodedHashPlaceholderRE, "!~{$1}~");
@@ -32159,10 +32188,10 @@ function renderAssetUrlInJS(pluginContext, chunk, opts, code) {
 	assetUrlRE.lastIndex = 0;
 	while (match = assetUrlRE.exec(code)) {
 		s ||= new MagicString(code);
-		const [full, referenceId] = match;
+		const [full, referenceId, urlId] = match;
 		const file = pluginContext.getFileName(referenceId);
 		chunk.viteMetadata.importedAssets.add(cleanUrl(file));
-		const replacement = toOutputFilePathInJS(environment, file, "asset", chunk.fileName, "js", toRelativeRuntime);
+		const replacement = toOutputFilePathInJS(environment, file + getAssetUrlPostfix(environment, urlId), "asset", chunk.fileName, "js", toRelativeRuntime);
 		const replacementString = typeof replacement === "string" ? JSON.stringify(encodeURIPath(replacement)).slice(1, -1) : `"+${replacement.runtime}+"`;
 		s.update(match.index, match.index + full.length, replacementString);
 	}
@@ -32236,7 +32265,7 @@ function assetPlugin(config) {
 					};
 				}
 				return {
-					code: `export default ${formatBuiltAsset(resolved, "js")}`,
+					code: `export default ${formatBuiltAsset(resolved, "js", addFileUrlMetadataForAsset(this.environment, resolved, "js"))}`,
 					moduleSideEffects: config.command === "build" && this.getModuleInfo(id)?.isEntry ? "no-treeshake" : false,
 					meta: config.command === "build" ? { "vite:asset": true } : void 0,
 					moduleType: "js"
@@ -32258,8 +32287,9 @@ function assetPlugin(config) {
 				}
 				files.add(cleanUrl(fileName));
 				const toRelativeRuntime = createToImportMetaURLBasedRelativeRuntime(format, environment.config.isWorker);
-				if ((urlId ? fileUrlMetadata.get(environment)?.get(urlId) : void 0)?.asFileUrl) return toRelativeRuntime(fileName, chunkId).runtime;
-				const replacement = toOutputFilePathInJS(environment, fileName, "asset", chunkId, "js", toRelativeRuntime);
+				const metadata = urlId ? fileUrlMetadata.get(environment)?.get(urlId) : void 0;
+				if (metadata?.asFileUrl) return toRelativeRuntime(fileName, chunkId).runtime;
+				const replacement = toOutputFilePathInJS(environment, fileName + (metadata?.postfix ?? ""), "asset", chunkId, "js", toRelativeRuntime);
 				return typeof replacement === "string" ? JSON.stringify(unescapeHashPlaceholders(encodeURIPath(replacement))) : replacement.runtime;
 			},
 			renderChunk(code, chunk, opts) {
@@ -32356,7 +32386,17 @@ function isGitLfsPlaceholder(content) {
 */
 async function fileToBuiltUrl(pluginContext, id, format, skipPublicCheck = false, forceInline, asFileUrl = false) {
 	const resolved = await resolveBuiltAsset(pluginContext, id, skipPublicCheck, forceInline);
-	return formatBuiltAsset(resolved, format, resolved.type === "reference" && format === "js" && asFileUrl ? addFileUrlMetadata(pluginContext.environment, { asFileUrl }) : void 0);
+	return formatBuiltAsset(resolved, format, addFileUrlMetadataForAsset(pluginContext.environment, resolved, format, asFileUrl));
+}
+function addFileUrlMetadataForAsset(environment, resolved, format, useFileUrl = false) {
+	if (resolved.type !== "reference") return;
+	const asFileUrl = format === "js" && useFileUrl;
+	const { postfix } = resolved;
+	if (!asFileUrl && !postfix) return;
+	return addFileUrlMetadata(environment, {
+		asFileUrl,
+		postfix
+	});
 }
 function addFileUrlMetadata(environment, metadata) {
 	let metadataMap = fileUrlMetadata.get(environment);
@@ -32371,14 +32411,14 @@ function addFileUrlMetadata(environment, metadata) {
 	metadataMap.set(urlId, metadata);
 	return urlId;
 }
+function getAssetUrlPostfix(environment, urlId) {
+	return urlId ? fileUrlMetadata.get(environment)?.get(urlId)?.postfix ?? "" : "";
+}
 /** Format a resolved asset as either a JS expression or a plain-text string. */
 function formatBuiltAsset(resolved, format, urlId) {
 	if (resolved.type === "reference") {
-		if (format === "js") {
-			const base = urlId ? `import.meta.ROLLDOWN_FILE_URL_${resolved.referenceId}_${urlId}` : `import.meta.ROLLDOWN_FILE_URL_${resolved.referenceId}`;
-			return resolved.postfix ? `${base} + ${JSON.stringify(resolved.postfix)}` : base;
-		}
-		return `__VITE_ASSET__${resolved.referenceId}__${resolved.postfix}`;
+		if (format === "js") return urlId ? `import.meta.ROLLDOWN_FILE_URL_${resolved.referenceId}_${urlId}` : `import.meta.ROLLDOWN_FILE_URL_${resolved.referenceId}`;
+		return `__VITE_ASSET__${resolved.referenceId}${urlId ? `_${urlId}` : ""}__`;
 	}
 	return format === "js" ? JSON.stringify(encodeURIPath(resolved.value)) : resolved.value;
 }
@@ -32728,7 +32768,7 @@ function normalizeWindowsPath(input = "") {
 	return input.replace(/\\/g, "/").replace(_DRIVE_LETTER_START_RE, (r) => r.toUpperCase());
 }
 const _IS_ABSOLUTE_RE = /^[/\\](?![/\\])|^[/\\]{2}(?!\.)|^[A-Za-z]:[/\\]/;
-function cwd() {
+function cwd$1() {
 	if (typeof process !== "undefined" && typeof process.cwd === "function") return process.cwd().replace(/\\/g, "/");
 	return "/";
 }
@@ -32737,7 +32777,7 @@ const resolve$2 = function(...arguments_) {
 	let resolvedPath = "";
 	let resolvedAbsolute = false;
 	for (let index = arguments_.length - 1; index >= -1 && !resolvedAbsolute; index--) {
-		const path = index >= 0 ? arguments_[index] : cwd();
+		const path = index >= 0 ? arguments_[index] : cwd$1();
 		if (!path || path.length === 0) continue;
 		resolvedPath = `${path}/${resolvedPath}`;
 		resolvedAbsolute = isAbsolute$2(path);
@@ -34073,9 +34113,10 @@ function terserPlugin(config) {
 			return !!environment.config.build.minify;
 		},
 		async renderChunk(code, chunk, outputOptions) {
-			const usesOxcMinifier = (config.build.minify === true || config.build.minify === "oxc") && outputOptions.minify !== false;
+			const minify = this.environment.config.build.minify;
+			const usesOxcMinifier = (minify === true || minify === "oxc") && outputOptions.minify !== false;
 			const minifyLegacyWithTerser = this.environment.config.isOutputOptionsForLegacyChunks?.(outputOptions) && !usesOxcMinifier;
-			if (config.build.minify !== "terser" && !minifyLegacyWithTerser) return null;
+			if (minify !== "terser" && !minifyLegacyWithTerser) return null;
 			worker ||= makeWorker();
 			const terserPath = pathToFileURL(loadTerserPath(config.root)).href;
 			try {
@@ -34362,6 +34403,11 @@ function resolveRolldownOptions(environment, chunkMetadataMap) {
 		if (output.sourcemap) logger.warnOnce(import_picocolors.default.yellow("Vite does not support \"rolldownOptions.output.sourcemap\". Please use \"build.sourcemap\" instead."));
 		const format = output.format || "es";
 		const jsExt = ssr && !isSsrTargetWebworkerEnvironment || libOptions ? resolveOutputJsExtension(format, findNearestPackageData(root, packageCache)?.data.type) : "js";
+		const resolvedMinify = options.minify === "oxc" ? libOptions && (format === "es" || format === "esm") ? {
+			compress: true,
+			mangle: true,
+			codegen: false
+		} : true : options.minify === false ? "dce-only" : false;
 		return {
 			dir: outDir,
 			format,
@@ -34373,13 +34419,12 @@ function resolveRolldownOptions(environment, chunkMetadataMap) {
 			chunkFileNames: libOptions ? `[name]-[hash].${jsExt}` : path.posix.join(options.assetsDir, `[name]-[hash].${jsExt}`),
 			assetFileNames: libOptions ? `[name].[ext]` : path.posix.join(options.assetsDir, `[name]-[hash].[ext]`),
 			codeSplitting: output.codeSplitting ?? (output.format === "umd" || output.format === "iife" || isSsrTargetWebworkerEnvironment && (typeof input === "string" || Object.keys(input).length === 1) ? false : void 0),
-			minify: options.minify === "oxc" ? libOptions && (format === "es" || format === "esm") ? {
-				compress: true,
-				mangle: true,
-				codegen: false
-			} : true : options.minify === false ? "dce-only" : false,
 			topLevelVar: true,
 			...output,
+			minify: output.minify === void 0 ? resolvedMinify : typeof output.minify === "object" && typeof resolvedMinify === "object" ? {
+				...resolvedMinify,
+				...output.minify
+			} : output.minify,
 			comments: typeof output.comments === "boolean" ? output.comments : {
 				annotation: !options.minify || libOptions && (format === "es" || format === "esm"),
 				jsdoc: !options.minify,
@@ -35914,7 +35959,7 @@ function inlineSourceMap(mod, result, startOffset) {
 		...map,
 		mappings: ";".repeat(startOffset) + map.mappings
 	} : map;
-	result.code = `${code.trimEnd()}\n//# sourceURL=${mod.id}\n${MODULE_RUNNER_SOURCEMAPPING_SOURCE}\n//# ${SOURCEMAPPING_URL}=${genSourceMapUrl(sourceMap)}\n`;
+	result.code = `${code.trimEnd()}\n//# sourceURL=${encodeSourceURL(mod.id)}\n${MODULE_RUNNER_SOURCEMAPPING_SOURCE}\n//# ${SOURCEMAPPING_URL}=${genSourceMapUrl(sourceMap)}\n`;
 	return result;
 }
 //#endregion
@@ -35948,7 +35993,8 @@ var MemoryFiles = class {
 var BundledDev = class {
 	environment;
 	_devEngine;
-	viteRuntime;
+	/** the vite client and the rolldown runtime; set before the first build so `hasBuildOutput` can count them */
+	staticFiles = /* @__PURE__ */ new Map();
 	initialBuildCompleted = false;
 	_closed = false;
 	clients = new Clients();
@@ -35982,12 +36028,13 @@ var BundledDev = class {
 	}
 	pendingPayloadFilenames = /* @__PURE__ */ new Set();
 	get hasBuildOutput() {
-		return this.memoryFiles.size > 1 || this.memoryFiles.size === 1 && !this.memoryFiles.has("bundledDevClient.mjs");
+		return this.memoryFiles.size > this.staticFiles.size;
 	}
 	async listen() {
 		this._closed = false;
 		debug$1?.("INITIAL: setup bundle options");
 		const rolldownOptions = await this.getRolldownOptions();
+		await this.storeStaticFiles();
 		if (Array.isArray(rolldownOptions.output) && rolldownOptions.output.length > 1) throw new Error("multiple output options are not supported in dev mode");
 		const outputOptions = Array.isArray(rolldownOptions.output) ? rolldownOptions.output[0] : rolldownOptions.output;
 		this.environment.hot.on("vite:client-connected", async (payload, client) => {
@@ -36079,8 +36126,6 @@ var BundledDev = class {
 		}, (e) => {
 			debug$1?.("INITIAL: run error", e);
 		});
-		this.viteRuntime = await getHmrImplementation(this.environment.getTopLevelConfig());
-		this.storeOutputFiles([]);
 		this.waitForInitialBuildFinish().then(() => {
 			if (this._closed) return;
 			debug$1?.("INITIAL: build done");
@@ -36132,6 +36177,7 @@ var BundledDev = class {
 		debug$1?.(`TRIGGER-LAZY: trigger lazy bundling for module ${moduleId} for client ${clientId}`);
 		const result = await this.devEngine.compileEntry(moduleId, clientId);
 		this.pendingPayloadFilenames.add(result.filename);
+		if (result.sourcemapFilename && result.sourcemap) this.memoryFiles.set(`@vite/${result.sourcemapFilename}`, { source: result.sourcemap });
 		return {
 			filename: result.filename,
 			code: result.code + payloadDeliveredAck(result.filename)
@@ -36154,11 +36200,19 @@ var BundledDev = class {
 		await this._devEngine?.close();
 		this.initialBuildCompleted = false;
 	}
+	async storeStaticFiles() {
+		const sources = new Map([[BUNDLED_DEV_CLIENT_FILENAME, await getHmrImplementation(this.environment.getTopLevelConfig())], ...getRolldownDevRuntimeFiles()]);
+		this.staticFiles.clear();
+		for (const [fileName, source] of sources) {
+			const file = {
+				source,
+				etag: (0, import_etag.default)(Buffer.from(source), { weak: true })
+			};
+			this.staticFiles.set(fileName, file);
+			this.memoryFiles.set(fileName, file);
+		}
+	}
 	storeOutputFiles(output) {
-		if (this.viteRuntime) this.memoryFiles.set(BUNDLED_DEV_CLIENT_FILENAME, {
-			source: this.viteRuntime,
-			etag: (0, import_etag.default)(Buffer.from(this.viteRuntime), { weak: true })
-		});
 		for (const outputFile of output) this.memoryFiles.set(outputFile.fileName, () => {
 			const source = outputFile.type === "chunk" ? outputFile.code : outputFile.source;
 			return {

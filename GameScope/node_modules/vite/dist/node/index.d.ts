@@ -1112,7 +1112,8 @@ declare class MemoryFiles {
 declare class BundledDev {
   private environment;
   private _devEngine;
-  private viteRuntime?;
+  /** the vite client and the rolldown runtime; set before the first build so `hasBuildOutput` can count them */
+  private staticFiles;
   private initialBuildCompleted;
   private _closed;
   private clients;
@@ -1144,6 +1145,7 @@ declare class BundledDev {
    */
   markPayloadDelivered(filename: string): void;
   close(): Promise<void>;
+  private storeStaticFiles;
   private storeOutputFiles;
   private getRolldownOptions;
   private handleHmrOutput;

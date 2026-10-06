@@ -253,6 +253,64 @@ const createWebSocketModuleRunnerTransport = (options) => {
 	};
 };
 //#endregion
+//#region src/shared/pretty-format.ts
+const DEFAULT_OPTIONS = {
+	maxDepth: 3,
+	maxWidth: 100
+};
+const objectToString = Object.prototype.toString;
+const errorToString = Error.prototype.toString;
+const identifierRE = /^[a-z_$][\w$]*$/i;
+function prettyFormat(value, options = {}) {
+	return printer(value, {
+		...DEFAULT_OPTIONS,
+		...options
+	}, 0, []);
+}
+function printer(value, config, depth, refs) {
+	return printBasicValue(value) ?? printComplexValue(value, config, depth, refs);
+}
+function printBasicValue(value) {
+	if (value == null) return String(value);
+	if (typeof value === "string") return JSON.stringify(value);
+	if (typeof value === "number") return Object.is(value, -0) ? "-0" : String(value);
+	if (typeof value === "bigint") return `${value}n`;
+	if (typeof value === "boolean" || typeof value === "symbol") return String(value);
+	if (typeof value === "function") return value.name ? `[Function: ${value.name}]` : "[Function]";
+	const type = objectToString.call(value);
+	if (type === "[object Date]") return Number.isNaN(+value) ? "Date { NaN }" : value.toISOString();
+	if (type === "[object Error]" || value instanceof Error) return `[${errorToString.call(value)}]`;
+}
+function printComplexValue(value, config, depth, refs) {
+	if (refs.includes(value)) return "[Circular]";
+	refs = [...refs, value];
+	const hitMaxDepth = ++depth > config.maxDepth;
+	if (Array.isArray(value)) return hitMaxDepth ? "[Array]" : `[${printListItems(value, config, depth, refs)}]`;
+	return hitMaxDepth ? "[Object]" : `{${printObjectProperties(value, config, depth, refs)}}`;
+}
+function printListItems(value, config, depth, refs) {
+	const width = Math.min(value.length, config.maxWidth);
+	const result = [];
+	for (let i = 0; i < width; i++) result.push(i in value ? printer(value[i], config, depth, refs) : "");
+	if (width < value.length) result.push(`…(${value.length - width})`);
+	return withSpacing(result);
+}
+function printObjectProperties(value, config, depth, refs) {
+	const keys = Object.keys(value);
+	const width = Math.min(keys.length, config.maxWidth);
+	const result = [];
+	for (let i = 0; i < width; i++) {
+		const key = keys[i];
+		const name = key !== "__proto__" && identifierRE.test(key) ? key : JSON.stringify(key);
+		result.push(`${name}: ${printer(value[key], config, depth, refs)}`);
+	}
+	if (width < keys.length) result.push(`…(${keys.length - width})`);
+	return withSpacing(result);
+}
+function withSpacing(values) {
+	return values.length === 0 ? "" : ` ${values.join(", ")} `;
+}
+//#endregion
 //#region src/shared/forwardConsole.ts
 function setupForwardConsoleHandler(transport, options, console = globalThis.console) {
 	if (!options.enabled) return;
@@ -279,7 +337,7 @@ function setupForwardConsoleHandler(transport, options, console = globalThis.con
 					type: "log",
 					data: {
 						level,
-						message: formatConsoleArgs(args)
+						message: truncateConsoleMessage(formatConsoleArgs(args))
 					}
 				}
 			});
@@ -356,32 +414,25 @@ function formatConsoleArgs(args) {
 }
 function stringifyConsoleArg(value) {
 	if (typeof value === "string") return value;
-	if (typeof value === "number" || typeof value === "boolean" || typeof value === "undefined") return String(value);
-	if (typeof value === "symbol") return value.toString();
-	if (typeof value === "function") return value.name ? `[Function: ${value.name}]` : "[Function]";
 	if (value instanceof Error) return value.stack || `${value.name}: ${value.message}`;
-	if (typeof value === "bigint") return `${value}n`;
-	const seen = /* @__PURE__ */ new WeakSet();
 	try {
-		return JSON.stringify(value, (_, nested) => {
-			if (typeof nested === "bigint") return `${nested}n`;
-			if (nested instanceof Error) return {
-				name: nested.name,
-				message: nested.message,
-				stack: nested.stack
-			};
-			if (nested && typeof nested === "object") {
-				if (seen.has(nested)) return "[Circular]";
-				seen.add(nested);
-			}
-			return nested;
-		}) ?? String(value);
+		return prettyFormat(value);
 	} catch {
 		return String(value);
 	}
 }
+const MAX_CONSOLE_MESSAGE_LENGTH = 1e4;
+function truncateConsoleMessage(message) {
+	if (message.length <= MAX_CONSOLE_MESSAGE_LENGTH) return message;
+	let end = 9999;
+	if (isHighSurrogate(message[end - 1])) end--;
+	return `${message.slice(0, end)}…`;
+}
+function isHighSurrogate(value) {
+	return value >= "\ud800" && value <= "\udbff";
+}
 //#endregion
-//#region \0@oxc-project+runtime@0.150.0/helpers/esm/typeof.js
+//#region \0@oxc-project+runtime@0.151.0/helpers/esm/typeof.js
 function _typeof(o) {
 	"@babel/helpers - typeof";
 	return _typeof = "function" == typeof Symbol && "symbol" == typeof Symbol.iterator ? function(o) {
@@ -391,7 +442,7 @@ function _typeof(o) {
 	}, _typeof(o);
 }
 //#endregion
-//#region \0@oxc-project+runtime@0.150.0/helpers/esm/toPrimitive.js
+//#region \0@oxc-project+runtime@0.151.0/helpers/esm/toPrimitive.js
 function toPrimitive(t, r) {
 	if ("object" != _typeof(t) || !t) return t;
 	var e = t[Symbol.toPrimitive];
@@ -403,13 +454,13 @@ function toPrimitive(t, r) {
 	return ("string" === r ? String : Number)(t);
 }
 //#endregion
-//#region \0@oxc-project+runtime@0.150.0/helpers/esm/toPropertyKey.js
+//#region \0@oxc-project+runtime@0.151.0/helpers/esm/toPropertyKey.js
 function toPropertyKey(t) {
 	var i = toPrimitive(t, "string");
 	return "symbol" == _typeof(i) ? i : i + "";
 }
 //#endregion
-//#region \0@oxc-project+runtime@0.150.0/helpers/esm/defineProperty.js
+//#region \0@oxc-project+runtime@0.151.0/helpers/esm/defineProperty.js
 function _defineProperty(e, r, t) {
 	return (r = toPropertyKey(r)) in e ? Object.defineProperty(e, r, {
 		value: t,

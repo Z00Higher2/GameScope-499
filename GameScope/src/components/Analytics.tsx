@@ -27,9 +27,9 @@ interface AnalyticsProps {
   darkMode: boolean;
   setDarkMode: React.Dispatch<React.SetStateAction<boolean>>;
 
-  currentPage: "dashboard" | "analytics";
+  currentPage: "dashboard" | "reviews" | "analytics";
   setCurrentPage: React.Dispatch<
-    React.SetStateAction<"dashboard" | "analytics">
+    React.SetStateAction<"dashboard" | "reviews" | "analytics">
   >;
 
   /*
