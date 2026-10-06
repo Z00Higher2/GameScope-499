@@ -9,21 +9,20 @@ use game_reviews;
 
 -- ============================================================
 -- GAMES
--- For testing purposes, get rid of the not nulls because it
--- forces us to provide values for them
 -- ============================================================
 
 create table if not exists games(
     game_id int unsigned auto_increment not null,
     app_id int unsigned not null,
     game_name varchar(255) not null,
-    game_release_date date not null,
+    game_release_date date,
     game_description text,
-    game_developer varchar(255) not null,
+    game_developer varchar(255),
     game_publisher varchar(255),
-    game_price decimal(10,2) not null,
+    game_price decimal(10,2),
 
     primary key (game_id),
+    unique key uq_games_app_id (app_id),
     index idx_game_name (game_name)
 ) ENGINE = InnoDB;
 
@@ -41,6 +40,8 @@ create table if not exists reviews(
     playtime_at_review_hours decimal(10,2) not null,
     helpful_votes int not null default 0,
     language varchar(50),
+    created_at datetime,
+    updated_at datetime,
 
     primary key (review_id),
     foreign key (game_id) 
@@ -53,7 +54,31 @@ create table if not exists reviews(
     index idx_play_hours_at_review (playtime_at_review_hours),
     index idx_helpful_votes (helpful_votes),
     index idx_language (language),
-    index idx_recommended (recommended)
+    index idx_recommended (recommended),
+    index idx_revs_game_created (game_id, created_at)
+) ENGINE = InnoDB;
+
+
+-- ============================================================
+-- GAME UPDATES
+-- Developer announcements from Steam, collected by steam_updates.py
+-- ============================================================
+
+create table if not exists game_updates(
+    update_id varchar(32) not null,
+    game_id int unsigned not null,
+    title varchar(255) not null,
+    url varchar(512),
+    posted_at datetime not null,
+    is_patch_notes boolean not null default false,
+
+    primary key (update_id),
+    foreign key (game_id)
+    references games(game_id)
+    on update cascade
+    on delete cascade,
+
+    index idx_updates_game_posted (game_id, posted_at)
 ) ENGINE = InnoDB;
 
 
@@ -95,8 +120,10 @@ show tables;
 
 describe games;
 describe reviews;
+describe game_updates;
 describe reviews_import;
 
 select * from games;
 select * from reviews;
+select * from game_updates;
 select * from reviews_import;
