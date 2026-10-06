@@ -9,6 +9,8 @@ use game_reviews;
 
 -- ============================================================
 -- GAMES
+-- For testing purposes, get rid of the not nulls because it
+-- forces us to provide values for them
 -- ============================================================
 
 create table if not exists games(
@@ -18,11 +20,11 @@ create table if not exists games(
     game_release_date date not null,
     game_description text,
     game_developer varchar(255) not null,
-    game_publisher varchar(255) not null,
+    game_publisher varchar(255),
     game_price decimal(10,2) not null,
 
     primary key (game_id),
-    index idx_game_name (game_name),
+    index idx_game_name (game_name)
 ) ENGINE = InnoDB;
 
 
@@ -35,8 +37,8 @@ create table if not exists reviews(
 	review_id varchar(255) not null,
     review_text text,
     recommended boolean not null,
-    playtime_hours decimal(10,2),
-    playtime_at_review_hours decimal(10,2),
+    playtime_hours  decimal(10,2) not null,
+    playtime_at_review_hours decimal(10,2) not null,
     helpful_votes int not null default 0,
     language varchar(50),
 
@@ -44,16 +46,7 @@ create table if not exists reviews(
     foreign key (game_id) 
     references games(game_id)
     on update cascade
-    on delete cascade
-
-    constraint chek_revs_help_vote
-        check (helpful_votes >= 0)
-
-    constraint chek_revs_play_time
-        check (playtime_hours >= 0 and playtime_hours is null)
-    
-        constraint chek_revs_play_time_at_rev
-        check (playtime_at_review_hours >= 0 and playtime_at_review_hours is null)
+    on delete cascade,
 
     index idx_revs_game_id (game_id),
     index idx_play_hours (playtime_hours),
@@ -91,11 +84,11 @@ create table if not exists reviews_import(
         foreign key (game_id)
         references games(game_id)
         on update cascade
-        on delete cascade
+        on delete cascade,
 
     index idx_imports_game_id (game_id),
     index idx_imports_date (import_started_at),
-    index idx_imports_status (status),
+    index idx_imports_status (status)
 ) ENGINE = InnoDB;
 
 show tables;
