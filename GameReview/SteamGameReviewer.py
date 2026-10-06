@@ -1,6 +1,7 @@
 import requests
 import csv
 import time
+from datetime import datetime, timezone
 
 
 # ==========================================
@@ -42,6 +43,17 @@ def get_game_name(app_id):
 
         print("Steam returned invalid JSON.")
         return None
+
+
+def format_timestamp(timestamp):
+
+    if not timestamp:
+        return ""
+
+    return datetime.fromtimestamp(
+        timestamp,
+        timezone.utc
+    ).strftime("%Y-%m-%d %H:%M:%S")
 
 
 # ==========================================
@@ -190,7 +202,15 @@ def get_reviews(app_id, max_reviews=1000, language="english"):
                     review.get(
                         "votes_up",
                         0
-                    )
+                    ),
+
+                "created_at": format_timestamp(
+                    review.get("timestamp_created")
+                ),
+
+                "updated_at": format_timestamp(
+                    review.get("timestamp_updated")
+                )
             }
 
             reviews.append(review_data)
@@ -248,7 +268,9 @@ def save_reviews(reviews, app_id, game_name):
         "recommended",
         "playtime_hours",
         "playtime_at_review_hours",
-        "helpful_votes"
+        "helpful_votes",
+        "created_at",
+        "updated_at"
     ]
 
     with open(
