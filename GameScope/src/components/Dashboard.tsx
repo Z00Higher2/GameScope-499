@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import Navbar from "./Navbar";
+import { analyzeGame, searchGames } from "../api";
+import type { GameAnalysis, GameSearchResult } from "../api";
 
 import "./Dashboard.css";
 
@@ -25,6 +27,11 @@ interface DashboardProps {
 
   setAnalyzedAppId: React.Dispatch<React.SetStateAction<string>>;
 
+  // Results from the GameScope API for the analyzed game
+  analysis: GameAnalysis | null;
+
+  setAnalysis: React.Dispatch<React.SetStateAction<GameAnalysis | null>>;
+
   onLogoClick: () => void;
 }
 
@@ -37,6 +44,8 @@ function Dashboard({
   setAnalyzed,
   analyzedAppId,
   setAnalyzedAppId,
+  analysis,
+  setAnalysis,
   onLogoClick,
 }: DashboardProps) {
   // ==================================================
@@ -44,9 +53,8 @@ function Dashboard({
   // ==================================================
   // Users can search for a Steam game by name.
   //
-  // BACKEND:
-  // Eventually this search should request matching
-  // games from FastAPI + Steam and return their App IDs.
+  // The GameScope API asks Steam's store search for
+  // matching games and returns their App IDs.
   // ==================================================
 
   const [gameSearch, setGameSearch] = useState("");
@@ -55,166 +63,100 @@ function Dashboard({
   // to analyze.
   //
   // IMPORTANT:
-  // This is separate from analyzedGameName.
+  // This is separate from the analyzed game.
   // Selecting a new game should NOT change the
   // currently displayed analysis.
-  const [selectedGame, setSelectedGame] = useState<{
-    name: string;
-    appId: string;
-  } | null>(null);
-
-  // ==================================================
-  // ANALYZED GAME
-  // ==================================================
-  // This stores the game whose results are currently
-  // being displayed.
-  //
-  // It only changes AFTER the user presses Analyze.
-  // ==================================================
-
-  const [analyzedGameName, setAnalyzedGameName] = useState(() => {
-    if (analyzedAppId === "2694490") {
-      return "Path of Exile 2";
-    }
-
-    return analyzedAppId
-      ? `Steam Game ${analyzedAppId}`
-      : "";
-  });
+  const [selectedGame, setSelectedGame] =
+    useState<GameSearchResult | null>(null);
 
   // App ID input.
   const [appId, setAppId] = useState(analyzedAppId);
 
   // ==================================================
-  // LOADING
+  // LOADING / ERRORS
   // ==================================================
 
   const [loading, setLoading] = useState(false);
 
-  // ==================================================
-  // DEMO GAME SEARCH RESULTS
-  // ==================================================
-  // BACKEND:
-  // Replace this with results returned by FastAPI.
-  // ==================================================
-
-  const gameSearchResults = [
-    {
-      name: "Path of Exile 2",
-      appId: "2694490",
-    },
-    {
-      name: "Monster Hunter Wilds",
-      appId: "2246340",
-    },
-    {
-      name: "Counter-Strike 2",
-      appId: "730",
-    },
-  ];
-
-  const filteredGames = gameSearch.trim()
-    ? gameSearchResults.filter((game) =>
-        game.name
-          .toLowerCase()
-          .includes(gameSearch.trim().toLowerCase())
-      )
-    : [];
+  // Why the last Analyze failed (shown under the card)
+  const [error, setError] = useState("");
 
   // ==================================================
-  // GAME NAME
+  // GAME SEARCH RESULTS
   // ==================================================
-  // IMPORTANT:
-  // Use analyzedGameName here instead of selectedGame.
+
+  const [gameSearchResults, setGameSearchResults] =
+    useState<GameSearchResult[]>([]);
+
+  const [searchError, setSearchError] = useState("");
+
+  useEffect(() => {
+    const query = gameSearch.trim();
+
+    // Nothing to search, or a result was already picked
+    if (!query || selectedGame) {
+      setGameSearchResults([]);
+      setSearchError("");
+      return;
+    }
+
+    const controller = new AbortController();
+
+    // Wait until the user stops typing before searching.
+    const timer = window.setTimeout(() => {
+      searchGames(query, controller.signal)
+        .then((results) => {
+          setGameSearchResults(results);
+          setSearchError(
+            results.length === 0
+              ? "No Steam games found. Try another name or enter the App ID."
+              : ""
+          );
+        })
+        .catch((searchFailure: Error) => {
+          if (searchFailure.name !== "AbortError") {
+            setGameSearchResults([]);
+            setSearchError(searchFailure.message);
+          }
+        });
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [gameSearch, selectedGame]);
+
+  // ==================================================
+  // ANALYZED GAME
+  // ==================================================
+  // The game whose results are currently displayed.
   //
-  // This prevents the dashboard from changing the
-  // currently analyzed game before Analyze is clicked.
+  // analysis only changes AFTER Analyze finishes, so
+  // picking a new game doesn't change the displayed
+  // analysis early.
   // ==================================================
 
   const gameName =
-    analyzedGameName ||
-    (analyzedAppId === "2694490"
-      ? "Path of Exile 2"
-      : analyzedAppId
-        ? `Steam Game ${analyzedAppId}`
-        : "Enter a Steam App ID");
+    analysis?.game.name ||
+    (analyzedAppId
+      ? `Steam Game ${analyzedAppId}`
+      : "Enter a Steam App ID");
 
-  // ==================================================
-  // DEMO REVIEW DATA
-  // ==================================================
-  // BACKEND:
-  // Replace this with the actual response from MySQL.
-  // ==================================================
+  // Steam IDs are intentionally NOT displayed with
+  // feedback because the project treats reviews as
+  // anonymous.
+  const topIssues = analysis?.topIssues ?? [];
 
-  const reviewData = {
-    totalReviews: 1284,
-    positiveReviews: 925,
-    negativeReviews: 359,
-    positivePercentage: 72,
-    negativePercentage: 28,
-  };
-
-  // ==================================================
-  // TOP ISSUES
-  // ==================================================
-  // BACKEND:
-  // These will eventually be calculated from the
-  // filtered Steam reviews.
-  // ==================================================
-
-  const topIssues = [
-    {
-      name: "Performance",
-      count: 932,
-    },
-    {
-      name: "Inventory",
-      count: 821,
-    },
-    {
-      name: "Bugs",
-      count: 523,
-    },
-    {
-      name: "Multiplayer",
-      count: 482,
-    },
-  ];
-
-  // ==================================================
-  // RECENT FEEDBACK
-  // ==================================================
-  // BACKEND:
-  // These should eventually come from MySQL.
-  //
-  // Steam IDs are intentionally NOT displayed because
-  // the project treats reviews as anonymous.
-  // ==================================================
-
-  const recentFeedback = [
-    {
-      type: "positive",
-      text: "The combat system and overall gameplay are excellent.",
-    },
-    {
-      type: "negative",
-      text: "Performance problems make the game difficult to enjoy.",
-    },
-    {
-      type: "positive",
-      text: "Great graphics and a lot of content to explore.",
-    },
-  ];
+  const recentFeedback = analysis?.recentFeedback ?? [];
 
   // ==================================================
   // ANALYZE GAME
   // ==================================================
 
-  const handleAnalyze = (
-    gameToAnalyze?: {
-      name: string;
-      appId: string;
-    }
+  const handleAnalyze = async (
+    gameToAnalyze?: GameSearchResult,
+    refresh = false
   ) => {
     // If a game was selected from search, use that game.
     //
@@ -227,71 +169,79 @@ function Dashboard({
       return;
     }
 
+    if (!/^\d+$/.test(trimmedAppId)) {
+      setError(
+        "Steam App IDs are numbers only, for example 620 for Portal 2."
+      );
+      return;
+    }
+
+    setError("");
     setLoading(true);
 
     // ==================================================
     // BACKEND:
     //
-    // Eventually replace this simulated timeout with
-    // your actual FastAPI request.
+    // The GameScope API (GameReview/api.py):
     //
-    // Example:
+    // 1. Receives the Steam App ID
+    // 2. Collects Steam reviews
+    // 3. Filters low-quality reviews
+    // 4. Stores/reads reviews from MySQL
+    // 5. Calculates analytics
+    // 6. Returns the results
     //
-    // fetch(`/api/analyze/${trimmedAppId}`)
-    //
-    // The backend should:
-    //
-    // 1. Receive Steam App ID
-    // 2. Collect Steam reviews
-    // 3. Filter low-quality reviews
-    // 4. Store/read reviews from MySQL
-    // 5. Calculate analytics
-    // 6. Return the results
+    // Games analyzed before load straight from MySQL.
+    // Re-analyze (refresh) collects fresh reviews.
     // ==================================================
 
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      const result = await analyzeGame(
+        trimmedAppId,
+        refresh
+      );
+
+      // ==================================================
+      // SAVE THE ANALYZED GAME
+      // ==================================================
+      // The displayed game changes ONLY here, after
+      // Analyze has actually finished.
+      // ==================================================
+
+      setAnalysis(result);
 
       // Tell App.tsx that analysis is complete.
       setAnalyzed(true);
 
       // Save the App ID.
-      setAnalyzedAppId(trimmedAppId);
+      setAnalyzedAppId(result.game.appId);
 
-      // ==================================================
-      // SAVE THE ANALYZED GAME NAME
-      // ==================================================
-      // This is the important part.
-      //
-      // The displayed game name changes ONLY here,
-      // after Analyze has actually been triggered.
-      // ==================================================
-
-      if (gameToAnalyze) {
-        setAnalyzedGameName(gameToAnalyze.name);
-      } else if (trimmedAppId === "2694490") {
-        setAnalyzedGameName("Path of Exile 2");
-      } else {
-        setAnalyzedGameName(
-          `Steam Game ${trimmedAppId}`
-        );
-      }
-
-      // Clear the selected search game after analysis.
+      // Clear the search after analysis so the old
+      // results don't pop back open.
       setSelectedGame(null);
+      setGameSearch("");
 
       window.scrollTo({
         top: 0,
         left: 0,
         behavior: "smooth",
       });
-    }, 2000);
+    } catch (analyzeFailure) {
+      setError(
+        analyzeFailure instanceof Error
+          ? analyzeFailure.message
+          : "The analysis failed."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   // ==================================================
   // RE-ANALYZE
   // ==================================================
-  // Re-analyze the game that is CURRENTLY displayed.
+  // Re-analyze the game that is CURRENTLY displayed,
+  // collecting fresh reviews from Steam.
   //
   // It should NOT use the search box or selected game.
   // ==================================================
@@ -301,10 +251,13 @@ function Dashboard({
       return;
     }
 
-    handleAnalyze({
-      name: analyzedGameName,
-      appId: analyzedAppId,
-    });
+    handleAnalyze(
+      {
+        name: gameName,
+        appId: analyzedAppId,
+      },
+      true
+    );
   };
 
   // ==================================================
@@ -313,13 +266,10 @@ function Dashboard({
   // Selecting a game prepares it for analysis.
   //
   // IMPORTANT:
-  // We do NOT change analyzedGameName here.
+  // We do NOT change the analyzed game here.
   // ==================================================
 
-  const handleSelectGame = (game: {
-    name: string;
-    appId: string;
-  }) => {
+  const handleSelectGame = (game: GameSearchResult) => {
     setSelectedGame(game);
 
     setAppId(game.appId);
@@ -397,10 +347,16 @@ function Dashboard({
                 SEARCH RESULTS
             ================================================== */}
 
-            {filteredGames.length > 0 &&
+            {searchError && !selectedGame && (
+              <p className="app-id-help">
+                {searchError}
+              </p>
+            )}
+
+            {gameSearchResults.length > 0 &&
               !selectedGame && (
                 <div className="game-search-results">
-                  {filteredGames.map((game) => (
+                  {gameSearchResults.map((game) => (
                     <button
                       type="button"
                       className="game-search-result"
@@ -514,6 +470,21 @@ function Dashboard({
         </section>
 
         {/* ==================================================
+            ERROR
+        ================================================== */}
+
+        {error && !loading && (
+          <section
+            className="analyze-error"
+            role="alert"
+          >
+            <strong>Couldn't analyze that game</strong>
+
+            <p>{error}</p>
+          </section>
+        )}
+
+        {/* ==================================================
             LOADING
         ================================================== */}
 
@@ -525,6 +496,8 @@ function Dashboard({
 
             <p>
               Collecting and processing player feedback.
+              A game analyzed for the first time takes
+              about 15 seconds.
             </p>
           </section>
         )}
@@ -533,7 +506,7 @@ function Dashboard({
             ANALYZED GAME RESULTS
         ================================================== */}
 
-        {analyzed && !loading && (
+        {analyzed && analysis && !loading && (
           <>
             {/* ==================================================
                 CURRENT GAME
@@ -575,7 +548,7 @@ function Dashboard({
                 </span>
 
                 <strong className="stat-value">
-                  {reviewData.totalReviews.toLocaleString()}
+                  {analysis.summary.totalReviews.toLocaleString()}
                 </strong>
               </div>
 
@@ -585,11 +558,11 @@ function Dashboard({
                 </span>
 
                 <strong className="stat-value">
-                  {reviewData.positivePercentage}%
+                  {analysis.summary.positivePercentage}%
                 </strong>
 
                 <span className="stat-detail">
-                  {reviewData.positiveReviews.toLocaleString()}{" "}
+                  {analysis.summary.positiveReviews.toLocaleString()}{" "}
                   reviews
                 </span>
               </div>
@@ -600,11 +573,11 @@ function Dashboard({
                 </span>
 
                 <strong className="stat-value">
-                  {reviewData.negativePercentage}%
+                  {analysis.summary.negativePercentage}%
                 </strong>
 
                 <span className="stat-detail">
-                  {reviewData.negativeReviews.toLocaleString()}{" "}
+                  {analysis.summary.negativeReviews.toLocaleString()}{" "}
                   reviews
                 </span>
               </div>
@@ -625,17 +598,13 @@ function Dashboard({
                 </h2>
 
                 <p>
-                  The analyzed reviews contain both
-                  positive and negative player feedback.
-                  The most frequently mentioned issues can
-                  help identify areas that may require
-                  further attention.
+                  {analysis.analysisSummary}
                 </p>
               </div>
 
               <div className="summary-stat">
                 <strong>
-                  {reviewData.positivePercentage}%
+                  {analysis.summary.positivePercentage}%
                 </strong>
 
                 <span>Recommended</span>
@@ -658,6 +627,13 @@ function Dashboard({
               </div>
 
               <div className="issue-list">
+                {topIssues.length === 0 && (
+                  <p className="dashboard-note">
+                    No common topics found in the
+                    negative reviews.
+                  </p>
+                )}
+
                 {topIssues.map((issue) => (
                   <div
                     className="issue-item"

@@ -1,6 +1,6 @@
 import csv
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 import requests
 
@@ -24,6 +24,17 @@ def parse_release_date(value):
         except ValueError:
             continue
     return ""
+
+# ==========================================
+# Convert Steam Review Timestamp to MySQL DATETIME (UTC)
+# ==========================================
+
+def format_timestamp(value):
+    if not value:
+        return ""
+    return datetime.fromtimestamp(int(value), tz=timezone.utc).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
 
 # ==========================================
 # Get Game Details from Steam
@@ -109,6 +120,8 @@ def get_reviews(app_id, max_reviews=1000, language="english"):
                     ),
                     "helpful_votes": review.get("votes_up") or 0,
                     "language": review.get("language", ""),
+                    "created_at": format_timestamp(review.get("timestamp_created")),
+                    "updated_at": format_timestamp(review.get("timestamp_updated")),
                 }
             )
             if len(reviews) >= max_reviews:
@@ -144,6 +157,8 @@ def save_reviews(reviews, app_id, game):
         "playtime_at_review_hours",
         "helpful_votes",
         "language",
+        "created_at",
+        "updated_at",
     ]
 
     with open(filename, "w", newline="", encoding="utf-8-sig") as file:

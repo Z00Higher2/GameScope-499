@@ -4,6 +4,7 @@ import Dashboard from "./components/Dashboard";
 import Analytics from "./components/Analytics";
 import Reviews from "./components/Reviews";
 import Intro from "./components/Intro";
+import type { GameAnalysis } from "./api";
 
 import "./App.css";
 
@@ -45,6 +46,10 @@ function App() {
   const [analyzed, setAnalyzed] = useState(false);
 
   const [analyzedAppId, setAnalyzedAppId] = useState("");
+
+  // Results from the GameScope API for the analyzed game
+  const [analysis, setAnalysis] =
+    useState<GameAnalysis | null>(null);
 
   // ==================================================
   // GET STARTED
@@ -119,6 +124,8 @@ function App() {
               setAnalyzed={setAnalyzed}
               analyzedAppId={analyzedAppId}
               setAnalyzedAppId={setAnalyzedAppId}
+              analysis={analysis}
+              setAnalysis={setAnalysis}
             />
           )}
 
@@ -135,6 +142,7 @@ function App() {
               onLogoClick={handleLogoClick}
               analyzed={analyzed}
               analyzedAppId={analyzedAppId}
+              analysis={analysis}
             />
           )}
 
@@ -151,6 +159,7 @@ function App() {
               onLogoClick={handleLogoClick}
               analyzed={analyzed}
               analyzedAppId={analyzedAppId}
+              analysis={analysis}
             />
           )}
         </>

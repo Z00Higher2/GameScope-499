@@ -16,6 +16,7 @@ import {
 } from "recharts";
 
 import Navbar from "./Navbar";
+import type { GameAnalysis } from "../api";
 import "./Dashboard.css";
 import "./Analytics.css";
 
@@ -41,9 +42,13 @@ interface AnalyticsProps {
 
     analyzedAppId:
       App ID entered by the user on Dashboard
+
+    analysis:
+      Results from the GameScope API for the analyzed game
   */
   analyzed: boolean;
   analyzedAppId: string;
+  analysis: GameAnalysis | null;
   onLogoClick: () => void;
 
 }
@@ -253,384 +258,137 @@ function formatCenterTotal(value: number): string {
 }
 
 /* =========================================================
-   Analytics
+   Analytics Data
 ========================================================= */
 
-function Analytics({
-  darkMode,
-  setDarkMode,
-  currentPage,
-  setCurrentPage,
-  analyzed,
-  analyzedAppId,
-  onLogoClick
-}: AnalyticsProps) {
-  /* =========================================================
-     GAME INFORMATION
-  ========================================================= */
+interface AnalyticsData {
+  gameName: string;
+  displayedAppId: string;
 
-  /*
-    EXAMPLE:
+  totalReviews: number;
+  positiveReviews: number;
+  negativeReviews: number;
+  positivePercentage: number;
+  negativePercentage: number;
+  averagePlaytime: number;
+  averageHelpfulVotes: number;
 
-    Before a game is analyzed, we display the example
-    Path of Exile 2 dataset.
+  sentimentTrend: {
+    period: string;
+    positive: number;
+    negative: number;
+  }[];
 
-    AFTER ANALYSIS:
+  issueFrequency: { issue: string; reports: number }[];
 
-    analyzedAppId comes from App.tsx.
+  playtimeDistribution: { range: string; reviews: number }[];
 
-    BACKEND:
+  playtimeRecommendation: {
+    range: string;
+    recommended: number;
+    notRecommended: number;
+  }[];
 
-    Eventually the backend should also return:
+  reviewQuality: number;
 
-      game_name
-      app_id
+  reliabilityData: { name: string; value: number }[];
 
-    so the actual Steam game name can be displayed.
-  */
+  positiveTopics: { topic: string; mentions: number }[];
+  negativeTopics: { topic: string; mentions: number }[];
 
-  const exampleGameName = "Path of Exile 2";
-  const exampleAppId = "2694490";
+  mostHelpfulReviews: {
+    reviewNumber: number;
+    sentiment: "Positive" | "Negative";
+    helpfulVotes: number;
+    text: string;
+  }[];
 
-  const displayedAppId = analyzed
-    ? analyzedAppId
-    : exampleAppId;
+  analysisSummary: string;
 
-  /*
-    IMPORTANT:
+  keyInsights: {
+    label: string;
+    tone: "positive" | "negative";
+    text: string;
+  }[];
+}
 
-    Until the backend is connected, we cannot know the
-    actual Steam game name from the App ID.
+/*
+  EXAMPLE DATA
 
-    For now, display the App ID entered by the user.
+  Shown before a game is analyzed, so the page can preview
+  every chart using the Path of Exile 2 example.
+*/
 
-    Later:
+const EXAMPLE_DATA: AnalyticsData = {
+  gameName: "Path of Exile 2",
+  displayedAppId: "2694490",
 
-      gameName = backendData.game_name
-  */
+  totalReviews: 1284,
+  positiveReviews: 925,
+  negativeReviews: 359,
+  positivePercentage: 72,
+  negativePercentage: 28,
+  averagePlaytime: 184,
+  averageHelpfulVotes: 17,
 
-  const gameName = analyzed
-    ? `Steam Game ${displayedAppId}`
-    : exampleGameName;
-
-  /* =========================================================
-     SUMMARY STATISTICS
-  ========================================================= */
-
-  /*
-    BACKEND:
-
-    Replace these values with FastAPI response data.
-
-    Example:
-
-      analysisData.total_reviews
-      analysisData.positive_reviews
-      analysisData.negative_reviews
-      analysisData.average_playtime
-      analysisData.average_helpful_votes
-  */
-
-  const totalReviews = 1284;
-  const positiveReviews = 925;
-  const negativeReviews = 359;
-
-  const positivePercentage = 72;
-  const negativePercentage = 28;
-
-  const averagePlaytime = 184;
-  const averageHelpfulVotes = 17;
-
-  /* =========================================================
-     SENTIMENT TREND
-  ========================================================= */
-
-  /*
-    DEMO DATA
-
-    Your current SQL table does NOT contain timestamps.
-
-    Therefore this chart cannot currently represent
-    real changes over time.
-
-    If review timestamps are added later, the backend
-    can calculate real weekly/monthly sentiment.
-  */
-
-  const sentimentTrend = [
+  sentimentTrend: [
     { period: "Week 1", positive: 74, negative: 26 },
     { period: "Week 2", positive: 71, negative: 29 },
     { period: "Week 3", positive: 76, negative: 24 },
     { period: "Week 4", positive: 72, negative: 28 },
     { period: "Week 5", positive: 70, negative: 30 },
     { period: "Week 6", positive: 73, negative: 27 },
-  ];
+  ],
 
-  /* =========================================================
-     ISSUE FREQUENCY
-  ========================================================= */
+  issueFrequency: [
+    { issue: "Inventory", reports: 1284 },
+    { issue: "Performance", reports: 932 },
+    { issue: "Multiplayer", reports: 641 },
+    { issue: "Bugs", reports: 523 },
+    { issue: "Progression", reports: 417 },
+  ],
 
-  /*
-    BACKEND:
+  playtimeDistribution: [
+    { range: "0-10 Hours", reviews: 186 },
+    { range: "10-50 Hours", reviews: 324 },
+    { range: "50-100 Hours", reviews: 298 },
+    { range: "100-250 Hours", reviews: 281 },
+    { range: "250+ Hours", reviews: 195 },
+  ],
 
-    Python/C++ analysis can identify issues from review
-    text and return the frequency of each issue.
-  */
+  playtimeRecommendation: [
+    { range: "0-10", recommended: 61, notRecommended: 39 },
+    { range: "10-50", recommended: 69, notRecommended: 31 },
+    { range: "50-100", recommended: 74, notRecommended: 26 },
+    { range: "100-250", recommended: 81, notRecommended: 19 },
+    { range: "250+", recommended: 86, notRecommended: 14 },
+  ],
 
-  const issueFrequency = [
-    {
-      issue: "Inventory",
-      reports: 1284,
-    },
-    {
-      issue: "Performance",
-      reports: 932,
-    },
-    {
-      issue: "Multiplayer",
-      reports: 641,
-    },
-    {
-      issue: "Bugs",
-      reports: 523,
-    },
-    {
-      issue: "Progression",
-      reports: 417,
-    },
-  ];
+  reviewQuality: 78,
 
-  /* =========================================================
-     PLAYTIME DISTRIBUTION
-  ========================================================= */
+  reliabilityData: [
+    { name: "Reliable", value: 78 },
+    { name: "Questionable", value: 14 },
+    { name: "Filtered", value: 8 },
+  ],
 
-  const playtimeDistribution = [
-    {
-      range: "0-10 Hours",
-      reviews: 186,
-    },
-    {
-      range: "10-50 Hours",
-      reviews: 324,
-    },
-    {
-      range: "50-100 Hours",
-      reviews: 298,
-    },
-    {
-      range: "100-250 Hours",
-      reviews: 281,
-    },
-    {
-      range: "250+ Hours",
-      reviews: 195,
-    },
-  ];
+  positiveTopics: [
+    { topic: "Combat", mentions: 842 },
+    { topic: "Graphics", mentions: 734 },
+    { topic: "Story", mentions: 621 },
+    { topic: "Sound", mentions: 438 },
+    { topic: "Customization", mentions: 391 },
+  ],
 
-  /* =========================================================
-     PLAYTIME VS RECOMMENDATION
-  ========================================================= */
+  negativeTopics: [
+    { topic: "Performance", mentions: 932 },
+    { topic: "Inventory", mentions: 821 },
+    { topic: "Bugs", mentions: 523 },
+    { topic: "Multiplayer", mentions: 482 },
+    { topic: "Progression", mentions: 417 },
+  ],
 
-  /*
-    NEW ANALYTIC
-
-    Shows how recommendation changes depending on
-    how much time players have spent playing.
-
-    BACKEND:
-
-    Calculate this from:
-
-      playtime_hours
-      recommended
-
-    Example:
-
-      GROUP BY playtime range
-      COUNT recommended = TRUE
-  */
-
-  const playtimeRecommendation = [
-    {
-      range: "0-10",
-      recommended: 61,
-      notRecommended: 39,
-    },
-    {
-      range: "10-50",
-      recommended: 69,
-      notRecommended: 31,
-    },
-    {
-      range: "50-100",
-      recommended: 74,
-      notRecommended: 26,
-    },
-    {
-      range: "100-250",
-      recommended: 81,
-      notRecommended: 19,
-    },
-    {
-      range: "250+",
-      recommended: 86,
-      notRecommended: 14,
-    },
-  ];
-
-  /* =========================================================
-     RECOMMENDATION BREAKDOWN
-  ========================================================= */
-
-  const recommendationData = [
-    {
-      name: "Recommended",
-      value: positiveReviews,
-    },
-    {
-      name: "Not Recommended",
-      value: negativeReviews,
-    },
-  ];
-
-  /* =========================================================
-     REVIEW QUALITY
-  ========================================================= */
-
-  /*
-    BACKEND:
-
-    Eventually calculate using:
-
-      - Review length
-      - Unique words
-      - Helpful votes
-      - Playtime
-      - Detail
-      - Relevance
-      - Lingua language detection
-      - Junk/spam filtering
-  */
-
-  const reviewQuality = 78;
-
-  /* =========================================================
-     REVIEW RELIABILITY
-  ========================================================= */
-
-  /*
-    NEW ANALYTIC
-
-    This is especially important for your project because
-    your application is designed to identify more useful
-    and reliable player feedback.
-
-    BACKEND:
-
-    Your Python/Lingua filtering system can eventually
-    provide these values.
-  */
-
-  const reliabilityData = [
-    {
-      name: "Reliable",
-      value: 78,
-    },
-    {
-      name: "Questionable",
-      value: 14,
-    },
-    {
-      name: "Filtered",
-      value: 8,
-    },
-  ];
-
-  /* =========================================================
-     POSITIVE TOPICS
-  ========================================================= */
-
-  /*
-    NEW ANALYTIC
-
-    BACKEND:
-
-    Python/C++ NLP analysis should identify topics that
-    occur frequently in recommended reviews.
-  */
-
-  const positiveTopics = [
-    {
-      topic: "Combat",
-      mentions: 842,
-    },
-    {
-      topic: "Graphics",
-      mentions: 734,
-    },
-    {
-      topic: "Story",
-      mentions: 621,
-    },
-    {
-      topic: "Sound",
-      mentions: 438,
-    },
-    {
-      topic: "Customization",
-      mentions: 391,
-    },
-  ];
-
-  /* =========================================================
-     NEGATIVE TOPICS
-  ========================================================= */
-
-  const negativeTopics = [
-    {
-      topic: "Performance",
-      mentions: 932,
-    },
-    {
-      topic: "Inventory",
-      mentions: 821,
-    },
-    {
-      topic: "Bugs",
-      mentions: 523,
-    },
-    {
-      topic: "Multiplayer",
-      mentions: 482,
-    },
-    {
-      topic: "Progression",
-      mentions: 417,
-    },
-  ];
-
-  /* =========================================================
-     MOST HELPFUL REVIEWS
-  ========================================================= */
-
-  /*
-    NEW ANALYTIC
-
-    BACKEND:
-
-    Sort reviews by:
-
-      helpful_votes DESC
-
-    Then return the top reviews.
-
-    IMPORTANT:
-
-    Reviewer Steam IDs are NOT displayed because your
-    project wants reviews to remain anonymous.
-  */
-
-  const mostHelpfulReviews = [
+  mostHelpfulReviews: [
     {
       reviewNumber: 1,
       sentiment: "Negative",
@@ -655,21 +413,178 @@ function Analytics({
       helpfulVotes: 523,
       text: "Multiplayer issues and bugs affect the experience.",
     },
-  ];
+  ],
 
+  analysisSummary:
+    "Most analyzed players recommend the game, but inventory and performance issues are frequently mentioned in negative feedback.",
+
+  keyInsights: [
+    {
+      label: "ISSUE",
+      tone: "negative",
+      text: "Inventory problems are frequently mentioned in player feedback.",
+    },
+    {
+      label: "PERFORMANCE",
+      tone: "negative",
+      text: "Performance concerns appear among the most common negative topics.",
+    },
+    {
+      label: "SENTIMENT",
+      tone: "positive",
+      text: "The example dataset contains more recommended reviews than non-recommended reviews.",
+    },
+    {
+      label: "PLAYTIME",
+      tone: "positive",
+      text: "A significant portion of the example feedback comes from players with substantial playtime.",
+    },
+  ],
+};
+
+/*
+  LIVE DATA
+
+  Maps the GameScope API response (calculated in
+  GameReview/analysis.py) to the values the charts use.
+*/
+
+function analyticsFromApi(analysis: GameAnalysis): AnalyticsData {
+  const { summary } = analysis;
+
+  return {
+    gameName: analysis.game.name,
+    displayedAppId: analysis.game.appId,
+
+    totalReviews: summary.totalReviews,
+    positiveReviews: summary.positiveReviews,
+    negativeReviews: summary.negativeReviews,
+    positivePercentage: summary.positivePercentage,
+    negativePercentage: summary.negativePercentage,
+    averagePlaytime: summary.averagePlaytime,
+    averageHelpfulVotes: summary.averageHelpfulVotes,
+
+    sentimentTrend: analysis.sentimentTrend,
+
+    // Topics mentioned most in reviews that don't recommend the game
+    issueFrequency: analysis.negativeTopics.map((topic) => ({
+      issue: topic.topic,
+      reports: topic.mentions,
+    })),
+
+    playtimeDistribution: analysis.playtimeDistribution,
+    playtimeRecommendation: analysis.playtimeRecommendation,
+
+    reviewQuality: summary.reviewQuality,
+    reliabilityData: analysis.reliability,
+
+    positiveTopics: analysis.positiveTopics,
+    negativeTopics: analysis.negativeTopics,
+
+    mostHelpfulReviews: analysis.mostHelpfulReviews,
+    analysisSummary: analysis.analysisSummary,
+    keyInsights: analysis.keyInsights,
+  };
+}
+
+/*
+  Review quality rating (same cutoffs as GameReview/analysis.py)
+*/
+
+function describeQuality(score: number) {
+  if (score >= 65) {
+    return {
+      label: "HIGH QUALITY",
+      text: "Most reviews give detailed, useful feedback.",
+    };
+  }
+
+  if (score >= 40) {
+    return {
+      label: "GOOD QUALITY",
+      text: "Most reviews provide useful feedback for analysis.",
+    };
+  }
+
+  return {
+    label: "MIXED QUALITY",
+    text: "Many reviews are short or haven't collected helpful votes yet.",
+  };
+}
+
+/* =========================================================
+   Analytics
+========================================================= */
+
+function Analytics({
+  darkMode,
+  setDarkMode,
+  currentPage,
+  setCurrentPage,
+  analyzed: analyzedProp,
+  analysis,
+  onLogoClick
+}: AnalyticsProps) {
   /* =========================================================
-     ANALYSIS SUMMARY
+     DATA
   ========================================================= */
 
   /*
-    BACKEND:
+    Before a game is analyzed, the page previews the
+    example dataset (EXAMPLE_DATA above).
 
-    Replace with an automatically generated summary from
-    your Python/C++ analysis system.
+    After analysis, every value comes from the GameScope API.
   */
 
-  const analysisSummary =
-    "Most analyzed players recommend the game, but inventory and performance issues are frequently mentioned in negative feedback.";
+  const data =
+    analyzedProp && analysis
+      ? analyticsFromApi(analysis)
+      : EXAMPLE_DATA;
+
+  // true when showing a real analysis instead of the example
+  const analyzed = data !== EXAMPLE_DATA;
+
+  const exampleGameName = EXAMPLE_DATA.gameName;
+
+  const {
+    gameName,
+    displayedAppId,
+    totalReviews,
+    positiveReviews,
+    negativeReviews,
+    positivePercentage,
+    negativePercentage,
+    averagePlaytime,
+    averageHelpfulVotes,
+    sentimentTrend,
+    issueFrequency,
+    playtimeDistribution,
+    playtimeRecommendation,
+    reviewQuality,
+    reliabilityData,
+    positiveTopics,
+    negativeTopics,
+    mostHelpfulReviews,
+    analysisSummary,
+    keyInsights,
+  } = data;
+
+  /* =========================================================
+     RECOMMENDATION BREAKDOWN
+  ========================================================= */
+
+  const recommendationData = [
+    {
+      name: "Recommended",
+      value: positiveReviews,
+    },
+    {
+      name: "Not Recommended",
+      value: negativeReviews,
+    },
+  ];
+
+  const qualityRating = describeQuality(reviewQuality);
 
   /* =========================================================
      CHART COLORS
@@ -1070,8 +985,9 @@ function Analytics({
                 </h2>
 
                 <p>
-                  Changes in positive and negative feedback
-                  across the analyzed data.
+                  {sentimentTrend.length > 0
+                    ? "Changes in positive and negative feedback across the analyzed data."
+                    : "No review dates yet. Re-analyze the game from the Dashboard to collect them."}
                 </p>
               </div>
 
@@ -1895,12 +1811,11 @@ function Analytics({
                   </span>
 
                   <strong>
-                    GOOD QUALITY
+                    {qualityRating.label}
                   </strong>
 
                   <p>
-                    Most reviews provide useful
-                    feedback for analysis.
+                    {qualityRating.text}
                   </p>
 
                 </div>
@@ -2012,59 +1927,28 @@ function Analytics({
 
             <div className="feedback-list">
 
-              <div className="feedback-item insight-item">
+              {keyInsights.map((insight) => (
+                <div
+                  className="feedback-item insight-item"
+                  key={insight.label}
+                >
 
-                <span className="feedback-type feedback-negative">
-                  ISSUE
-                </span>
+                  <span
+                    className={`feedback-type ${
+                      insight.tone === "positive"
+                        ? "feedback-positive"
+                        : "feedback-negative"
+                    }`}
+                  >
+                    {insight.label}
+                  </span>
 
-                <p>
-                  Inventory problems are frequently
-                  mentioned in player feedback.
-                </p>
+                  <p>
+                    {insight.text}
+                  </p>
 
-              </div>
-
-              <div className="feedback-item insight-item">
-
-                <span className="feedback-type feedback-negative">
-                  PERFORMANCE
-                </span>
-
-                <p>
-                  Performance concerns appear among
-                  the most common negative topics.
-                </p>
-
-              </div>
-
-              <div className="feedback-item insight-item">
-
-                <span className="feedback-type feedback-positive">
-                  SENTIMENT
-                </span>
-
-                <p>
-                  The example dataset contains more
-                  recommended reviews than
-                  non-recommended reviews.
-                </p>
-
-              </div>
-
-              <div className="feedback-item insight-item">
-
-                <span className="feedback-type feedback-positive">
-                  PLAYTIME
-                </span>
-
-                <p>
-                  A significant portion of the example
-                  feedback comes from players with
-                  substantial playtime.
-                </p>
-
-              </div>
+                </div>
+              ))}
 
             </div>
 

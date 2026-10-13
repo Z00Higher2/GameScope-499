@@ -5,11 +5,15 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
 import mysql.connector
+from dotenv import load_dotenv
 from mysql.connector import Error
 
 # ==========================================
 # Database Configuration
+# Settings come from GameReview/.env (see .env.example)
 # ==========================================
+
+load_dotenv()
 
 DATABASE = os.getenv("MYSQL_DATABASE", "game_reviews")
 MAX_APP_ID = 4_294_967_295
@@ -29,6 +33,20 @@ def parse_date(value):
         f"Invalid or missing game release date: {value or '(empty)'}. "
         "The games table requires a valid release date."
     )
+
+# ==========================================
+# Convert and Validate Review Timestamps
+# Empty is allowed (older CSVs have no review dates)
+# ==========================================
+
+def parse_datetime(value, field_name):
+    normalized = (value or "").strip()
+    if not normalized:
+        return None
+    try:
+        return datetime.strptime(normalized, "%Y-%m-%d %H:%M:%S")
+    except ValueError as error:
+        raise ValueError(f"Invalid {field_name} value: {value!r}") from error
 
 # ==========================================
 # Convert and Validate Boolean Values
@@ -99,6 +117,14 @@ def load_csv(input_file, requested_app_id):
             )
         rows = list(reader)
 
+    return parse_rows(rows, requested_app_id)
+
+# ==========================================
+# Validate Rows and Convert Them for MySQL
+# Used for CSV files and by pipeline.py for live Steam data
+# ==========================================
+
+def parse_rows(rows, requested_app_id):
     if not rows:
         raise ValueError("The filtered CSV contains no reviews to import.")
 
@@ -128,6 +154,8 @@ def load_csv(input_file, requested_app_id):
             helpful_votes = int((row.get("helpful_votes") or "0").strip() or "0")
             if helpful_votes < 0:
                 raise ValueError("helpful_votes cannot be negative.")
+            created_at = parse_datetime(row.get("created_at"), "created_at")
+            updated_at = parse_datetime(row.get("updated_at"), "updated_at")
         except (ValueError, InvalidOperation) as error:
             raise ValueError(f"Invalid CSV data on line {line_number}: {error}") from error
 
@@ -151,6 +179,8 @@ def load_csv(input_file, requested_app_id):
                 playtime_at_review,
                 helpful_votes,
                 (row.get("language") or "").strip() or None,
+                created_at,
+                updated_at,
             )
         )
 
@@ -163,14 +193,17 @@ def load_csv(input_file, requested_app_id):
 # Connect to MySQL Database
 # ==========================================
 
-def connect_database():
-    return mysql.connector.connect(
-        host=os.getenv("MYSQL_HOST", "localhost"),
-        port=int(os.getenv("MYSQL_PORT", "3306")),
-        user=os.getenv("MYSQL_USER", "root"),
-        password=os.getenv("MYSQL_PASSWORD", ""),
-        database=DATABASE,
-    )
+def connect_database(use_database=True):
+    settings = {
+        "host": os.getenv("MYSQL_HOST", "localhost"),
+        "port": int(os.getenv("MYSQL_PORT", "3306")),
+        "user": os.getenv("MYSQL_USER", "root"),
+        "password": os.getenv("MYSQL_PASSWORD", ""),
+    }
+    # pipeline.py connects without a database first so it can create it
+    if use_database:
+        settings["database"] = DATABASE
+    return mysql.connector.connect(**settings)
 
 # ==========================================
 # Import Game and Reviews into MySQL
@@ -240,9 +273,9 @@ def import_reviews(connection, game_data, reviews, input_file):
                 INSERT INTO reviews (
                     game_id, review_id, review_text, recommended,
                     playtime_hours, playtime_at_review_hours,
-                    helpful_votes, language
+                    helpful_votes, language, created_at, updated_at
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON DUPLICATE KEY UPDATE review_id = VALUES(review_id)
                 """,
                 (game_id, *review),
