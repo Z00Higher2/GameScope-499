@@ -37,10 +37,22 @@ body {
   --dashboard-text: #15151b;
   --dashboard-muted: #6b7280;
 
-  --dashboard-purple: #8b5cf6;
-  --dashboard-indigo: #6366f1;
-  --dashboard-indigo-dark: #4f46e5;
-  --dashboard-light-indigo: #818cf8;
+  /* Global accent color from App.tsx */
+  --dashboard-purple: var(--accent-color, #8b5cf6);
+  --dashboard-indigo: var(--accent-hover, #7c3aed);
+  --dashboard-indigo-dark: var(--accent-hover, #7c3aed);
+  --dashboard-light-indigo: var(--accent-color, #8b5cf6);
+
+  /* Accent effects */
+  --dashboard-accent-glow: var(
+    --accent-glow,
+    rgba(139, 92, 246, 0.25)
+  );
+
+  --dashboard-accent-soft: var(
+    --accent-soft,
+    rgba(139, 92, 246, 0.12)
+  );
 
   --dashboard-green: #22c55e;
   --dashboard-red: #ef4444;
@@ -53,18 +65,21 @@ body {
   background:
     radial-gradient(
       circle at 78% 5%,
-      rgba(139, 92, 246, 0.08),
+      var(--dashboard-accent-soft),
       transparent 30%
     ),
     radial-gradient(
       circle at 10% 35%,
-      rgba(99, 102, 241, 0.05),
+      color-mix(
+        in srgb,
+        var(--dashboard-purple) 5%,
+        transparent
+      ),
       transparent 28%
     ),
     var(--dashboard-bg);
 
   color: var(--dashboard-text);
-
   overflow-x: hidden;
 
   transition:
@@ -87,17 +102,25 @@ body {
   background:
     radial-gradient(
       circle at 75% 5%,
-      rgba(139, 92, 246, 0.13),
+      color-mix(
+        in srgb,
+        var(--dashboard-purple) 13%,
+        transparent
+      ),
       transparent 32%
     ),
     radial-gradient(
       circle at 15% 35%,
-      rgba(6, 182, 212, 0.06),
+      color-mix(
+        in srgb,
+        var(--dashboard-purple) 6%,
+        transparent
+      ),
       transparent 30%
     ),
-    #09090d;
+    var(--dashboard-bg);
 
-  color: #f4f4f5;
+  color: var(--dashboard-text);
 }
 
 /* Make all major Dashboard text match Analytics dark mode */

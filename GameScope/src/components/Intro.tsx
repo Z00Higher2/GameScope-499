@@ -1,10 +1,15 @@
+
 import { useEffect, useRef, useState } from "react";
 import "./Intro.css";
 import logo from "../img/gamescope-logo-light.png";
 
+type Mode = "player" | "developer";
+
 interface IntroProps {
   darkMode: boolean;
   setDarkMode: React.Dispatch<React.SetStateAction<boolean>>;
+  mode: Mode;
+  setMode: React.Dispatch<React.SetStateAction<Mode>>;
   onGetStarted: () => void;
 }
 
@@ -58,6 +63,8 @@ function Reveal({
 function Intro({
   darkMode,
   setDarkMode,
+  mode,
+  setMode,
   onGetStarted,
 }: IntroProps) {
   return (
@@ -71,11 +78,14 @@ function Intro({
       {/* Navigation */}
       <nav className="intro-nav">
         <div className="intro-brand">
-          <div className="intro-logo"><img src={logo} alt="GameScope logo" /></div>
+          <div className="intro-logo">
+            <img src={logo} alt="GameScope logo" />
+          </div>
           <span>GameScope</span>
         </div>
 
         <button
+          type="button"
           className="intro-theme-button"
           onClick={() => setDarkMode((current) => !current)}
           aria-label="Toggle dark mode"
@@ -99,7 +109,7 @@ function Intro({
               <path d="M2 12h2" />
               <path d="M20 12h2" />
               <path d="m6.34 17.66-1.41 1.41" />
-              <path d="m19.07 4.93-1.41 1.41" />
+              <path d="m19.07 4.93-1.41-1.41" />
             </svg>
           ) : (
             <svg
@@ -133,16 +143,109 @@ function Intro({
             </h1>
 
             <p>
-              GameScope transforms thousands of Steam reviews into
-              meaningful insights, recurring issues, and actionable
-              feedback for game developers.
+              GameScope transforms Steam reviews into meaningful
+              insights, recurring issues, and actionable feedback
+              for game developers and players.
             </p>
 
+            {/* Player / Developer mode selector */}
+            <div className="intro-mode-selector">
+              <span className="intro-mode-label">
+                CHOOSE YOUR EXPERIENCE
+              </span>
+
+              <div
+                className="intro-mode-options"
+                role="group"
+                aria-label="Choose GameScope mode"
+              >
+                <button
+                  type="button"
+                  className={`intro-mode-option ${
+                    mode === "player" ? "active" : ""
+                  }`}
+                  onClick={() => setMode("player")}
+                  aria-pressed={mode === "player"}
+                >
+                  <span className="intro-mode-icon">
+                    <svg
+                      width="23"
+                      height="23"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M6 9h12a4 4 0 0 1 3.8 5.3l-1 3a2 2 0 0 1-3.2 1l-3-2.3h-5.2l-3 2.3a2 2 0 0 1-3.2-1l-1-3A4 4 0 0 1 6 9Z" />
+                      <path d="M8 12v4" />
+                      <path d="M6 14h4" />
+                      <path d="M16 13h.01" />
+                      <path d="M18 15h.01" />
+                    </svg>
+                  </span>
+
+                  <span className="intro-mode-copy">
+                    <strong>Player</strong>
+                    <small>
+                      Discover games and explore reviews
+                    </small>
+                  </span>
+
+                  <span className="intro-mode-check">
+                    {mode === "player" ? "✓" : ""}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`intro-mode-option ${
+                    mode === "developer" ? "active" : ""
+                  }`}
+                  onClick={() => setMode("developer")}
+                  aria-pressed={mode === "developer"}
+                >
+                  <span className="intro-mode-icon">
+                    <svg
+                      width="23"
+                      height="23"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M3 3v18h18" />
+                      <path d="m8 14 4-4 4 3 5-7" />
+                    </svg>
+                  </span>
+
+                  <span className="intro-mode-copy">
+                    <strong>Developer</strong>
+                    <small>
+                      Analyze sentiment and player issues
+                    </small>
+                  </span>
+
+                  <span className="intro-mode-check">
+                    {mode === "developer" ? "✓" : ""}
+                  </span>
+                </button>
+              </div>
+            </div>
+
             <button
+              type="button"
               className="get-started-button"
               onClick={onGetStarted}
             >
-              <span>Get Started</span>
+              <span>
+                {mode === "player"
+                  ? "Explore Games"
+                  : "Get Started"}
+              </span>
 
               <svg
                 width="18"
@@ -237,8 +340,8 @@ function Intro({
               <h3>Feedback Quality</h3>
 
               <p>
-                Separate useful player feedback from vague, repetitive,
-                or low-value reviews.
+                Separate useful player feedback from vague,
+                repetitive, or low-value reviews.
               </p>
 
               <span className="feature-arrow">→</span>
@@ -273,7 +376,6 @@ function Intro({
                     <span className="review-status-dot"></span>
                     Low Reliability
                   </div>
-
                   <div className="review-score">
                     18<span>%</span>
                   </div>
@@ -295,7 +397,6 @@ function Intro({
                     <span className="reason-check">✓</span>
                     Very little detail
                   </div>
-
                   <div className="review-reason">
                     <span className="reason-check">✓</span>
                     No specific issue
@@ -309,7 +410,6 @@ function Intro({
                     <span className="review-status-dot"></span>
                     Moderate Reliability
                   </div>
-
                   <div className="review-score">
                     41<span>%</span>
                   </div>
@@ -332,7 +432,6 @@ function Intro({
                     <span className="reason-check">✓</span>
                     Specific complaint
                   </div>
-
                   <div className="review-reason">
                     <span className="reason-check">✓</span>
                     Some useful context
@@ -346,7 +445,6 @@ function Intro({
                     <span className="review-status-dot"></span>
                     High Reliability
                   </div>
-
                   <div className="review-score">
                     94<span>%</span>
                   </div>
@@ -369,7 +467,6 @@ function Intro({
                     <span className="reason-check">✓</span>
                     Specific problem
                   </div>
-
                   <div className="review-reason">
                     <span className="reason-check">✓</span>
                     Reproducible context
@@ -380,7 +477,6 @@ function Intro({
 
             <div className="quality-note">
               <div className="quality-note-icon">i</div>
-
               <p>
                 <strong>Why this matters:</strong> a review can be
                 positive or negative while still providing little useful
@@ -418,7 +514,6 @@ function Intro({
                     <span className="preview-small-label">
                       Game Analysis
                     </span>
-
                     <h3>Path of Exile 2</h3>
                   </div>
 
@@ -433,12 +528,10 @@ function Intro({
                     <span>Total Reviews</span>
                     <strong>1,284</strong>
                   </div>
-
                   <div className="preview-stat">
                     <span>Positive</span>
                     <strong>72%</strong>
                   </div>
-
                   <div className="preview-stat">
                     <span>Negative</span>
                     <strong>28%</strong>
@@ -463,36 +556,26 @@ function Intro({
                   </div>
 
                   <div className="preview-issues">
-                    <div className="chart-label">
-                      Top Issues
-                    </div>
+                    <div className="chart-label">Top Issues</div>
 
                     <div className="issue-line">
                       <span>Inventory</span>
-                      <div>
-                        <i style={{ width: "100%" }}></i>
-                      </div>
+                      <div><i style={{ width: "100%" }}></i></div>
                     </div>
 
                     <div className="issue-line">
                       <span>Performance</span>
-                      <div>
-                        <i style={{ width: "73%" }}></i>
-                      </div>
+                      <div><i style={{ width: "73%" }}></i></div>
                     </div>
 
                     <div className="issue-line">
                       <span>Multiplayer</span>
-                      <div>
-                        <i style={{ width: "50%" }}></i>
-                      </div>
+                      <div><i style={{ width: "50%" }}></i></div>
                     </div>
 
                     <div className="issue-line">
                       <span>Bugs</span>
-                      <div>
-                        <i style={{ width: "41%" }}></i>
-                      </div>
+                      <div><i style={{ width: "41%" }}></i></div>
                     </div>
                   </div>
                 </div>

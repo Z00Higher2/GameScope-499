@@ -4,21 +4,24 @@ Game HUD / Player Telemetry Theme
 ========================================================= */
 
 .analytics-page {
---analytics-bg: #f4f5fb;
---analytics-card: #ffffff;
---analytics-card-soft: #f8f8fc;
---analytics-text: #15151b;
---analytics-muted: #6b7280;
+  --analytics-bg: #f4f5fb;
+  --analytics-card: #ffffff;
+  --analytics-card-soft: #f8f8fc;
+  --analytics-text: #15151b;
+  --analytics-muted: #6b7280;
 
---analytics-purple: #8b5cf6;
---analytics-purple-dark: #6366f1;
+  /* Global accent color from Settings */
+  --analytics-purple: var(--accent-color, #8b5cf6);
+  --analytics-purple-dark: var(--accent-hover, #7c3aed);
 
---analytics-green: #22c55e;
---analytics-red: #ef4444;
---analytics-yellow: #f59e0b;
---analytics-cyan: #06b6d4;
+  --analytics-green: #22c55e;
+  --analytics-red: #ef4444;
+  --analytics-yellow: #f59e0b;
+  --analytics-cyan: #06b6d4;
 
---analytics-grid: rgba(15, 23, 42, 0.08);
+  --analytics-grid: rgba(15, 23, 42, 0.08);
+
+  /* Keep the rest of your existing .analytics-page rules below */
 
 min-height: 100vh;
 width: 100%;

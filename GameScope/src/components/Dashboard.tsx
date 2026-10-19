@@ -10,9 +10,9 @@ interface DashboardProps {
   darkMode: boolean;
   setDarkMode: React.Dispatch<React.SetStateAction<boolean>>;
 
- currentPage: "dashboard" | "reviews" | "analytics";
+ currentPage: "dashboard" | "issues" | "analytics" | "reviews" | "settings";
  setCurrentPage: React.Dispatch<
-    React.SetStateAction<"dashboard" | "reviews" | "analytics">
+    React.SetStateAction<"dashboard" | "issues" | "analytics" | "reviews"| "settings">
   >;
 
   // ==================================================

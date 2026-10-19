@@ -1,0 +1,1040 @@
+/* =========================================================
+   GAMESCOPE SETTINGS
+   Unified Dashboard / Analytics / Reviews Theme
+========================================================= */
+
+.settings-page {
+  --settings-bg: #f4f5fb;
+  --settings-card: rgba(255, 255, 255, 0.78);
+  --settings-solid: #ffffff;
+  --settings-hover: rgba(112, 101, 238, 0.055);
+
+  --settings-text: #171827;
+  --settings-muted: #74778c;
+
+  /* Default accent: Purple / Indigo */
+  --settings-accent: #7065ee;
+  --settings-accent-soft: rgba(112, 101, 238, 0.11);
+  --settings-border: rgba(112, 101, 238, 0.12);
+  --settings-glow: rgba(112, 101, 238, 0.15);
+
+  --settings-shadow:
+    0 12px 35px rgba(45, 42, 95, 0.045);
+
+  min-height: 100vh;
+  width: 100%;
+  overflow-x: clip;
+
+  color: var(--settings-text);
+
+  background:
+    radial-gradient(
+      ellipse at 12% 0%,
+      rgba(112, 101, 238, 0.13),
+      transparent 38%
+    ),
+    radial-gradient(
+      ellipse at 95% 25%,
+      rgba(111, 80, 220, 0.065),
+      transparent 34%
+    ),
+    var(--settings-bg);
+
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
+  transition:
+    background 0.3s ease,
+    color 0.3s ease;
+
+  animation: settings-enter 0.45s ease both;
+}
+
+/* =========================================================
+   DARK MODE
+========================================================= */
+
+.settings-page.settings-dark {
+  --settings-bg: #0b0c14;
+  --settings-card: rgba(20, 21, 35, 0.82);
+  --settings-solid: #171827;
+  --settings-hover: rgba(139, 128, 255, 0.075);
+
+  --settings-text: #f1f1fc;
+  --settings-muted: #9698b2;
+
+  --settings-accent: #8b80ff;
+  --settings-accent-soft: rgba(139, 128, 255, 0.13);
+  --settings-border: rgba(139, 128, 255, 0.13);
+  --settings-glow: rgba(139, 128, 255, 0.17);
+
+  --settings-shadow:
+    0 18px 55px rgba(0, 0, 0, 0.17);
+
+  background:
+    radial-gradient(
+      ellipse at 12% 0%,
+      rgba(112, 101, 238, 0.13),
+      transparent 38%
+    ),
+    radial-gradient(
+      ellipse at 95% 25%,
+      rgba(111, 80, 220, 0.07),
+      transparent 34%
+    ),
+    var(--settings-bg);
+}
+
+/* =========================================================
+   ACCENT THEMES
+========================================================= */
+
+.settings-page.settings-accent-blue {
+  --settings-accent: #4388ff;
+  --settings-accent-soft: rgba(67, 136, 255, 0.11);
+  --settings-border: rgba(67, 136, 255, 0.13);
+  --settings-glow: rgba(67, 136, 255, 0.15);
+}
+
+.settings-page.settings-accent-green {
+  --settings-accent: #20a878;
+  --settings-accent-soft: rgba(32, 168, 120, 0.11);
+  --settings-border: rgba(32, 168, 120, 0.13);
+  --settings-glow: rgba(32, 168, 120, 0.15);
+}
+
+/* Preserve a brighter accent in dark mode. */
+
+.settings-page.settings-dark.settings-accent-blue {
+  --settings-accent: #68a2ff;
+  --settings-accent-soft: rgba(104, 162, 255, 0.13);
+  --settings-border: rgba(104, 162, 255, 0.16);
+  --settings-glow: rgba(104, 162, 255, 0.17);
+}
+
+.settings-page.settings-dark.settings-accent-green {
+  --settings-accent: #38c997;
+  --settings-accent-soft: rgba(56, 201, 151, 0.13);
+  --settings-border: rgba(56, 201, 151, 0.16);
+  --settings-glow: rgba(56, 201, 151, 0.17);
+}
+
+/* =========================================================
+   PAGE LAYOUT
+========================================================= */
+
+.settings-main {
+  width: min(1000px, calc(100% - 320px));
+  margin-left: max(280px, calc((100% - 1320px) / 2 + 280px));
+  padding: 112px 0 42px;
+  animation: settings-enter 0.45s ease both;
+}
+
+.settings-header {
+  margin-bottom: 34px;
+}
+
+.settings-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  margin-bottom: 14px;
+
+  color: var(--settings-accent);
+
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.settings-eyebrow-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+
+  border-radius: 50%;
+
+  background: var(--settings-accent);
+  box-shadow: 0 0 12px var(--settings-glow);
+}
+
+.settings-header h1 {
+  margin: 0;
+
+  font-size: clamp(36px, 4vw, 52px);
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: -2px;
+}
+
+.settings-header h1 > span {
+  color: var(--settings-accent);
+}
+
+.settings-header > p {
+  max-width: 620px;
+  margin: 13px 0 0;
+
+  color: var(--settings-muted);
+
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.settings-save-message {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+
+  margin-bottom: 26px;
+  padding: 12px 15px;
+
+  border: 1px solid var(--settings-border);
+  border-radius: 12px;
+
+  color: var(--settings-accent);
+  background: var(--settings-accent-soft);
+
+  font-size: 12px;
+
+  animation: settings-enter 0.2s ease both;
+}
+
+.settings-save-message span {
+  font-weight: 900;
+}
+
+/* =========================================================
+   SECTION HEADINGS
+========================================================= */
+
+.settings-section {
+  margin-bottom: 35px;
+  scroll-margin-top: 95px;
+}
+
+.settings-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+
+  margin-bottom: 15px;
+}
+
+.settings-section-icon {
+  display: grid;
+  width: 43px;
+  height: 43px;
+  flex: 0 0 43px;
+
+  place-items: center;
+
+  border-radius: 13px;
+
+  color: var(--settings-accent);
+  background: var(--settings-accent-soft);
+
+  font-size: 25px;
+  font-weight: 600;
+
+  transition:
+    background 0.25s ease,
+    color 0.25s ease,
+    transform 0.25s ease;
+}
+
+.settings-section-heading h2 {
+  margin: 0;
+
+  font-size: 18px;
+  font-weight: 750;
+  letter-spacing: -0.35px;
+}
+
+.settings-section-heading p {
+  margin: 5px 0 0;
+
+  color: var(--settings-muted);
+
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+/* =========================================================
+   CARDS AND ROWS
+========================================================= */
+
+.settings-card {
+  overflow: hidden;
+
+  border: 1px solid var(--settings-border);
+  border-radius: 18px;
+
+  background: var(--settings-card);
+  box-shadow: var(--settings-shadow);
+
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+
+  transition:
+    background 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+
+  padding: 22px 24px;
+
+  transition: background-color 0.2s ease;
+}
+
+.settings-row:hover {
+  background: var(--settings-hover);
+}
+
+.settings-row-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.settings-row-copy h3,
+.settings-footer h3,
+.settings-export-action h3 {
+  margin: 0;
+
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: -0.1px;
+}
+
+.settings-row-copy p,
+.settings-footer p,
+.settings-export-action p {
+  margin: 6px 0 0;
+
+  color: var(--settings-muted);
+
+  font-size: 11px;
+  line-height: 1.75;
+}
+
+.settings-divider {
+  height: 1px;
+  margin: 0 24px;
+
+  background: var(--settings-border);
+}
+
+.settings-note {
+  margin: 11px 3px 0;
+
+  color: var(--settings-muted);
+
+  font-size: 10px;
+  line-height: 1.8;
+}
+
+/* =========================================================
+   CHOICE BUTTONS
+========================================================= */
+
+.settings-inline-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 7px;
+}
+
+.settings-choice,
+.settings-genre {
+  padding: 10px 14px;
+
+  border: 1px solid var(--settings-border);
+  border-radius: 9px;
+
+  color: var(--settings-muted);
+  background: transparent;
+
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition:
+    color 0.2s ease,
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.settings-choice:hover,
+.settings-genre:hover {
+  transform: translateY(-1px);
+  border-color: var(--settings-accent);
+  color: var(--settings-accent);
+}
+
+.settings-choice.selected,
+.settings-genre.selected {
+  border-color: var(--settings-accent);
+  color: var(--settings-accent);
+  background: var(--settings-accent-soft);
+}
+
+/* =========================================================
+   SWITCHES
+========================================================= */
+
+.settings-switch {
+  display: flex;
+  width: 44px;
+  height: 25px;
+  flex: 0 0 44px;
+  align-items: center;
+
+  padding: 3px;
+
+  border: 1px solid var(--settings-border);
+  border-radius: 30px;
+
+  background: rgba(130, 130, 160, 0.2);
+
+  cursor: pointer;
+
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.settings-switch > span {
+  width: 17px;
+  height: 17px;
+
+  border-radius: 50%;
+
+  background: #ffffff;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.16);
+
+  transition: transform 0.2s ease;
+}
+
+.settings-switch.switch-on {
+  border-color: var(--settings-accent);
+  background: var(--settings-accent);
+  box-shadow: 0 0 12px var(--settings-glow);
+}
+
+.settings-switch.switch-on > span {
+  transform: translateX(18px);
+}
+
+/* =========================================================
+   SELECTS AND INPUTS
+========================================================= */
+
+.settings-select,
+.settings-input,
+.settings-number-control input {
+  min-height: 40px;
+
+  border: 1px solid var(--settings-border);
+  border-radius: 10px;
+
+  outline: none;
+
+  color: var(--settings-text);
+  background: var(--settings-solid);
+
+  font: inherit;
+  font-size: 11px;
+
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.25s ease,
+    color 0.25s ease;
+}
+
+.settings-select {
+  width: min(220px, 45%);
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.settings-select option {
+  color: var(--settings-text);
+  background: var(--settings-solid);
+}
+
+.settings-select:hover,
+.settings-select:focus,
+.settings-input:hover,
+.settings-input:focus,
+.settings-number-control input:focus {
+  border-color: var(--settings-accent);
+  box-shadow: 0 0 0 3px var(--settings-accent-soft);
+}
+
+.settings-number-control {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 9px;
+
+  color: var(--settings-muted);
+  font-size: 10px;
+}
+
+.settings-number-control input {
+  width: 100px;
+  padding: 0 10px;
+}
+
+/* =========================================================
+   BUTTONS
+========================================================= */
+
+.settings-primary-button,
+.settings-secondary-button,
+.settings-reset-button {
+  min-height: 40px;
+  flex: 0 0 auto;
+
+  padding: 0 14px;
+
+  border: 1px solid var(--settings-border);
+  border-radius: 10px;
+
+  font: inherit;
+  font-size: 11px;
+  font-weight: 750;
+
+  cursor: pointer;
+
+  transition:
+    transform 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.settings-primary-button {
+  border-color: transparent;
+
+  color: #ffffff;
+  background: var(--settings-accent);
+}
+
+.settings-primary-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 18px var(--settings-glow);
+  filter: brightness(1.07);
+}
+
+.settings-secondary-button,
+.settings-reset-button {
+  color: var(--settings-text);
+  background: var(--settings-solid);
+}
+
+.settings-secondary-button:hover,
+.settings-reset-button:hover {
+  transform: translateY(-1px);
+
+  border-color: var(--settings-accent);
+
+  color: var(--settings-accent);
+  background: var(--settings-accent-soft);
+}
+
+/* =========================================================
+   EXPORTS
+========================================================= */
+
+.settings-export-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+
+  padding: 22px 24px;
+
+  background: var(--settings-accent-soft);
+}
+
+/* =========================================================
+   PLAYER PREFERENCES
+========================================================= */
+
+.settings-favorite-form {
+  display: flex;
+  gap: 9px;
+
+  padding: 0 24px 20px;
+}
+
+.settings-input {
+  width: 100%;
+  min-width: 0;
+  padding: 0 12px;
+}
+
+.settings-input::placeholder {
+  color: var(--settings-muted);
+  opacity: 0.8;
+}
+
+.settings-favorite-list {
+  display: grid;
+  gap: 8px;
+
+  padding: 0 24px 20px;
+}
+
+.settings-favorite-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  padding: 11px 12px;
+
+  border: 1px solid var(--settings-border);
+  border-radius: 10px;
+
+  background: var(--settings-accent-soft);
+}
+
+.settings-favorite-item strong {
+  flex: 1;
+  overflow-wrap: anywhere;
+
+  font-size: 11px;
+}
+
+.settings-favorite-item button {
+  border: none;
+
+  color: var(--settings-muted);
+  background: transparent;
+
+  font: inherit;
+  font-size: 10px;
+
+  cursor: pointer;
+}
+
+.settings-favorite-item button:hover {
+  color: var(--settings-accent);
+}
+
+.settings-empty {
+  margin: 0;
+  padding: 0 24px 20px;
+
+  color: var(--settings-muted);
+  font-size: 11px;
+}
+
+.settings-genres-row {
+  align-items: flex-start;
+}
+
+.settings-genre-options {
+  display: flex;
+  max-width: 390px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+/* =========================================================
+   ABOUT
+========================================================= */
+
+.settings-about-card {
+  padding: 24px;
+}
+
+.settings-about-brand {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.settings-about-logo {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  place-items: center;
+
+  border-radius: 13px;
+
+  color: #ffffff;
+  background: linear-gradient(135deg, #8175ff, #5c4ed8);
+
+  box-shadow: 0 8px 24px rgba(112, 101, 238, 0.22);
+
+  font-size: 27px;
+  font-weight: 900;
+}
+
+.settings-about-brand h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.settings-about-brand p {
+  margin: 5px 0 0;
+
+  color: var(--settings-muted);
+  font-size: 11px;
+}
+
+.settings-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+
+  padding: 7px 10px;
+
+  border: 1px solid var(--settings-border);
+  border-radius: 8px;
+
+  color: var(--settings-accent);
+  background: var(--settings-accent-soft);
+
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.settings-about-brand .settings-status {
+  margin-left: auto;
+}
+
+.settings-about-card > .settings-divider {
+  margin: 22px 0;
+}
+
+.settings-about-description {
+  margin: 0;
+
+  color: var(--settings-muted);
+
+  font-size: 12px;
+  line-height: 1.9;
+}
+
+.settings-info-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+
+  margin-top: 22px;
+}
+
+.settings-info-grid > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 9px;
+
+  padding: 14px;
+
+  border: 1px solid var(--settings-border);
+  border-radius: 11px;
+
+  background: var(--settings-accent-soft);
+}
+
+.settings-info-grid span {
+  color: var(--settings-muted);
+
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+}
+
+.settings-info-grid strong {
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+/* =========================================================
+   FOOTER
+========================================================= */
+
+.settings-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+
+  padding: 23px 0;
+
+  border-top: 1px solid var(--settings-border);
+}
+
+.settings-bottom-note {
+  padding: 17px 0 0;
+
+  color: var(--settings-muted);
+
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.6px;
+  text-align: center;
+
+  opacity: 0.8;
+}
+
+.settings-bottom-note span {
+  padding: 0 5px;
+  color: var(--settings-accent);
+}
+
+/* =========================================================
+   COMPACT LAYOUT
+========================================================= */
+
+.settings-compact .settings-row {
+  padding-top: 15px;
+  padding-bottom: 15px;
+}
+
+.settings-compact .settings-section {
+  margin-bottom: 25px;
+}
+
+/* =========================================================
+   ANIMATIONS
+========================================================= */
+
+@keyframes settings-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.settings-reduced-motion,
+.settings-reduced-motion *,
+.settings-reduced-motion *::before,
+.settings-reduced-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  scroll-behavior: auto !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* =========================================================
+   ACCESSIBILITY
+========================================================= */
+
+.settings-switch:focus-visible,
+.settings-choice:focus-visible,
+.settings-genre:focus-visible,
+.settings-primary-button:focus-visible,
+.settings-secondary-button:focus-visible,
+.settings-reset-button:focus-visible,
+.settings-favorite-item button:focus-visible {
+  outline: 2px solid var(--settings-accent);
+  outline-offset: 3px;
+}
+
+.settings-select:focus-visible,
+.settings-input:focus-visible,
+.settings-number-control input:focus-visible {
+  outline: 2px solid var(--settings-accent);
+  outline-offset: 2px;
+}
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+
+@media (max-width: 1100px) {
+  .settings-main {
+    width: calc(100% - 280px);
+    margin-left: 250px;
+  }
+}
+
+@media (max-width: 760px) {
+  .settings-main {
+    width: calc(100% - 36px);
+    margin: 0 auto;
+    padding: 96px 0 30px;
+  }
+
+  .settings-header {
+    margin-bottom: 30px;
+  }
+
+  .settings-row {
+    align-items: flex-start;
+    gap: 16px;
+    padding: 19px 16px;
+  }
+
+  .settings-divider {
+    margin: 0 16px;
+  }
+
+  .settings-select {
+    width: 46%;
+    min-width: 135px;
+  }
+
+  .settings-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-export-action {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 19px 16px;
+  }
+
+  .settings-genres-row {
+    flex-direction: column;
+  }
+
+  .settings-genre-options {
+    max-width: none;
+    justify-content: flex-start;
+  }
+
+  .settings-about-card {
+    padding: 20px 16px;
+  }
+
+  .settings-favorite-form,
+  .settings-favorite-list {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .settings-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 480px) {
+  .settings-main {
+    width: calc(100% - 26px);
+    padding-top: 86px;
+  }
+
+  .settings-header h1 {
+    letter-spacing: -1.6px;
+  }
+
+  .settings-header > p {
+    font-size: 12px;
+  }
+
+  .settings-section-heading {
+    gap: 10px;
+  }
+
+  .settings-section-icon {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+  }
+
+  .settings-section-heading h2 {
+    font-size: 16px;
+  }
+
+  .settings-section-heading p {
+    font-size: 10px;
+  }
+
+  .settings-row {
+    flex-wrap: wrap;
+  }
+
+  .settings-row-copy {
+    flex-basis: 100%;
+  }
+
+  .settings-inline-actions {
+    width: 100%;
+  }
+
+  .settings-choice {
+    flex: 1;
+  }
+
+  .settings-select {
+    width: 100%;
+    max-width: none;
+  }
+
+  .settings-number-control {
+    width: 100%;
+  }
+
+  .settings-number-control input {
+    width: 100%;
+    max-width: 180px;
+  }
+
+  .settings-about-brand {
+    flex-wrap: wrap;
+  }
+
+  .settings-about-brand .settings-status {
+    margin-left: auto;
+  }
+
+  .settings-favorite-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .settings-primary-button,
+  .settings-secondary-button,
+  .settings-reset-button {
+    min-height: 42px;
+  }
+}
+
+/* =========================================================
+   REDUCED MOTION
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-page *,
+  .settings-page *::before,
+  .settings-page *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -3,8 +3,8 @@ NOTE: for some reason npm will not work so we use npm.cmd then perform the actio
 
 
 AFTER GIT CLONE:
-npm.cmd install -D vite
+npm.cmd install -D vite (or npm install install -D vite)
 Remove-Item -Recurse -Force node_modules
 Remove-Item -Force package-lock.json
-npm.cmd install
-npm.cmd run dev
+npm.cmd install (or npm install)
+npm.cmd run dev (or npm run dev)

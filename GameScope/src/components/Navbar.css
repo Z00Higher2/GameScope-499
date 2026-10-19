@@ -214,14 +214,11 @@
 
 .nav-item:hover,
 .theme-toggle:hover {
-  color: #3730a3;
-
-  background: #f1f5f9;
-
+  color: var(--accent-hover);
+  background: var(--accent-soft);
   transform: translateY(-2px);
 
-  box-shadow:
-    0 4px 10px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.05);
 }
 
 /* =========================
@@ -229,10 +226,8 @@
 ========================= */
 
 .nav-item.active {
-  color: #4f46e5;
-
-  background: #eef2ff;
-
+  color: var(--accent-color);
+  background: var(--accent-soft);
   font-weight: 650;
 
   transition:
@@ -243,19 +238,15 @@
 
 .nav-item.active::after {
   content: "";
-
   position: absolute;
-
   bottom: -17px;
   left: 50%;
 
   width: 20px;
   height: 3px;
-
   border-radius: 5px;
 
-  background: #4f46e5;
-
+  background: var(--accent-color);
   transform: translateX(-50%);
 
   animation: activeIndicator 0.35s ease;
@@ -350,19 +341,17 @@
 
 .dark-navbar .nav-item:hover,
 .dark-navbar .theme-toggle:hover {
-  color: #c7d2fe;
-
-  background: #1e1e22;
+  color: var(--accent-color);
+  background: var(--accent-soft);
 }
 
 .dark-navbar .nav-item.active {
-  color: #a5b4fc;
-
-  background: #272452;
+  color: var(--accent-color);
+  background: var(--accent-soft);
 }
 
 .dark-navbar .nav-item.active::after {
-  background: #818cf8;
+  background: var(--accent-color);
 }
 
 /* =========================
