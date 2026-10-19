@@ -299,7 +299,7 @@ if __name__ == "__main__":
         )
 
         print(
-            "Run review.py first."
+            "Run SteamGameReviewer_.py first."
         )
 
         exit()

@@ -2906,3 +2906,45 @@ body {
   }
 }
 
+
+/* =========================================================
+   ANALYZE ERROR
+   Shown when the GameScope API can't analyze a game
+========================================================= */
+
+.analyze-error {
+  margin-top: 18px;
+  padding: 18px 22px;
+
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: 16px;
+
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--dashboard-text);
+}
+
+.analyze-error strong {
+  display: block;
+
+  margin-bottom: 4px;
+
+  color: var(--dashboard-red);
+}
+
+.analyze-error p {
+  margin: 0;
+
+  color: var(--dashboard-muted);
+}
+
+/* =========================================================
+   DASHBOARD NOTE
+   Small muted message inside a card (e.g. no issues found)
+========================================================= */
+
+.dashboard-note {
+  margin: 0;
+
+  color: var(--dashboard-muted);
+  font-size: 14px;
+}

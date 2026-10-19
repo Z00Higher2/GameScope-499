@@ -116,14 +116,40 @@ create table if not exists reviews_import(
     index idx_imports_status (status)
 ) ENGINE = InnoDB;
 
+
+-- ============================================================
+-- REVIEW FILTER RUNS
+-- How many reviews the junk filter removed each time a game
+-- was analyzed, and why (written by pipeline.py)
+-- ============================================================
+
+create table if not exists review_filter_runs(
+    run_id int unsigned auto_increment not null,
+    game_id int unsigned not null,
+    reviews_collected int unsigned not null default 0,
+    reviews_kept int unsigned not null default 0,
+    removed_reasons text,
+    run_at timestamp not null default current_timestamp,
+
+    primary key (run_id),
+    foreign key (game_id)
+    references games(game_id)
+    on update cascade
+    on delete cascade,
+
+    index idx_filter_runs_game (game_id, run_at)
+) ENGINE = InnoDB;
+
 show tables;
 
 describe games;
 describe reviews;
 describe game_updates;
 describe reviews_import;
+describe review_filter_runs;
 
 select * from games;
 select * from reviews;
 select * from game_updates;
 select * from reviews_import;
+select * from review_filter_runs;

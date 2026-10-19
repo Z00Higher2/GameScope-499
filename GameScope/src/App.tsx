@@ -6,6 +6,7 @@ import Reviews from "./components/Reviews";
 import Issues from "./components/Issues";
 import Intro from "./components/Intro";
 import Settings from "./components/Settings";
+import type { GameAnalysis } from "./api";
 
 import "./App.css";
 
@@ -90,6 +91,9 @@ function App() {
 
   const [analyzed, setAnalyzed] = useState(false);
   const [analyzedAppId, setAnalyzedAppId] = useState("");
+
+  const [analysis, setAnalysis] =
+    useState<GameAnalysis | null>(null);
 
   // GET STARTED
 
@@ -179,6 +183,8 @@ function App() {
               setAnalyzed={setAnalyzed}
               analyzedAppId={analyzedAppId}
               setAnalyzedAppId={setAnalyzedAppId}
+              analysis={analysis}
+              setAnalysis={setAnalysis}
             />
           )}
 
@@ -187,6 +193,7 @@ function App() {
               {...sharedProps}
               analyzed={analyzed}
               analyzedAppId={analyzedAppId}
+              analysis={analysis}
             />
           )}
 
@@ -195,6 +202,7 @@ function App() {
               {...sharedProps}
               analyzed={analyzed}
               analyzedAppId={analyzedAppId}
+              analysis={analysis}
             />
           )}
 

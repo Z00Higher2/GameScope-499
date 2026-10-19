@@ -2,3 +2,5 @@ requests
 mysql-connector-python
 python-dotenv
 lingua-language-detector
+fastapi
+uvicorn

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Navbar from "./Navbar";
+import { getReviewCards } from "../api";
+import type { GameAnalysis, ReviewCard } from "../api";
 import "./Reviews.css";
 
 interface ReviewsProps {
@@ -12,146 +14,34 @@ interface ReviewsProps {
   onLogoClick: () => void;
   analyzed: boolean;
   analyzedAppId: string;
-}
-
-interface Review {
-  id: number;
-  sentiment: "positive" | "negative";
-  quality: "high" | "moderate" | "low";
-  qualityScore: number;
-  text: string;
-  tags: string[];
-  playtime: number;
-  playtimeAtReview: number;
-  helpfulVotes: number;
-  signals: string[];
-  developerSignal: string;
-  priority: "HIGH PRIORITY" | "MEDIUM PRIORITY" | "LOW PRIORITY";
-  detailed: boolean;
+  analysis: GameAnalysis | null;
 }
 
 /*
- * Demo review data.
- *
- * These values can later be replaced with
- * actual backend/database results.
+ * Reviews come from the GameScope API, ranked by the
+ * quality score in GameReview/analysis.py.
  */
-const demoReviews: Review[] = [
-  {
-    id: 1,
-    sentiment: "positive",
-    quality: "high",
-    qualityScore: 94,
-    text:
-      "The combat and overall gameplay are great, but the inventory system becomes frustrating once you start collecting a lot of crafting materials. Better sorting and filtering options would make managing items much easier.",
-    tags: ["Inventory", "UI", "Quality of Life"],
-    playtime: 42.6,
-    playtimeAtReview: 38.2,
-    helpfulVotes: 128,
-    signals: ["Inventory", "Crafting", "UI"],
-    developerSignal:
-      "Experienced players are reporting friction with inventory management and item organization.",
-    priority: "HIGH PRIORITY",
-    detailed: true,
-  },
-
-  {
-    id: 2,
-    sentiment: "negative",
-    quality: "high",
-    qualityScore: 89,
-    text:
-      "Performance drops significantly in crowded areas. The game runs well during normal exploration, but large fights cause noticeable frame-rate drops even after lowering the graphics settings.",
-    tags: ["Performance", "Optimization"],
-    playtime: 31.4,
-    playtimeAtReview: 29.8,
-    helpfulVotes: 96,
-    signals: ["Performance", "Optimization", "Frame Rate"],
-    developerSignal:
-      "Performance problems appear most noticeable during high-player-density encounters.",
-    priority: "HIGH PRIORITY",
-    detailed: true,
-  },
-
-  {
-    id: 3,
-    sentiment: "positive",
-    quality: "moderate",
-    qualityScore: 76,
-    text:
-      "Really enjoying the game so far. The combat feels good and there is a lot to do. Multiplayer has been fun with friends.",
-    tags: ["Combat", "Multiplayer"],
-    playtime: 18.7,
-    playtimeAtReview: 16.4,
-    helpfulVotes: 54,
-    signals: ["Combat", "Multiplayer"],
-    developerSignal:
-      "Players are responding positively to the core combat and cooperative experience.",
-    priority: "MEDIUM PRIORITY",
-    detailed: false,
-  },
-
-  {
-    id: 4,
-    sentiment: "negative",
-    quality: "high",
-    qualityScore: 86,
-    text:
-      "I like the game, but there are still several bugs that make progression frustrating. I have had quests fail to update and have encountered enemies becoming stuck in the environment.",
-    tags: ["Bugs", "Quests", "Progression"],
-    playtime: 27.9,
-    playtimeAtReview: 25.1,
-    helpfulVotes: 81,
-    signals: ["Bugs", "Quests", "Progression"],
-    developerSignal:
-      "Quest progression bugs are creating repeated problems for players beyond the early game.",
-    priority: "HIGH PRIORITY",
-    detailed: true,
-  },
-
-  {
-    id: 5,
-    sentiment: "positive",
-    quality: "moderate",
-    qualityScore: 68,
-    text:
-      "Great game overall. Had a lot of fun playing it with friends and the combat is pretty enjoyable.",
-    tags: ["Multiplayer", "Combat"],
-    playtime: 12.3,
-    playtimeAtReview: 10.8,
-    helpfulVotes: 31,
-    signals: ["Multiplayer", "Combat"],
-    developerSignal:
-      "Players generally enjoy cooperative gameplay and the core combat loop.",
-    priority: "MEDIUM PRIORITY",
-    detailed: false,
-  },
-
-  {
-    id: 6,
-    sentiment: "negative",
-    quality: "low",
-    qualityScore: 41,
-    text: "Game is bad. Fix it.",
-    tags: ["General"],
-    playtime: 1.4,
-    playtimeAtReview: 1.2,
-    helpfulVotes: 7,
-    signals: ["General"],
-    developerSignal:
-      "Limited detail makes it difficult to identify a specific actionable problem.",
-    priority: "LOW PRIORITY",
-    detailed: false,
-  },
-];
+type Review = ReviewCard;
 
 /*
- * Known Steam games used by the current demo.
+ * Icons for the top player signal cards.
  */
-const gameNames: Record<string, string> = {
-  "2694490": "Path of Exile 2",
-  "2246340": "Monster Hunter Wilds",
-  "730": "Counter-Strike 2",
+const signalIcons: Record<string, string> = {
+  Inventory: "▦",
+  Performance: "◒",
+  Bugs: "⚠",
+  Multiplayer: "◉",
+  Story: "✎",
+  Combat: "⚔",
+  Sound: "♫",
+  Graphics: "◐",
+  Content: "▤",
+  Progression: "▲",
+  Price: "◈",
+  Controls: "◎",
+  UI: "▣",
+  Difficulty: "◭",
+  Developers: "⚙",
 };
 
 function Reviews({
@@ -162,6 +52,7 @@ function Reviews({
   onLogoClick,
   analyzed,
   analyzedAppId,
+  analysis,
 }: ReviewsProps) {
   const [sentimentFilter, setSentimentFilter] =
     useState("all");
@@ -185,75 +76,72 @@ function Reviews({
     useState<string | null>(null);
 
   /*
-   * Backend-ready loading state.
-   *
-   * For now this simulates the short analysis
-   * loading period. Later, this can be controlled
-   * directly by the backend request.
+   * Review cards for the analyzed game, loaded from
+   * the GameScope API.
    */
+  const [reviewCards, setReviewCards] =
+    useState<Review[]>([]);
+
   const [isLoading, setIsLoading] =
     useState(analyzed);
 
+  const [loadError, setLoadError] =
+    useState("");
+
   useEffect(() => {
-    if (!analyzed) {
+    if (!analyzed || !analyzedAppId) {
       setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
+    const controller = new AbortController();
 
-    const timer = window.setTimeout(() => {
-      setIsLoading(false);
-    }, 900);
+    setIsLoading(true);
+    setLoadError("");
+
+    getReviewCards(analyzedAppId, controller.signal)
+      .then(setReviewCards)
+      .catch((loadFailure: Error) => {
+        if (loadFailure.name !== "AbortError") {
+          setReviewCards([]);
+          setLoadError(loadFailure.message);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
+      });
 
     return () => {
-      window.clearTimeout(timer);
+      controller.abort();
     };
-  }, [analyzed, analyzedAppId]);
+
+    // analysis changes after Re-analyze, so reload then too
+  }, [analyzed, analyzedAppId, analysis]);
 
   const gameName =
-    gameNames[analyzedAppId] ||
+    analysis?.game.name ||
     (analyzedAppId
       ? `Steam Game ${analyzedAppId}`
       : "No game selected");
 
   /*
-   * Top player signals.
-   *
-   * These are demo values for now and can later
-   * come directly from the backend analysis.
+   * Top player signals: the topics mentioned in the
+   * most reviews.
    */
-  const playerSignals = [
-    {
-      name: "Inventory",
-      count: 128,
-      icon: "▦",
-    },
-
-    {
-      name: "Performance",
-      count: 93,
-      icon: "◒",
-    },
-
-    {
-      name: "Bugs",
-      count: 71,
-      icon: "⚠",
-    },
-
-    {
-      name: "Multiplayer",
-      count: 54,
-      icon: "◉",
-    },
-  ];
+  const playerSignals = (
+    analysis?.playerSignals ?? []
+  ).map((signal) => ({
+    ...signal,
+    icon: signalIcons[signal.name] ?? "◆",
+  }));
 
   /*
    * Filter and sort reviews.
    */
   const filteredReviews = useMemo(() => {
-    let reviews = [...demoReviews];
+    let reviews = [...reviewCards];
 
     /*
      * Sentiment
@@ -347,6 +235,7 @@ function Reviews({
 
     return reviews;
   }, [
+    reviewCards,
     sentimentFilter,
     qualityFilter,
     sortBy,
@@ -385,15 +274,25 @@ function Reviews({
     activeSignal !== null;
 
   /*
-   * Demo analysis values.
-   *
-   * These can later be replaced with backend
-   * and database results.
+   * Analysis values from the GameScope API.
    */
-  const totalReviews = 1284;
-  const positiveReviews = 925;
-  const negativeReviews = 359;
-  const qualityScore = 78;
+  const summary = analysis?.summary;
+
+  const totalReviews =
+    summary?.totalReviews ?? reviewCards.length;
+  const positiveReviews = summary?.positiveReviews ?? 0;
+  const negativeReviews = summary?.negativeReviews ?? 0;
+  const positivePercentage =
+    summary?.positivePercentage ?? 0;
+  const negativePercentage =
+    summary?.negativePercentage ?? 0;
+  const qualityScore = summary?.reviewQuality ?? 0;
+  const highQualityPercentage =
+    summary?.highQualityPercentage ?? 0;
+  const detailedPercentage =
+    summary?.detailedPercentage ?? 0;
+  const reliablePercentage =
+    summary?.reliablePercentage ?? 0;
 
   /*
    * Backend-ready loading screen.
@@ -481,6 +380,31 @@ function Reviews({
             to view individual player feedback,
             review quality, and developer signals.
           </p>
+
+          <button
+            onClick={() =>
+              setCurrentPage("dashboard")
+            }
+          >
+            Go to Dashboard
+          </button>
+        </section>
+      ) : loadError ? (
+        /*
+         * The API couldn't return the reviews.
+         */
+        <section className="reviews-empty reviews-animate reviews-animate-1">
+          <div className="reviews-empty-icon">
+            !
+          </div>
+
+          <span className="reviews-eyebrow">
+            PLAYER TELEMETRY
+          </span>
+
+          <h1>Couldn't Load Reviews</h1>
+
+          <p>{loadError}</p>
 
           <button
             onClick={() =>
@@ -580,7 +504,7 @@ function Reviews({
                 </strong>
 
                 <small>
-                  72% OF REVIEWS
+                  {positivePercentage}% OF REVIEWS
                 </small>
               </div>
 
@@ -594,7 +518,7 @@ function Reviews({
                 </strong>
 
                 <small>
-                  28% OF REVIEWS
+                  {negativePercentage}% OF REVIEWS
                 </small>
               </div>
 
@@ -636,7 +560,7 @@ function Reviews({
               </span>
 
               <strong>
-                72%
+                {positivePercentage}%
               </strong>
 
               <small>
@@ -650,7 +574,7 @@ function Reviews({
               </span>
 
               <strong>
-                43%
+                {highQualityPercentage}%
               </strong>
 
               <small>
@@ -664,7 +588,7 @@ function Reviews({
               </span>
 
               <strong>
-                61%
+                {detailedPercentage}%
               </strong>
 
               <small>
@@ -678,7 +602,7 @@ function Reviews({
               </span>
 
               <strong>
-                87%
+                {reliablePercentage}%
               </strong>
 
               <small>
@@ -1186,7 +1110,7 @@ function Reviews({
                           </span>
                         )}
 
-                        {review.helpfulVotes >= 50 && (
+                        {review.helpfulVotes >= 10 && (
                           <span>
                             ✓ Community agreement
                           </span>
@@ -1200,7 +1124,7 @@ function Reviews({
 
                         {!review.detailed &&
                           review.playtime < 20 &&
-                          review.helpfulVotes < 50 && (
+                          review.helpfulVotes < 10 && (
                             <span>
                               • Limited actionable detail
                             </span>
@@ -1290,13 +1214,7 @@ function Reviews({
                         </span>
 
                         <strong>
-                          {review.qualityScore >=
-                          85
-                            ? "HIGH"
-                            : review.qualityScore >=
-                              60
-                            ? "MODERATE"
-                            : "LOW"}
+                          {review.quality.toUpperCase()}
                         </strong>
 
                       </div>
