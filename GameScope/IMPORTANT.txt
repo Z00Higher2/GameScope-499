@@ -6,5 +6,5 @@ AFTER GIT CLONE:
 npm.cmd install -D vite
 Remove-Item -Recurse -Force node_modules
 Remove-Item -Force package-lock.json
-npm.cmd install
-npm.cmd run dev
+npm.cmd install (or npm install)
+npm.cmd run dev (or npm run dev)
