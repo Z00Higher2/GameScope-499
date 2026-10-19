@@ -464,6 +464,110 @@ def key_insights(scored, positive, negative, positive_pct, negative_topics, filt
 
 
 # ==========================================
+# Issues (Issues page)
+# ==========================================
+
+ISSUE_TREND_PERIODS = 7
+
+
+def issue_priority(negative_mentions, negative_reviews):
+    share = negative_mentions / negative_reviews if negative_reviews else 0
+    if negative_mentions >= 5 and share >= 0.25:
+        return "Critical"
+    if negative_mentions >= 3 and share >= 0.15:
+        return "High"
+    if negative_mentions >= 2:
+        return "Medium"
+    return "Low"
+
+
+def trend_periods(scored):
+    dates = sorted(r["created_at"] for r in scored if r["created_at"])
+    if len(dates) < 2 or dates[0] == dates[-1]:
+        return None, []
+    start = dates[0]
+    width = (dates[-1] - start) / ISSUE_TREND_PERIODS
+    label_format = "%b %d %H:00" if dates[-1] - start <= timedelta(days=2) else "%b %d"
+    labels = [
+        (start + width * i).strftime(label_format)
+        for i in range(ISSUE_TREND_PERIODS)
+    ]
+    return (start, width), labels
+
+
+def issue_trend(reviews, periods):
+    if periods is None:
+        return []
+    start, width = periods
+    counts = [0] * ISSUE_TREND_PERIODS
+    for review in reviews:
+        if review["created_at"]:
+            index = int((review["created_at"] - start) / width)
+            counts[min(index, ISSUE_TREND_PERIODS - 1)] += 1
+    busiest = max(counts)
+    return [round(100 * count / busiest) if busiest else 0 for count in counts]
+
+
+def issue_examples(negative, positive):
+    by_quality = lambda r: (r["quality_score"], r["helpful_votes"])
+    negative = sorted(negative, key=by_quality, reverse=True)
+    positive = sorted(positive, key=by_quality, reverse=True)
+    picked = negative[:2] + positive[:1]
+    picked += (negative[2:] + positive[1:])[: 3 - len(picked)]
+    return [
+        {
+            "type": "positive" if r["recommended"] else "negative",
+            "text": shorten(r["text"], 240),
+        }
+        for r in picked
+    ]
+
+
+def build_issues(stored):
+    scored = score_reviews(stored["reviews"])
+    negative_reviews = sum(1 for r in scored if not r["recommended"])
+    periods, labels = trend_periods(scored)
+
+    issues = []
+    for topic, pattern in TOPIC_PATTERNS.items():
+        mentioning = [r for r in scored if topic in r["topics"]]
+        negative = [r for r in mentioning if not r["recommended"]]
+        if not negative:
+            continue
+        positive = [r for r in mentioning if r["recommended"]]
+
+        words = Counter(
+            match.lower() for r in negative for match in pattern.findall(r["text"])
+        )
+        common = ", ".join(f'"{word}"' for word, _ in words.most_common(3))
+
+        issues.append(
+            {
+                "name": topic,
+                "mentions": len(mentioning),
+                "negative": len(negative),
+                "positive": len(positive),
+                "helpfulVotes": round(
+                    average([r["helpful_votes"] for r in mentioning]), 1
+                ),
+                "priority": issue_priority(len(negative), negative_reviews),
+                "description": (
+                    f"Mentioned in {len(negative)} of "
+                    f"{count_of(negative_reviews, 'negative review')} "
+                    f"({percent(len(negative), negative_reviews)}%) and "
+                    f"{count_of(len(positive), 'positive review')}. "
+                    f"Common words: {common}."
+                ),
+                "examples": issue_examples(negative, positive),
+                "trend": issue_trend(mentioning, periods),
+            }
+        )
+
+    issues.sort(key=lambda issue: (issue["negative"], issue["mentions"]), reverse=True)
+    return {"trendLabels": labels, "issues": issues}
+
+
+# ==========================================
 # Review Cards (Reviews page)
 # ==========================================
 

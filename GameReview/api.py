@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Path, Query
 from mysql.connector import Error as MySQLError
 
 import pipeline
-from analysis import build_analysis, build_review_cards
+from analysis import build_analysis, build_issues, build_review_cards
 
 STEAM_SEARCH_URL = "https://store.steampowered.com/api/storesearch/"
 MAX_APP_ID = 4_294_967_295
@@ -114,6 +114,11 @@ def analyze_game(
 @app.get("/api/games/{app_id}/analysis")
 def get_analysis(app_id: int = Path(gt=0, le=MAX_APP_ID)):
     return build_analysis(load_stored(app_id))
+
+
+@app.get("/api/games/{app_id}/issues")
+def get_issues(app_id: int = Path(gt=0, le=MAX_APP_ID)):
+    return build_issues(load_stored(app_id))
 
 
 @app.get("/api/games/{app_id}/reviews")

@@ -1,6 +1,8 @@
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Navbar from "./Navbar";
+import { getIssues } from "../api";
+import type { IssuesReport } from "../api";
 import "./Issues.css";
 
 interface IssuesProps {
@@ -245,6 +247,45 @@ function Issues({
   const [statuses, setStatuses] =
     useState<Record<string, IssueStatus>>(initialStatuses);
 
+  const [report, setReport] = useState<IssuesReport | null>(null);
+  const [loadError, setLoadError] = useState("");
+
+  useEffect(() => {
+    if (!analyzed || !analyzedAppId) {
+      setReport(null);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    setLoadError("");
+
+    getIssues(analyzedAppId, controller.signal)
+      .then((result) => {
+        setReport(result);
+        setStatuses({});
+        setSelectedIssueName(result.issues[0]?.name ?? "");
+      })
+      .catch((loadFailure: Error) => {
+        if (loadFailure.name !== "AbortError") {
+          setReport(null);
+          setLoadError(loadFailure.message);
+        }
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [analyzed, analyzedAppId]);
+
+  const live = report !== null;
+  const issues: Issue[] = report ? report.issues : demoIssues;
+  const periodLabels = report ? report.trendLabels : trendLabels;
+  const maxMentions = Math.max(
+    1,
+    ...issues.map((issue) => issue.mentions)
+  );
+
   /**
    * FILTER AND SORT
    *
@@ -256,7 +297,7 @@ function Issues({
   const filteredIssues = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
 
-    return demoIssues
+    return issues
       .filter((issue) => {
         const matchesSearch =
           !query ||
@@ -302,6 +343,7 @@ function Issues({
         }
       });
   }, [
+    issues,
     searchQuery,
     priorityFilter,
     statusFilter,
@@ -322,12 +364,12 @@ function Issues({
       (issue) => issue.name === selectedIssueName
     ) ?? filteredIssues[0] ?? null;
 
-  const totalMentions = demoIssues.reduce(
+  const totalMentions = issues.reduce(
     (total, issue) => total + issue.mentions,
     0
   );
 
-  const totalNegative = demoIssues.reduce(
+  const totalNegative = issues.reduce(
     (total, issue) => total + issue.negative,
     0
   );
@@ -337,13 +379,13 @@ function Issues({
       ? Math.round((totalNegative / totalMentions) * 100)
       : 0;
 
-  const highPriorityCount = demoIssues.filter(
+  const highPriorityCount = issues.filter(
     (issue) =>
       issue.priority === "Critical" ||
       issue.priority === "High"
   ).length;
 
-  const resolvedCount = demoIssues.filter(
+  const resolvedCount = issues.filter(
     (issue) => statuses[issue.name] === "Resolved"
   ).length;
 
@@ -369,6 +411,34 @@ function Issues({
     setCategoryFilter("All");
     setSortBy("mentions");
   };
+
+  if (analyzed && !live) {
+    return (
+      <div
+        className={`issues-page ${darkMode ? "issues-dark" : ""}`}
+      >
+        <Navbar
+          darkMode={darkMode}
+          setDarkMode={setDarkMode}
+          currentPage={currentPage}
+          setCurrentPage={setCurrentPage}
+          onLogoClick={onLogoClick}
+        />
+
+        <main className="issues-main">
+          <section className="issues-card issues-detail-empty">
+            <h2>
+              {loadError ? "Couldn't load issues" : "Loading issues..."}
+            </h2>
+            <p>
+              {loadError ||
+                "Finding recurring problems in the analyzed reviews."}
+            </p>
+          </section>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -419,7 +489,7 @@ function Issues({
           <div className="issues-stat-card stat-purple">
             <span className="stat-icon" aria-hidden="true">◎</span>
             <span className="stat-label">ISSUE CATEGORIES</span>
-            <strong>{demoIssues.length}</strong>
+            <strong>{issues.length}</strong>
             <small>Categories in this view</small>
           </div>
 
@@ -459,7 +529,7 @@ function Issues({
             </div>
 
             <span className="issues-card-count">
-              {filteredIssues.length} of {demoIssues.length}
+              {filteredIssues.length} of {issues.length}
             </span>
           </div>
 
@@ -523,7 +593,7 @@ function Issues({
                 aria-label="Filter by category"
               >
                 <option value="All">All categories</option>
-                {demoIssues.map((issue) => (
+                {issues.map((issue) => (
                   <option key={issue.name} value={issue.name}>
                     {issue.name}
                   </option>
@@ -560,7 +630,7 @@ function Issues({
               const mentionRate = Math.min(
                 100,
                 Math.round(
-                  (issue.mentions / demoIssues[0].mentions) * 100
+                  (issue.mentions / maxMentions) * 100
                 )
               );
               const status = statuses[issue.name] ?? "Detected";
@@ -689,7 +759,9 @@ function Issues({
                   </select>
 
                   <span className="issues-status-note">
-                    Demo mode · changes are not saved after refresh
+                    {live
+                      ? "Changes are not saved after refresh"
+                      : "Demo mode · changes are not saved after refresh"}
                   </span>
                 </div>
 
@@ -825,8 +897,9 @@ function Issues({
                 <div className="issues-evidence-note">
                   <span aria-hidden="true">ⓘ</span>
                   <p>
-                    Illustrative examples only. Actual Steam review
-                    evidence will appear when the backend is connected.
+                    {live
+                      ? "Real reviews from this game that mention this topic, highest quality first."
+                      : "Illustrative examples only. Actual Steam review evidence will appear when the backend is connected."}
                   </p>
                 </div>
               </div>
@@ -847,11 +920,15 @@ function Issues({
                   </span>
                   <h2>{selectedIssue.name} activity</h2>
                   <p className="issues-section-subtitle">
-                    Illustrative relative activity across seven sample periods.
+                    {live
+                      ? "Mentions per period, scaled so the busiest period is 100."
+                      : "Illustrative relative activity across seven sample periods."}
                   </p>
                 </div>
 
-                <span className="issues-trend-tag">DEMO TREND</span>
+                <span className="issues-trend-tag">
+                  {live ? "LIVE TREND" : "DEMO TREND"}
+                </span>
               </div>
 
               <div
@@ -871,7 +948,7 @@ function Issues({
                       />
                     </div>
                     <span className="trend-label">
-                      {trendLabels[index] ?? `P${index + 1}`}
+                      {periodLabels[index] ?? `P${index + 1}`}
                     </span>
                   </div>
                 ))}
@@ -883,7 +960,9 @@ function Issues({
                   Relative activity index
                 </span>
                 <span>
-                  Demo values · not historical review counts
+                  {live
+                    ? "Based on review dates"
+                    : "Demo values · not historical review counts"}
                 </span>
               </div>
             </section>
@@ -925,7 +1004,7 @@ function Issues({
 
           <div className="issues-workflow-grid">
             {statusesList.map((status) => {
-              const count = demoIssues.filter(
+              const count = issues.filter(
                 (issue) =>
                   (statuses[issue.name] ?? "Detected") === status
               ).length;
@@ -954,9 +1033,9 @@ function Issues({
         </section>
 
         <p className="issues-disclaimer">
-          Demo data is used in this view. Counts, priorities, statuses,
-          review examples, and trends are illustrative until connected
-          to the live analysis backend.
+          {live
+            ? "Issues are detected by keyword matching on the analyzed reviews. Priorities come from how often each topic appears in negative reviews. Statuses are not saved yet."
+            : "Demo data is used in this view. Counts, priorities, statuses, review examples, and trends are illustrative until connected to the live analysis backend."}
         </p>
       </main>
     </div>

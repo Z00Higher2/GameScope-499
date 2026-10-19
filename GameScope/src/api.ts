@@ -105,6 +105,24 @@ export interface ReviewCard {
   detailed: boolean;
 }
 
+export interface IssuesReport {
+  trendLabels: string[];
+  issues: {
+    name: string;
+    mentions: number;
+    negative: number;
+    positive: number;
+    helpfulVotes: number;
+    description: string;
+    priority: "Critical" | "High" | "Medium" | "Low";
+    examples: {
+      type: "positive" | "negative";
+      text: string;
+    }[];
+    trend: number[];
+  }[];
+}
+
 async function request<T>(
   path: string,
   init?: RequestInit
@@ -174,6 +192,16 @@ export function analyzeGame(
     `/api/analyze/${encodeURIComponent(appId)}` +
       (refresh ? "?refresh=true" : ""),
     { method: "POST" }
+  );
+}
+
+export function getIssues(
+  appId: string,
+  signal?: AbortSignal
+) {
+  return request<IssuesReport>(
+    `/api/games/${encodeURIComponent(appId)}/issues`,
+    { signal }
   );
 }
 
