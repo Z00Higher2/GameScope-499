@@ -6,6 +6,7 @@
  * (see vite.config.ts).
  */
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 export interface GameSearchResult {
   name: string;
   appId: string;
@@ -130,7 +131,7 @@ async function request<T>(
   let response: Response;
 
   try {
-    response = await fetch(path, init);
+  response = await fetch(`${API_BASE_URL}${path}`, init);
   } catch (error) {
     if (
       error instanceof DOMException &&
