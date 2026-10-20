@@ -12,6 +12,7 @@ The website's dev server forwards every /api request here
 import requests
 from fastapi import FastAPI, HTTPException, Path, Query
 from mysql.connector import Error as MySQLError
+from fastapi.middleware.cors import CORSMiddleware
 
 import pipeline
 from analysis import build_analysis, build_issues, build_review_cards
@@ -20,6 +21,19 @@ STEAM_SEARCH_URL = "https://store.steampowered.com/api/storesearch/"
 MAX_APP_ID = 4_294_967_295
 
 app = FastAPI(title="GameScope API")
+
+# Allow the deployed frontend and local development frontend to call the API.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://gamescope-five.vercel.app",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ==========================================
