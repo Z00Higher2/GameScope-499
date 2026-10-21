@@ -10,6 +10,18 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 export interface GameSearchResult {
   name: string;
   appId: string;
+  image?: string | null; // small cover image from Steam search
+}
+
+export interface GameDetails {
+  appId: string;
+  name: string;
+  developer: string | null;
+  publisher: string | null;
+  releaseDate: string | null; // ISO date, e.g. "2024-12-06"
+  price: number | null; // current price in USD, 0 when free
+  shortDescription: string | null;
+  headerImage?: string | null; // Steam header image URL
 }
 
 export interface GameAnalysis {
@@ -180,6 +192,20 @@ export function searchGames(
 }
 
 /*
+ * Store details for a game (developer, release date, price)
+ * straight from Steam. Works before the game has been analyzed.
+ */
+export function getGameDetails(
+  appId: string,
+  signal?: AbortSignal
+) {
+  return request<GameDetails>(
+    `/api/games/${encodeURIComponent(appId)}/details`,
+    { signal }
+  );
+}
+
+/*
  * Run the review pipeline for a game (or load it from MySQL
  * if it was analyzed before) and return its analysis.
  *
@@ -218,4 +244,4 @@ export function getReviewCards(
     `/api/games/${encodeURIComponent(appId)}/reviews?limit=500`,
     { signal }
   );
-}
+} 

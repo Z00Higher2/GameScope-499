@@ -19,6 +19,7 @@ import Navbar from "./Navbar";
 import type { GameAnalysis } from "../api";
 import "./Dashboard.css";
 import "./Analytics.css";
+import type { Page, Mode } from "../type";
 
 /* =========================================================
    Analytics Props
@@ -28,16 +29,17 @@ interface AnalyticsProps {
   darkMode: boolean;
   setDarkMode: React.Dispatch<React.SetStateAction<boolean>>;
 
-  currentPage: "dashboard" | "issues" | "analytics" | "reviews"| "settings" ;
+  currentPage: Page ;
+  mode: Mode;
   setCurrentPage: React.Dispatch<
-    React.SetStateAction<"dashboard" | "issues" | "analytics" | "reviews" | "settings">
+    React.SetStateAction<Page>
   >;
 
   /*
     APP STATE
 
     analyzed:
-      false = show example analytics
+      false = no game analyzed yet (show a prompt to use the Dashboard)
       true  = show analytics for analyzed game
 
     analyzedAppId:
@@ -313,136 +315,6 @@ interface AnalyticsData {
 }
 
 /*
-  EXAMPLE DATA
-
-  Shown before a game is analyzed, so the page can preview
-  every chart using the Path of Exile 2 example.
-*/
-
-const EXAMPLE_DATA: AnalyticsData = {
-  gameName: "Path of Exile 2",
-  displayedAppId: "2694490",
-
-  totalReviews: 1284,
-  positiveReviews: 925,
-  negativeReviews: 359,
-  positivePercentage: 72,
-  negativePercentage: 28,
-  averagePlaytime: 184,
-  averageHelpfulVotes: 17,
-
-  sentimentTrend: [
-    { period: "Week 1", positive: 74, negative: 26 },
-    { period: "Week 2", positive: 71, negative: 29 },
-    { period: "Week 3", positive: 76, negative: 24 },
-    { period: "Week 4", positive: 72, negative: 28 },
-    { period: "Week 5", positive: 70, negative: 30 },
-    { period: "Week 6", positive: 73, negative: 27 },
-  ],
-
-  issueFrequency: [
-    { issue: "Inventory", reports: 1284 },
-    { issue: "Performance", reports: 932 },
-    { issue: "Multiplayer", reports: 641 },
-    { issue: "Bugs", reports: 523 },
-    { issue: "Progression", reports: 417 },
-  ],
-
-  playtimeDistribution: [
-    { range: "0-10 Hours", reviews: 186 },
-    { range: "10-50 Hours", reviews: 324 },
-    { range: "50-100 Hours", reviews: 298 },
-    { range: "100-250 Hours", reviews: 281 },
-    { range: "250+ Hours", reviews: 195 },
-  ],
-
-  playtimeRecommendation: [
-    { range: "0-10", recommended: 61, notRecommended: 39 },
-    { range: "10-50", recommended: 69, notRecommended: 31 },
-    { range: "50-100", recommended: 74, notRecommended: 26 },
-    { range: "100-250", recommended: 81, notRecommended: 19 },
-    { range: "250+", recommended: 86, notRecommended: 14 },
-  ],
-
-  reviewQuality: 78,
-
-  reliabilityData: [
-    { name: "Reliable", value: 78 },
-    { name: "Questionable", value: 14 },
-    { name: "Filtered", value: 8 },
-  ],
-
-  positiveTopics: [
-    { topic: "Combat", mentions: 842 },
-    { topic: "Graphics", mentions: 734 },
-    { topic: "Story", mentions: 621 },
-    { topic: "Sound", mentions: 438 },
-    { topic: "Customization", mentions: 391 },
-  ],
-
-  negativeTopics: [
-    { topic: "Performance", mentions: 932 },
-    { topic: "Inventory", mentions: 821 },
-    { topic: "Bugs", mentions: 523 },
-    { topic: "Multiplayer", mentions: 482 },
-    { topic: "Progression", mentions: 417 },
-  ],
-
-  mostHelpfulReviews: [
-    {
-      reviewNumber: 1,
-      sentiment: "Negative",
-      helpfulVotes: 1284,
-      text: "Performance problems make the game difficult to enjoy.",
-    },
-    {
-      reviewNumber: 2,
-      sentiment: "Positive",
-      helpfulVotes: 932,
-      text: "The combat system and overall gameplay are excellent.",
-    },
-    {
-      reviewNumber: 3,
-      sentiment: "Positive",
-      helpfulVotes: 641,
-      text: "Great graphics and a lot of content to explore.",
-    },
-    {
-      reviewNumber: 4,
-      sentiment: "Negative",
-      helpfulVotes: 523,
-      text: "Multiplayer issues and bugs affect the experience.",
-    },
-  ],
-
-  analysisSummary:
-    "Most analyzed players recommend the game, but inventory and performance issues are frequently mentioned in negative feedback.",
-
-  keyInsights: [
-    {
-      label: "ISSUE",
-      tone: "negative",
-      text: "Inventory problems are frequently mentioned in player feedback.",
-    },
-    {
-      label: "PERFORMANCE",
-      tone: "negative",
-      text: "Performance concerns appear among the most common negative topics.",
-    },
-    {
-      label: "SENTIMENT",
-      tone: "positive",
-      text: "The example dataset contains more recommended reviews than non-recommended reviews.",
-    },
-    {
-      label: "PLAYTIME",
-      tone: "positive",
-      text: "A significant portion of the example feedback comes from players with substantial playtime.",
-    },
-  ],
-};
-
-/*
   LIVE DATA
 
   Maps the GameScope API response (calculated in
@@ -523,28 +395,82 @@ function Analytics({
   setCurrentPage,
   analyzed: analyzedProp,
   analysis,
-  onLogoClick
+  onLogoClick,
+  mode,
 }: AnalyticsProps) {
   /* =========================================================
      DATA
   ========================================================= */
 
   /*
-    Before a game is analyzed, the page previews the
-    example dataset (EXAMPLE_DATA above).
-
-    After analysis, every value comes from the GameScope API.
+    Analytics only shows real results. If no game has been
+    analyzed yet, send the user back to the Dashboard.
   */
 
-  const data =
-    analyzedProp && analysis
-      ? analyticsFromApi(analysis)
-      : EXAMPLE_DATA;
+  if (!analyzedProp || !analysis) {
+    return (
+      <div className={`analytics-page ${darkMode ? "dark-mode" : ""}`}>
+        <Navbar
+          darkMode={darkMode}
+          setDarkMode={setDarkMode}
+          currentPage={currentPage}
+          setCurrentPage={setCurrentPage}
+          onLogoClick={onLogoClick}
+          mode={mode}
+        />
 
-  // true when showing a real analysis instead of the example
-  const analyzed = data !== EXAMPLE_DATA;
+        <main className="analytics-main">
+          <Reveal>
+            <header className="analytics-hero">
+              <div className="hero-content">
+                <div className="hero-eyebrow">
+                  <span className="status-dot" />
+                  GAMESCOPE
+                </div>
 
-  const exampleGameName = EXAMPLE_DATA.gameName;
+                <h1>Game Analytics</h1>
+
+                <p>
+                  Explore detailed statistics and patterns found in player
+                  feedback.
+                </p>
+              </div>
+
+              <div className="hero-status">
+                <span className="hero-status-label">DATA STATUS</span>
+                <strong>NO GAME ANALYZED</strong>
+                <span className="hero-status-line" />
+              </div>
+            </header>
+          </Reveal>
+
+          <Reveal delay={100}>
+            <section className="analysis-summary demo-summary">
+              <div className="summary-icon">i</div>
+
+              <div className="summary-content">
+                <span className="summary-label">NO ANALYSIS YET</span>
+
+                <p>
+                  Go back to the Dashboard and analyze a Steam game to see
+                  its analytics here.
+                </p>
+              </div>
+
+              <button
+                className="reanalyze-button"
+                onClick={() => setCurrentPage("dashboard")}
+              >
+                GO TO DASHBOARD
+              </button>
+            </section>
+          </Reveal>
+        </main>
+      </div>
+    );
+  }
+
+  const data = analyticsFromApi(analysis);
 
   const {
     gameName,
@@ -619,6 +545,7 @@ function Analytics({
         currentPage={currentPage}
         setCurrentPage={setCurrentPage}
         onLogoClick={onLogoClick}
+        mode={mode}
       />
 
       <main className="analytics-main">
@@ -637,16 +564,11 @@ function Analytics({
                 GAMESCOPE // PLAYER TELEMETRY
               </div>
 
-              <h1>
-                {analyzed
-                  ? "Game Analytics"
-                  : "Analytics Example"}
-              </h1>
+              <h1>Game Analytics</h1>
 
               <p>
-                {analyzed
-                  ? "Explore detailed statistics and patterns found in player feedback."
-                  : "Preview the analytics available after analyzing a Steam game."}
+                Explore detailed statistics and patterns found in player
+                feedback.
               </p>
 
             </div>
@@ -656,9 +578,7 @@ function Analytics({
                 DATA STATUS
               </span>
 
-              <strong>
-                {analyzed ? "LIVE ANALYSIS" : "DEMO DATA"}
-              </strong>
+              <strong>LIVE ANALYSIS</strong>
 
               <span className="hero-status-line" />
             </div>
@@ -667,46 +587,9 @@ function Analytics({
         </Reveal>
 
         {/* =================================================
-            EXAMPLE NOTICE
-        ================================================= */}
-
-        {!analyzed && (
-          <Reveal delay={100}>
-            <section className="analysis-summary demo-summary">
-
-              <div className="summary-icon">
-                i
-              </div>
-
-              <div className="summary-content">
-                <span className="summary-label">
-                  DEMO ANALYTICS
-                </span>
-
-                <p>
-                  This page is showing example analytics using{" "}
-                  <strong>{exampleGameName}</strong>. Analyze a Steam
-                  game from the Dashboard to replace these examples
-                  with actual analysis results.
-                </p>
-              </div>
-
-              <button
-                className="reanalyze-button"
-                onClick={() => setCurrentPage("dashboard")}
-              >
-                GO TO DASHBOARD
-              </button>
-
-            </section>
-          </Reveal>
-        )}
-
-        {/* =================================================
             ANALYZED GAME STATUS
         ================================================= */}
 
-        {analyzed && (
           <Reveal delay={100}>
             <section className="game-status">
 
@@ -741,7 +624,6 @@ function Analytics({
 
             </section>
           </Reveal>
-        )}
 
         {/* =================================================
             SUMMARY STATISTICS
@@ -767,9 +649,7 @@ function Analytics({
               </strong>
 
               <small>
-                {analyzed
-                  ? "Analyzed reviews"
-                  : "Example analyzed reviews"}
+                Analyzed reviews
               </small>
 
               <div className="stat-bar">
@@ -866,14 +746,12 @@ function Analytics({
               </p>
             </div>
 
-            {analyzed && (
-              <button
-                className="reanalyze-button"
-                onClick={() => setCurrentPage("dashboard")}
-              >
-                ← DASHBOARD
-              </button>
-            )}
+            <button
+              className="reanalyze-button"
+              onClick={() => setCurrentPage("dashboard")}
+            >
+              ← DASHBOARD
+            </button>
 
           </section>
         </Reveal>

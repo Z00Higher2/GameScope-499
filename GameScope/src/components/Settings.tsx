@@ -3,13 +3,8 @@ import { useEffect, useState } from "react";
 import Navbar from "./Navbar";
 import "./Settings.css";
 import type { AccentColor } from "../App";
+import type { Page, Mode } from "../type";
 
-type Page =
-  | "dashboard"
-  | "reviews"
-  | "issues"
-  | "analytics"
-  | "settings";
 
 type Sentiment = "all" | "positive" | "negative";
 type ReviewSort =
@@ -121,6 +116,7 @@ interface SettingsProps {
   setCurrentPage: React.Dispatch<React.SetStateAction<Page>>;
   onLogoClick: () => void;
   accentColor: AccentColor;
+  mode: Mode;
   setAccentColor: React.Dispatch<
     React.SetStateAction<AccentColor>
   >;
@@ -134,6 +130,7 @@ function Settings({
   onLogoClick,
   accentColor,
   setAccentColor,
+  mode,
 }: SettingsProps) {
   const [preferences, setPreferences] =
     useState<Preferences>(loadPreferences);
@@ -256,6 +253,7 @@ function Settings({
         currentPage={currentPage}
         setCurrentPage={setCurrentPage}
         onLogoClick={onLogoClick}
+        mode={mode}
       />
 
       <main className="settings-main">

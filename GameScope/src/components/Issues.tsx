@@ -1,22 +1,21 @@
-
 import { useEffect, useMemo, useState } from "react";
 import Navbar from "./Navbar";
 import { getIssues } from "../api";
 import type { IssuesReport } from "../api";
 import "./Issues.css";
+import type { Page, Mode } from "../type";
 
 interface IssuesProps {
   darkMode: boolean;
   setDarkMode: React.Dispatch<React.SetStateAction<boolean>>;
-  currentPage: "dashboard" | "issues" | "analytics" | "reviews" | "settings";
+  currentPage: Page;
   setCurrentPage: React.Dispatch<
-    React.SetStateAction<
-      "dashboard" | "issues" | "analytics" | "reviews" | "settings"
-    >
+    React.SetStateAction<Page>
   >;
   onLogoClick: () => void;
   analyzed: boolean;
   analyzedAppId: string;
+  mode: Mode;
 }
 
 type Priority = "Critical" | "High" | "Medium" | "Low";
@@ -43,138 +42,13 @@ interface Issue {
 }
 
 /**
- * BACKEND CONTRACT
+ * WORKFLOW STATE
  *
- * Proposed endpoint:
- * GET /api/games/{appId}/issues
- *
- * Replace demoIssues with API data once the backend is ready.
- * The backend should calculate these values from collected reviews.
- * These example values are illustrative, not live Steam statistics.
- *
- * Consider returning a stable issue ID from the backend before
- * implementing persistent status tracking.
- */
-const demoIssues: Issue[] = [
-  {
-    name: "Performance",
-    mentions: 932,
-    negative: 728,
-    positive: 204,
-    helpfulVotes: 14.2,
-    priority: "Critical",
-    description:
-      "Players frequently report frame drops, inconsistent frame rates, and performance problems that can affect gameplay.",
-    examples: [
-      {
-        type: "negative",
-        text: "Performance problems make the game difficult to enjoy.",
-      },
-      {
-        type: "negative",
-        text: "Frame drops become very noticeable during combat.",
-      },
-      {
-        type: "positive",
-        text: "The game looks great when performance is stable.",
-      },
-    ],
-    trend: [42, 55, 48, 68, 61, 83, 100],
-  },
-  {
-    name: "Inventory",
-    mentions: 821,
-    negative: 594,
-    positive: 227,
-    helpfulVotes: 11.8,
-    priority: "High",
-    description:
-      "Players discuss inventory organization, item management, and difficulties managing equipment and materials.",
-    examples: [
-      {
-        type: "negative",
-        text: "Managing the inventory becomes frustrating after collecting more items.",
-      },
-      {
-        type: "negative",
-        text: "There should be better sorting and filtering options.",
-      },
-      {
-        type: "positive",
-        text: "The inventory system works well once you understand it.",
-      },
-    ],
-    trend: [70, 63, 72, 57, 61, 48, 42],
-  },
-  {
-    name: "Bugs",
-    mentions: 523,
-    negative: 401,
-    positive: 122,
-    helpfulVotes: 9.6,
-    priority: "High",
-    description:
-      "Players report bugs and unexpected behavior that can interfere with gameplay and progression.",
-    examples: [
-      {
-        type: "negative",
-        text: "I encountered several bugs during my playthrough.",
-      },
-      {
-        type: "negative",
-        text: "Some quests do not behave as expected.",
-      },
-      {
-        type: "positive",
-        text: "Most of the issues I encountered were minor.",
-      },
-    ],
-    trend: [34, 40, 38, 52, 46, 59, 65],
-  },
-  {
-    name: "Multiplayer",
-    mentions: 482,
-    negative: 317,
-    positive: 165,
-    helpfulVotes: 12.4,
-    priority: "Medium",
-    description:
-      "Players discuss multiplayer connectivity, matchmaking, and the overall quality of the online experience.",
-    examples: [
-      {
-        type: "negative",
-        text: "Multiplayer connections can become unstable during longer sessions.",
-      },
-      {
-        type: "negative",
-        text: "Matchmaking sometimes takes too long.",
-      },
-      {
-        type: "positive",
-        text: "Playing with friends makes the experience much better.",
-      },
-    ],
-    trend: [58, 52, 61, 45, 50, 42, 38],
-  },
-];
-
-/**
- * DEMO WORKFLOW STATE
- *
- * These statuses are stored in React state only.
+ * Statuses are stored in React state only.
  *
  * Proposed persistence endpoint:
  * PATCH /api/games/{appId}/issues/{issueId}/status
- *
- * Load and save statuses through the backend when SQL integration
- * is available. Associate statuses with a stable issue ID and game.
  */
-const initialStatuses: Record<string, IssueStatus> = {
-  Performance: "Investigating",
-  Inventory: "Detected",
-  Bugs: "In Progress",
-  Multiplayer: "Detected",
-};
 
 const priorities: Priority[] = [
   "Critical",
@@ -189,8 +63,6 @@ const statusesList: IssueStatus[] = [
   "In Progress",
   "Resolved",
 ];
-
-const trendLabels = ["P1", "P2", "P3", "P4", "P5", "P6", "P7"];
 
 function getNegativeRate(issue: Issue): number {
   if (issue.mentions <= 0) return 0;
@@ -233,9 +105,10 @@ function Issues({
   onLogoClick,
   analyzed,
   analyzedAppId,
+  mode,
 }: IssuesProps) {
   const [selectedIssueName, setSelectedIssueName] =
-    useState("Performance");
+    useState("");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("All");
@@ -243,9 +116,9 @@ function Issues({
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [sortBy, setSortBy] = useState("mentions");
 
-  // Demo only: changes currently disappear when the page is reloaded.
+  // Changes currently disappear when the page is reloaded.
   const [statuses, setStatuses] =
-    useState<Record<string, IssueStatus>>(initialStatuses);
+    useState<Record<string, IssueStatus>>({});
 
   const [report, setReport] = useState<IssuesReport | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -279,8 +152,8 @@ function Issues({
   }, [analyzed, analyzedAppId]);
 
   const live = report !== null;
-  const issues: Issue[] = report ? report.issues : demoIssues;
-  const periodLabels = report ? report.trendLabels : trendLabels;
+  const issues: Issue[] = report ? report.issues : [];
+  const periodLabels = report ? report.trendLabels : [];
   const maxMentions = Math.max(
     1,
     ...issues.map((issue) => issue.mentions)
@@ -289,10 +162,8 @@ function Issues({
   /**
    * FILTER AND SORT
    *
-   * Client-side filtering is appropriate for this small demo dataset.
+   * Client-side filtering is appropriate for this small dataset.
    * Larger datasets may benefit from backend filtering and pagination.
-   *
-   * When the API is ready, replace demoIssues with fetched issue state.
    */
   const filteredIssues = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -412,7 +283,7 @@ function Issues({
     setSortBy("mentions");
   };
 
-  if (analyzed && !live) {
+  if (!analyzed || !analyzedAppId) {
     return (
       <div
         className={`issues-page ${darkMode ? "issues-dark" : ""}`}
@@ -423,6 +294,41 @@ function Issues({
           currentPage={currentPage}
           setCurrentPage={setCurrentPage}
           onLogoClick={onLogoClick}
+          mode={mode}
+        />
+
+        <main className="issues-main">
+          <section className="issues-card issues-detail-empty">
+            <h2>No game analyzed yet</h2>
+            <p>
+              Go back to the Dashboard and analyze a Steam game to see
+              its issues here.
+            </p>
+            <button
+              type="button"
+              className="issues-primary-button"
+              onClick={() => setCurrentPage("dashboard")}
+            >
+              Go to Dashboard
+            </button>
+          </section>
+        </main>
+      </div>
+    );
+  }
+
+  if (!live) {
+    return (
+      <div
+        className={`issues-page ${darkMode ? "issues-dark" : ""}`}
+      >
+        <Navbar
+          darkMode={darkMode}
+          setDarkMode={setDarkMode}
+          currentPage={currentPage}
+          setCurrentPage={setCurrentPage}
+          onLogoClick={onLogoClick}
+          mode={mode}
         />
 
         <main className="issues-main">
@@ -450,6 +356,7 @@ function Issues({
         currentPage={currentPage}
         setCurrentPage={setCurrentPage}
         onLogoClick={onLogoClick}
+        mode={mode}
       />
 
       <main className="issues-main">
@@ -469,17 +376,10 @@ function Issues({
               </p>
             </div>
 
-            <div
-              className={`issues-analysis-badge ${
-                analyzed ? "analysis-selected" : "analysis-demo"
-              }`}
-            >
+            <div className="issues-analysis-badge analysis-selected">
               <span className="issues-badge-dot" />
-              {analyzed ? "ANALYSIS SELECTED" : "DEMO ANALYSIS"}
-
-              {analyzed && analyzedAppId && (
-                <small>App ID: {analyzedAppId}</small>
-              )}
+              ANALYSIS SELECTED
+              <small>App ID: {analyzedAppId}</small>
             </div>
           </div>
         </section>
@@ -759,9 +659,7 @@ function Issues({
                   </select>
 
                   <span className="issues-status-note">
-                    {live
-                      ? "Changes are not saved after refresh"
-                      : "Demo mode · changes are not saved after refresh"}
+                    Changes are not saved after refresh
                   </span>
                 </div>
 
@@ -847,13 +745,6 @@ function Issues({
                 </div>
               </div>
 
-              {/* BACKEND TODO:
-                  Replace illustrative examples with review evidence
-                  returned for the selected issue and analyzedAppId.
-                  Proposed endpoint:
-                  GET /api/games/{appId}/issues/{issueId}/reviews
-                  Avoid exposing private account identifiers.
-              */}
               <div className="issues-card feedback-card">
                 <div className="issues-card-header">
                   <div>
@@ -862,7 +753,7 @@ function Issues({
                     </span>
                     <h2>Review Evidence</h2>
                     <p className="issues-section-subtitle">
-                      Example comments associated with this issue.
+                      Comments associated with this issue.
                     </p>
                   </div>
 
@@ -897,21 +788,13 @@ function Issues({
                 <div className="issues-evidence-note">
                   <span aria-hidden="true">ⓘ</span>
                   <p>
-                    {live
-                      ? "Real reviews from this game that mention this topic, highest quality first."
-                      : "Illustrative examples only. Actual Steam review evidence will appear when the backend is connected."}
+                    Real reviews from this game that mention this topic,
+                    highest quality first.
                   </p>
                 </div>
               </div>
             </section>
 
-            {/* BACKEND TODO:
-                Replace relative demo values with dated counts or
-                snapshots from the backend before describing these
-                as historical trends.
-                Proposed endpoint:
-                GET /api/games/{appId}/issues/{issueId}/trends
-            */}
             <section className="issues-card issues-trend-card">
               <div className="issues-card-header">
                 <div>
@@ -920,21 +803,19 @@ function Issues({
                   </span>
                   <h2>{selectedIssue.name} activity</h2>
                   <p className="issues-section-subtitle">
-                    {live
-                      ? "Mentions per period, scaled so the busiest period is 100."
-                      : "Illustrative relative activity across seven sample periods."}
+                    Mentions per period, scaled so the busiest period is 100.
                   </p>
                 </div>
 
                 <span className="issues-trend-tag">
-                  {live ? "LIVE TREND" : "DEMO TREND"}
+                  LIVE TREND
                 </span>
               </div>
 
               <div
                 className="issues-trend-chart"
                 role="img"
-                aria-label={`Illustrative activity trend for ${selectedIssue.name}: ${selectedIssue.trend.join(", ")}`}
+                aria-label={`Activity trend for ${selectedIssue.name}: ${selectedIssue.trend.join(", ")}`}
               >
                 {selectedIssue.trend.map((value, index) => (
                   <div className="trend-column" key={index}>
@@ -960,9 +841,7 @@ function Issues({
                   Relative activity index
                 </span>
                 <span>
-                  {live
-                    ? "Based on review dates"
-                    : "Demo values · not historical review counts"}
+                  Based on review dates
                 </span>
               </div>
             </section>
@@ -1033,9 +912,7 @@ function Issues({
         </section>
 
         <p className="issues-disclaimer">
-          {live
-            ? "Issues are detected by keyword matching on the analyzed reviews. Priorities come from how often each topic appears in negative reviews. Statuses are not saved yet."
-            : "Demo data is used in this view. Counts, priorities, statuses, review examples, and trends are illustrative until connected to the live analysis backend."}
+          Issues are detected by keyword matching on the analyzed reviews. Priorities come from how often each topic appears in negative reviews. Statuses are not saved yet.
         </p>
       </main>
     </div>

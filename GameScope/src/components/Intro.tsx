@@ -1,9 +1,8 @@
-
 import { useEffect, useRef, useState } from "react";
 import "./Intro.css";
 import logo from "../img/gamescope-logo-light.png";
+import type { Page, Mode } from "../type";
 
-type Mode = "player" | "developer";
 
 interface IntroProps {
   darkMode: boolean;
@@ -59,6 +58,101 @@ function Reveal({
     </div>
   );
 }
+
+const featureCards: Record<
+  Mode,
+  { title: string; text: string; icon: React.ReactNode }[]
+> = {
+  developer: [
+    {
+      title: "Review Analysis",
+      text: "Analyze large volumes of Steam reviews and identify meaningful patterns in player feedback.",
+      icon: (
+        <>
+          <path d="M4 19V5" />
+          <path d="M4 19h16" />
+          <path d="M8 16v-5" />
+          <path d="M12 16V7" />
+          <path d="M16 16v-8" />
+        </>
+      ),
+    },
+    {
+      title: "Issue Detection",
+      text: "Discover recurring problems that players mention most often across thousands of reviews.",
+      icon: (
+        <>
+          <path d="M12 3v18" />
+          <path d="M3 12h18" />
+          <path d="m5 5 14 14" />
+          <path d="M19 5 5 19" />
+        </>
+      ),
+    },
+    {
+      title: "Feedback Quality",
+      text: "Separate useful player feedback from vague, repetitive, or low-value reviews.",
+      icon: (
+        <>
+          <path d="M12 3 5 6v5c0 4.5 3 7.5 7 10 4-2.5 7-5.5 7-10V6l-7-3Z" />
+          <path d="m9 12 2 2 4-4" />
+        </>
+      ),
+    },
+  ],
+  player: [
+    {
+      title: "Discover Games",
+      text: "Explore Steam games and see how players really feel about them before you spend any money.",
+      icon: (
+        <>
+          <circle cx="11" cy="11" r="7" />
+          <path d="m21 21-4.3-4.3" />
+        </>
+      ),
+    },
+    {
+      title: "Know the Downsides",
+      text: "See the problems players mention most, so there are no surprises after you buy.",
+      icon: (
+        <>
+          <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+          <path d="M12 9v4" />
+          <path d="M12 17h.01" />
+        </>
+      ),
+    },
+    {
+      title: "Trust Honest Reviews",
+      text: "Focus on detailed, helpful reviews instead of vague or low-value ones.",
+      icon: (
+        <>
+          <path d="M12 3 5 6v5c0 4.5 3 7.5 7 10 4-2.5 7-5.5 7-10V6l-7-3Z" />
+          <path d="m9 12 2 2 4-4" />
+        </>
+      ),
+    },
+  ],
+};
+
+const playerPlaytimeBars = [
+  { range: "0–10h", value: 61 },
+  { range: "10–50h", value: 69 },
+  { range: "50–100h", value: 74 },
+  { range: "100–250h", value: 81 },
+  { range: "250h+", value: 86 },
+];
+
+const playerLoves = [
+  { topic: "Combat", mentions: 842 },
+  { topic: "Graphics", mentions: 734 },
+  { topic: "Story", mentions: 621 },
+];
+
+const playerWatchOuts = [
+  { topic: "Performance", mentions: 932 },
+  { topic: "Inventory", mentions: 821 },
+];
 
 function Intro({
   darkMode,
@@ -137,16 +231,27 @@ function Intro({
               Steam Feedback Intelligence
             </div>
 
-            <h1>
-              Understand what your
-              <span>players really think.</span>
-            </h1>
+    <div key={mode} className="intro-hero-copy">
+      <h1>
+        {mode === "player" ? (
+          <>
+            Find your next
+            <span> favorite game.</span>
+          </>
+        ) : (
+          <>
+            Understand what your
+            <span> players really think.</span>
+          </>
+        )}
+      </h1>
 
-            <p>
-              GameScope transforms Steam reviews into meaningful
-              insights, recurring issues, and actionable feedback
-              for game developers and players.
-            </p>
+      <p>
+        {mode === "player"
+          ? "Explore Steam games, discover what players really think, and use detailed reviews to decide which games are worth your time and money."
+          : "GameScope transforms Steam reviews into meaningful insights, recurring issues, and actionable feedback to help developers understand their players."}
+      </p>
+    </div>
 
             {/* Player / Developer mode selector */}
             <div className="intro-mode-selector">
@@ -266,86 +371,32 @@ function Intro({
 
         {/* Features */}
         <Reveal>
-          <section className="intro-features">
-            <div className="intro-feature">
-              <div className="feature-icon">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M4 19V5" />
-                  <path d="M4 19h16" />
-                  <path d="M8 16v-5" />
-                  <path d="M12 16V7" />
-                  <path d="M16 16v-8" />
-                </svg>
+          <section
+            key={mode}
+            className="intro-features"
+          >
+            {featureCards[mode].map((card) => (
+              <div className="intro-feature" key={card.title}>
+                <div className="feature-icon">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    {card.icon}
+                  </svg>
+                </div>
+
+                <h3>{card.title}</h3>
+
+                <p>{card.text}</p>
+
+                <span className="feature-arrow">→</span>
               </div>
-
-              <h3>Review Analysis</h3>
-
-              <p>
-                Analyze large volumes of Steam reviews and identify
-                meaningful patterns in player feedback.
-              </p>
-
-              <span className="feature-arrow">→</span>
-            </div>
-
-            <div className="intro-feature">
-              <div className="feature-icon">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M12 3v18" />
-                  <path d="M3 12h18" />
-                  <path d="m5 5 14 14" />
-                  <path d="M19 5 5 19" />
-                </svg>
-              </div>
-
-              <h3>Issue Detection</h3>
-
-              <p>
-                Discover recurring problems that players mention most
-                often across thousands of reviews.
-              </p>
-
-              <span className="feature-arrow">→</span>
-            </div>
-
-            <div className="intro-feature">
-              <div className="feature-icon">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M12 3 5 6v5c0 4.5 3 7.5 7 10 4-2.5 7-5.5 7-10V6l-7-3Z" />
-                  <path d="m9 12 2 2 4-4" />
-                </svg>
-              </div>
-
-              <h3>Feedback Quality</h3>
-
-              <p>
-                Separate useful player feedback from vague,
-                repetitive, or low-value reviews.
-              </p>
-
-              <span className="feature-arrow">→</span>
-            </div>
+            ))}
           </section>
         </Reveal>
 
@@ -487,98 +538,220 @@ function Intro({
           </section>
         </Reveal>
 
-        {/* Dashboard Preview */}
+        {/* Preview (changes with the selected mode) */}
         <Reveal>
           <section className="intro-preview">
             <div className="preview-window">
-              <div className="preview-top">
-                <div className="preview-dots">
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                </div>
-
-                <div className="preview-title">
-                  GameScope Dashboard
-                </div>
-
-                <div className="preview-live">
-                  <span></span>
-                  Live Analysis
-                </div>
-              </div>
-
-              <div className="preview-content">
-                <div className="preview-header">
-                  <div>
-                    <span className="preview-small-label">
-                      Game Analysis
-                    </span>
-                    <h3>Path of Exile 2</h3>
-                  </div>
-
-                  <div className="preview-score">
-                    <span>Review Quality</span>
-                    <strong>78%</strong>
-                  </div>
-                </div>
-
-                <div className="preview-stats">
-                  <div className="preview-stat">
-                    <span>Total Reviews</span>
-                    <strong>1,284</strong>
-                  </div>
-                  <div className="preview-stat">
-                    <span>Positive</span>
-                    <strong>72%</strong>
-                  </div>
-                  <div className="preview-stat">
-                    <span>Negative</span>
-                    <strong>28%</strong>
-                  </div>
-                </div>
-
-                <div className="preview-bottom">
-                  <div className="preview-chart">
-                    <div className="chart-label">
-                      Review Sentiment
+              <div key={mode} className="preview-swap">
+                {mode === "player" ? (
+                <>
+                  <div className="preview-top">
+                    <div className="preview-dots">
+                      <span></span>
+                      <span></span>
+                      <span></span>
                     </div>
 
-                    <div className="chart-bars">
-                      <span style={{ height: "45%" }}></span>
-                      <span style={{ height: "65%" }}></span>
-                      <span style={{ height: "55%" }}></span>
-                      <span style={{ height: "80%" }}></span>
-                      <span style={{ height: "70%" }}></span>
-                      <span style={{ height: "92%" }}></span>
-                      <span style={{ height: "76%" }}></span>
+                    <div className="preview-title">
+                      GameScope Explorer
+                    </div>
+
+                    <div className="preview-live">
+                      <span></span>
+                      Player Insights
                     </div>
                   </div>
 
-                  <div className="preview-issues">
-                    <div className="chart-label">Top Issues</div>
+                  <div className="preview-content player-preview">
+                    <div className="preview-header">
+                      <div>
+                        <span className="preview-small-label">
+                          Game Overview
+                        </span>
+                        <h3>Path of Exile 2</h3>
+                      </div>
 
-                    <div className="issue-line">
-                      <span>Inventory</span>
-                      <div><i style={{ width: "100%" }}></i></div>
+                      <div className="preview-score">
+                        <span>Players Recommend</span>
+                        <strong>72%</strong>
+                      </div>
                     </div>
 
-                    <div className="issue-line">
-                      <span>Performance</span>
-                      <div><i style={{ width: "73%" }}></i></div>
+                    <div className="preview-stats">
+                      <div className="preview-stat">
+                        <span>Avg. Playtime</span>
+                        <strong>184h</strong>
+                      </div>
+                      <div className="preview-stat">
+                        <span>Recommended</span>
+                        <strong>925</strong>
+                      </div>
+                      <div className="preview-stat">
+                        <span>Review Quality</span>
+                        <strong>78%</strong>
+                      </div>
                     </div>
 
-                    <div className="issue-line">
-                      <span>Multiplayer</span>
-                      <div><i style={{ width: "50%" }}></i></div>
-                    </div>
+                    <div className="preview-bottom">
+                      <div className="preview-chart">
+                        <div className="chart-label">
+                          Recommended by Playtime
+                        </div>
 
-                    <div className="issue-line">
-                      <span>Bugs</span>
-                      <div><i style={{ width: "41%" }}></i></div>
+                        <div className="player-bars">
+                          {playerPlaytimeBars.map((bar) => (
+                            <div
+                              className="player-bar-col"
+                              key={bar.range}
+                            >
+                              <strong>{bar.value}%</strong>
+                              <div className="player-bar-track">
+                                <div
+                                  className="player-bar"
+                                  style={{ height: `${bar.value}%` }}
+                                ></div>
+                              </div>
+                              <small>{bar.range}</small>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="preview-issues">
+                        <div className="chart-label">
+                          What Players Say
+                        </div>
+
+                        <div className="topic-group">
+                          <span className="topic-label positive">
+                            Players love
+                          </span>
+                          <div className="topic-chips">
+                            {playerLoves.map((item) => (
+                              <span
+                                className="topic-chip positive"
+                                key={item.topic}
+                              >
+                                {item.topic}
+                                <small>{item.mentions}</small>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="topic-group">
+                          <span className="topic-label negative">
+                            Watch out for
+                          </span>
+                          <div className="topic-chips">
+                            {playerWatchOuts.map((item) => (
+                              <span
+                                className="topic-chip negative"
+                                key={item.topic}
+                              >
+                                {item.topic}
+                                <small>{item.mentions}</small>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </>
+                ) : (
+                  <>
+                    <div className="preview-top">
+                      <div className="preview-dots">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                      </div>
+
+                      <div className="preview-title">
+                        GameScope Dashboard
+                      </div>
+
+                      <div className="preview-live">
+                        <span></span>
+                        Live Analysis
+                      </div>
+                    </div>
+
+                    <div className="preview-content">
+                      <div className="preview-header">
+                        <div>
+                          <span className="preview-small-label">
+                            Game Analysis
+                          </span>
+                          <h3>Path of Exile 2</h3>
+                        </div>
+
+                        <div className="preview-score">
+                          <span>Review Quality</span>
+                          <strong>78%</strong>
+                        </div>
+                      </div>
+
+                      <div className="preview-stats">
+                        <div className="preview-stat">
+                          <span>Total Reviews</span>
+                          <strong>1,284</strong>
+                        </div>
+                        <div className="preview-stat">
+                          <span>Positive</span>
+                          <strong>72%</strong>
+                        </div>
+                        <div className="preview-stat">
+                          <span>Negative</span>
+                          <strong>28%</strong>
+                        </div>
+                      </div>
+
+                      <div className="preview-bottom">
+                        <div className="preview-chart">
+                          <div className="chart-label">
+                            Review Sentiment
+                          </div>
+
+                          <div className="chart-bars">
+                            <span style={{ height: "45%" }}></span>
+                            <span style={{ height: "65%" }}></span>
+                            <span style={{ height: "55%" }}></span>
+                            <span style={{ height: "80%" }}></span>
+                            <span style={{ height: "70%" }}></span>
+                            <span style={{ height: "92%" }}></span>
+                            <span style={{ height: "76%" }}></span>
+                          </div>
+                        </div>
+
+                        <div className="preview-issues">
+                          <div className="chart-label">Top Issues</div>
+
+                          <div className="issue-line">
+                            <span>Inventory</span>
+                            <div><i style={{ width: "100%" }}></i></div>
+                          </div>
+
+                          <div className="issue-line">
+                            <span>Performance</span>
+                            <div><i style={{ width: "73%" }}></i></div>
+                          </div>
+
+                          <div className="issue-line">
+                            <span>Multiplayer</span>
+                            <div><i style={{ width: "50%" }}></i></div>
+                          </div>
+
+                          <div className="issue-line">
+                            <span>Bugs</span>
+                            <div><i style={{ width: "41%" }}></i></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </section>

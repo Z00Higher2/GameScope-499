@@ -6,22 +6,34 @@ import Reviews from "./components/Reviews";
 import Issues from "./components/Issues";
 import Intro from "./components/Intro";
 import Settings from "./components/Settings";
+import PlayerHome from "./components/PlayerHome";
 import type { GameAnalysis } from "./api";
 
 import "./App.css";
 
-export type Page =
-  | "dashboard"
-  | "reviews"
-  | "issues"
-  | "analytics"
-  | "settings";
+import type { Page, Mode, AccentColor } from "./type";
 
-export type Mode = "player" | "developer";
-
-export type AccentColor = "purple" | "blue" | "green";
+export type { Page, Mode, AccentColor } from "./type";
 
 const SETTINGS_KEY = "gamescope-settings";
+
+const ACCENT_VALUES: Record<
+  AccentColor,
+  { accent: string; strong: string }
+> = {
+  purple: {
+    accent: "#7065ee",
+    strong: "#8b80ff",
+  },
+  blue: {
+    accent: "#4388ff",
+    strong: "#70a5ff",
+  },
+  green: {
+    accent: "#20a878",
+    strong: "#43c995",
+  },
+};
 
 function getSavedAccentColor(): AccentColor {
   try {
@@ -39,17 +51,17 @@ function getSavedAccentColor(): AccentColor {
       }
     }
   } catch {
-    // Fall back to purple if saved settings are invalid.
+    // Use purple if saved settings are invalid.
   }
 
   return "purple";
 }
 
 function App() {
-  // DARK / LIGHT MODE
-
+  // Dark / light mode
   const [darkMode, setDarkMode] = useState(
-    () => localStorage.getItem("gamescope-dark-mode") === "true"
+    () =>
+      localStorage.getItem("gamescope-dark-mode") === "true"
   );
 
   useEffect(() => {
@@ -59,13 +71,11 @@ function App() {
     );
   }, [darkMode]);
 
-  // GLOBAL ACCENT COLOR
-
+  // Global accent color
   const [accentColor, setAccentColor] =
     useState<AccentColor>(getSavedAccentColor);
 
-  // PLAYER / DEVELOPER MODE
-
+  // Player / developer mode
   const [mode, setMode] = useState<Mode>(() =>
     localStorage.getItem("gamescope-mode") === "player"
       ? "player"
@@ -76,54 +86,41 @@ function App() {
     localStorage.setItem("gamescope-mode", mode);
   }, [mode]);
 
-  // INTRO SCREEN
-
+  // Intro screen
   const [showIntro, setShowIntro] = useState(
-    () => sessionStorage.getItem("gamescope-show-intro") !== "false"
+    () =>
+      sessionStorage.getItem("gamescope-show-intro") !==
+      "false"
   );
 
-  // CURRENT PAGE
-
+  // Current page
   const [currentPage, setCurrentPage] =
-    useState<Page>("dashboard");
+    useState<Page>(() =>
+      localStorage.getItem("gamescope-mode") === "player"
+        ? "player"
+        : "dashboard"
+    );
 
-  // SHARED ANALYSIS STATE
-
+  // Shared analysis state
   const [analyzed, setAnalyzed] = useState(false);
   const [analyzedAppId, setAnalyzedAppId] = useState("");
 
   const [analysis, setAnalysis] =
     useState<GameAnalysis | null>(null);
 
-  // GET STARTED
-
+  // Get started
   const handleGetStarted = () => {
     setShowIntro(false);
-    sessionStorage.setItem("gamescope-show-intro", "false");
 
-    let preferredPage: Page =
-      mode === "player" ? "reviews" : "dashboard";
+    sessionStorage.setItem(
+      "gamescope-show-intro",
+      "false"
+    );
 
-    try {
-      const savedSettings = localStorage.getItem(SETTINGS_KEY);
+    const destination: Page =
+      mode === "player" ? "player" : "dashboard";
 
-      if (savedSettings) {
-        const settings = JSON.parse(savedSettings);
-
-        const allowedPages: Page[] =
-          mode === "player"
-            ? ["reviews", "dashboard"]
-            : ["dashboard", "analytics", "issues", "reviews"];
-
-        if (allowedPages.includes(settings.defaultPage)) {
-          preferredPage = settings.defaultPage;
-        }
-      }
-    } catch {
-      // Keep the mode's default page.
-    }
-
-    setCurrentPage(preferredPage);
+    setCurrentPage(destination);
 
     window.scrollTo({
       top: 0,
@@ -132,11 +129,14 @@ function App() {
     });
   };
 
-  // LOGO CLICK
-
+  // Logo click
   const handleLogoClick = () => {
     setShowIntro(true);
-    sessionStorage.setItem("gamescope-show-intro", "true");
+
+    sessionStorage.setItem(
+      "gamescope-show-intro",
+      "true"
+    );
 
     window.scrollTo({
       top: 0,
@@ -145,8 +145,20 @@ function App() {
     });
   };
 
-  // SHARED PAGE PROPS
+  // Analyze game from Player Home
+  const handleAnalyzeGame = (appId: string) => {
+    setAnalyzedAppId(appId);
+    setAnalyzed(true);
+    setCurrentPage("dashboard");
 
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: "auto",
+    });
+  };
+
+  // Shared page props
   const sharedProps = {
     darkMode,
     setDarkMode,
@@ -157,14 +169,24 @@ function App() {
     setMode,
   };
 
+  const accentValues = ACCENT_VALUES[accentColor];
+
   return (
     <div
       className={`app-container ${
         darkMode ? "dark-mode" : ""
       } ${
-        mode === "player" ? "player-mode" : "developer-mode"
+        mode === "player"
+          ? "player-mode"
+          : "developer-mode"
       }`}
       data-accent={accentColor}
+      style={
+        {
+          "--accent-color": accentValues.accent,
+          "--accent-strong": accentValues.strong,
+        } as React.CSSProperties
+      }
     >
       {showIntro ? (
         <Intro
@@ -176,6 +198,20 @@ function App() {
         />
       ) : (
         <>
+          {/* Player Home */}
+          {currentPage === "player" && (
+            <PlayerHome
+              darkMode={darkMode}
+              setDarkMode={setDarkMode}
+              currentPage={currentPage}
+              setCurrentPage={setCurrentPage}
+              onLogoClick={handleLogoClick}
+              mode={mode}
+              onAnalyzeGame={handleAnalyzeGame}
+            />
+          )}
+
+          {/* Developer Dashboard */}
           {currentPage === "dashboard" && (
             <Dashboard
               {...sharedProps}
@@ -188,6 +224,7 @@ function App() {
             />
           )}
 
+          {/* Reviews */}
           {currentPage === "reviews" && (
             <Reviews
               {...sharedProps}
@@ -197,6 +234,7 @@ function App() {
             />
           )}
 
+          {/* Analytics */}
           {currentPage === "analytics" && (
             <Analytics
               {...sharedProps}
@@ -206,6 +244,7 @@ function App() {
             />
           )}
 
+          {/* Issues */}
           {currentPage === "issues" && (
             <Issues
               {...sharedProps}
@@ -214,6 +253,7 @@ function App() {
             />
           )}
 
+          {/* Settings */}
           {currentPage === "settings" && (
             <Settings
               {...sharedProps}

@@ -3,36 +3,67 @@ import { useEffect, useState } from "react";
 import Navbar from "./Navbar";
 import { analyzeGame, searchGames } from "../api";
 import type { GameAnalysis, GameSearchResult } from "../api";
+import type { Page, Mode } from "../type";
 
 import "./Dashboard.css";
 
 interface DashboardProps {
   darkMode: boolean;
   setDarkMode: React.Dispatch<React.SetStateAction<boolean>>;
-
- currentPage: "dashboard" | "issues" | "analytics" | "reviews" | "settings";
- setCurrentPage: React.Dispatch<
-    React.SetStateAction<"dashboard" | "issues" | "analytics" | "reviews"| "settings">
-  >;
-
-  // ==================================================
-  // SHARED ANALYSIS STATE
-  // ==================================================
+  currentPage: Page;
+  mode: Mode;
+  setCurrentPage: React.Dispatch<React.SetStateAction<Page>>;
 
   analyzed: boolean;
-
   setAnalyzed: React.Dispatch<React.SetStateAction<boolean>>;
 
   analyzedAppId: string;
-
   setAnalyzedAppId: React.Dispatch<React.SetStateAction<string>>;
 
-  // Results from the GameScope API for the analyzed game
   analysis: GameAnalysis | null;
-
   setAnalysis: React.Dispatch<React.SetStateAction<GameAnalysis | null>>;
 
   onLogoClick: () => void;
+}
+
+// ==================================================
+// STEAM GAME THUMBNAIL
+// ==================================================
+// Loads the game's header image from Steam.
+// If the image cannot load, show the game's first letter.
+// ==================================================
+
+function DashboardGameThumb({
+  appId,
+  name,
+}: {
+  appId: string;
+  name: string;
+}) {
+  const [imageIndex, setImageIndex] = useState(0);
+
+  const imageUrls = [
+    `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg`,
+    `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/header.jpg`,
+  ];
+
+  return (
+    <span className="dashboard-game-thumb-wrapper">
+      {imageIndex < imageUrls.length ? (
+        <img
+          className="dashboard-game-thumb"
+          src={imageUrls[imageIndex]}
+          alt={`${name} game cover`}
+          loading="lazy"
+          onError={() => setImageIndex((index) => index + 1)}
+        />
+      ) : (
+        <span className="dashboard-game-thumb dashboard-game-thumb-fallback">
+          {name.trim().charAt(0).toUpperCase() || "?"}
+        </span>
+      )}
+    </span>
+  );
 }
 
 function Dashboard({
@@ -47,29 +78,17 @@ function Dashboard({
   analysis,
   setAnalysis,
   onLogoClick,
+  mode,
 }: DashboardProps) {
   // ==================================================
   // GAME SEARCH
   // ==================================================
-  // Users can search for a Steam game by name.
-  //
-  // The GameScope API asks Steam's store search for
-  // matching games and returns their App IDs.
-  // ==================================================
 
   const [gameSearch, setGameSearch] = useState("");
 
-  // This is the game the user is CURRENTLY preparing
-  // to analyze.
-  //
-  // IMPORTANT:
-  // This is separate from the analyzed game.
-  // Selecting a new game should NOT change the
-  // currently displayed analysis.
   const [selectedGame, setSelectedGame] =
     useState<GameSearchResult | null>(null);
 
-  // App ID input.
   const [appId, setAppId] = useState(analyzedAppId);
 
   // ==================================================
@@ -77,8 +96,6 @@ function Dashboard({
   // ==================================================
 
   const [loading, setLoading] = useState(false);
-
-  // Why the last Analyze failed (shown under the card)
   const [error, setError] = useState("");
 
   // ==================================================
@@ -93,7 +110,6 @@ function Dashboard({
   useEffect(() => {
     const query = gameSearch.trim();
 
-    // Nothing to search, or a result was already picked
     if (!query || selectedGame) {
       setGameSearchResults([]);
       setSearchError("");
@@ -102,7 +118,6 @@ function Dashboard({
 
     const controller = new AbortController();
 
-    // Wait until the user stops typing before searching.
     const timer = window.setTimeout(() => {
       searchGames(query, controller.signal)
         .then((results) => {
@@ -130,12 +145,6 @@ function Dashboard({
   // ==================================================
   // ANALYZED GAME
   // ==================================================
-  // The game whose results are currently displayed.
-  //
-  // analysis only changes AFTER Analyze finishes, so
-  // picking a new game doesn't change the displayed
-  // analysis early.
-  // ==================================================
 
   const gameName =
     analysis?.game.name ||
@@ -143,11 +152,7 @@ function Dashboard({
       ? `Steam Game ${analyzedAppId}`
       : "Enter a Steam App ID");
 
-  // Steam IDs are intentionally NOT displayed with
-  // feedback because the project treats reviews as
-  // anonymous.
   const topIssues = analysis?.topIssues ?? [];
-
   const recentFeedback = analysis?.recentFeedback ?? [];
 
   // ==================================================
@@ -158,14 +163,11 @@ function Dashboard({
     gameToAnalyze?: GameSearchResult,
     refresh = false
   ) => {
-    // If a game was selected from search, use that game.
-    //
-    // Otherwise use the manually entered App ID.
     const trimmedAppId =
       gameToAnalyze?.appId || appId.trim();
 
-    // Don't analyze an empty App ID.
     if (!trimmedAppId) {
+      setError("Enter a Steam App ID or select a game.");
       return;
     }
 
@@ -179,47 +181,19 @@ function Dashboard({
     setError("");
     setLoading(true);
 
-    // ==================================================
-    // BACKEND:
-    //
-    // The GameScope API (GameReview/api.py):
-    //
-    // 1. Receives the Steam App ID
-    // 2. Collects Steam reviews
-    // 3. Filters low-quality reviews
-    // 4. Stores/reads reviews from MySQL
-    // 5. Calculates analytics
-    // 6. Returns the results
-    //
-    // Games analyzed before load straight from MySQL.
-    // Re-analyze (refresh) collects fresh reviews.
-    // ==================================================
-
     try {
       const result = await analyzeGame(
         trimmedAppId,
         refresh
       );
 
-      // ==================================================
-      // SAVE THE ANALYZED GAME
-      // ==================================================
-      // The displayed game changes ONLY here, after
-      // Analyze has actually finished.
-      // ==================================================
-
       setAnalysis(result);
-
-      // Tell App.tsx that analysis is complete.
       setAnalyzed(true);
-
-      // Save the App ID.
       setAnalyzedAppId(result.game.appId);
 
-      // Clear the search after analysis so the old
-      // results don't pop back open.
       setSelectedGame(null);
       setGameSearch("");
+      setAppId(result.game.appId);
 
       window.scrollTo({
         top: 0,
@@ -238,18 +212,11 @@ function Dashboard({
   };
 
   // ==================================================
-  // RE-ANALYZE
-  // ==================================================
-  // Re-analyze the game that is CURRENTLY displayed,
-  // collecting fresh reviews from Steam.
-  //
-  // It should NOT use the search box or selected game.
+  // RE-ANALYZE CURRENT GAME
   // ==================================================
 
   const handleReanalyze = () => {
-    if (!analyzedAppId) {
-      return;
-    }
+    if (!analyzedAppId) return;
 
     handleAnalyze(
       {
@@ -263,17 +230,10 @@ function Dashboard({
   // ==================================================
   // SELECT GAME
   // ==================================================
-  // Selecting a game prepares it for analysis.
-  //
-  // IMPORTANT:
-  // We do NOT change the analyzed game here.
-  // ==================================================
 
   const handleSelectGame = (game: GameSearchResult) => {
     setSelectedGame(game);
-
     setAppId(game.appId);
-
     setGameSearch(game.name);
   };
 
@@ -285,21 +245,16 @@ function Dashboard({
         currentPage={currentPage}
         setCurrentPage={setCurrentPage}
         onLogoClick={onLogoClick}
+        mode={mode}
       />
 
       <main className="dashboard-main">
-        {/* ==================================================
-            HEADER
-        ================================================== */}
+        {/* HEADER */}
 
         <section className="dashboard-header">
           <div>
-            <span className="dashboard-label">
-              GAMESCOPE
-            </span>
-
+            <span className="dashboard-label">GAMESCOPE</span>
             <h1>Game Review Dashboard</h1>
-
             <p>
               Analyze Steam player reviews and discover
               meaningful feedback about a game.
@@ -307,24 +262,19 @@ function Dashboard({
           </div>
         </section>
 
-        {/* ==================================================
-            ANALYZE CARD
-        ================================================== */}
+        {/* ANALYZE CARD */}
 
         <section className="analyze-card">
           <div className="analyze-content">
             <div className="analyze-title">
               <h2>Analyze a Game</h2>
-
               <p>
                 Search for a Steam game by name or enter
                 its App ID.
               </p>
             </div>
 
-            {/* ==================================================
-                GAME NAME SEARCH
-            ================================================== */}
+            {/* GAME NAME SEARCH */}
 
             <div className="search-container">
               <input
@@ -332,10 +282,6 @@ function Dashboard({
                 value={gameSearch}
                 onChange={(event) => {
                   setGameSearch(event.target.value);
-
-                  // Searching for another game means the
-                  // previous search selection is no longer
-                  // the pending game.
                   setSelectedGame(null);
                 }}
                 placeholder="Search for a Steam game..."
@@ -343,90 +289,82 @@ function Dashboard({
               />
             </div>
 
-            {/* ==================================================
-                SEARCH RESULTS
-            ================================================== */}
+            {/* SEARCH RESULTS WITH STEAM IMAGES */}
 
             {searchError && !selectedGame && (
-              <p className="app-id-help">
-                {searchError}
-              </p>
+              <p className="app-id-help">{searchError}</p>
             )}
 
-            {gameSearchResults.length > 0 &&
-              !selectedGame && (
-                <div className="game-search-results">
-                  {gameSearchResults.map((game) => (
-                    <button
-                      type="button"
-                      className="game-search-result"
-                      key={game.appId}
-                      onClick={() =>
-                        handleSelectGame(game)
-                      }
-                      disabled={loading}
-                    >
-                      <span>
+            {gameSearchResults.length > 0 && !selectedGame && (
+              <div className="game-search-results">
+                {gameSearchResults.map((game) => (
+                  <button
+                    type="button"
+                    className="game-search-result"
+                    key={game.appId}
+                    onClick={() => handleSelectGame(game)}
+                    disabled={loading}
+                  >
+                    <span className="dashboard-search-game">
+                      <DashboardGameThumb
+                        appId={game.appId}
+                        name={game.name}
+                      />
+
+                      <span className="dashboard-search-game-info">
                         <strong>{game.name}</strong>
-
-                        <small>
-                          Steam App ID: {game.appId}
-                        </small>
+                        <small>Steam App ID: {game.appId}</small>
                       </span>
+                    </span>
 
-                      <span className="game-select-label">
-                        Select
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
+                    <span className="game-select-label">
+                      Select
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
 
-            {/* ==================================================
-                SELECTED GAME
-            ================================================== */}
+            {/* SELECTED GAME WITH STEAM IMAGE */}
 
             {selectedGame && (
               <div className="selected-game">
-                <div>
-                  <span className="selected-game-label">
-                    SELECTED GAME
-                  </span>
+                <div className="dashboard-selected-game-info">
+                  <DashboardGameThumb
+                    appId={selectedGame.appId}
+                    name={selectedGame.name}
+                  />
 
-                  <strong>
-                    {selectedGame.name}
-                  </strong>
+                  <div>
+                    <span className="selected-game-label">
+                      SELECTED GAME
+                    </span>
 
-                  <small>
-                    Steam App ID: {selectedGame.appId}
-                  </small>
+                    <strong>{selectedGame.name}</strong>
+
+                    <small>
+                      Steam App ID: {selectedGame.appId}
+                    </small>
+                  </div>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() =>
-                    handleAnalyze(selectedGame)
-                  }
+                  onClick={() => handleAnalyze(selectedGame)}
                   disabled={loading}
                 >
-                  {loading
-                    ? "Analyzing..."
-                    : "Analyze"}
+                  {loading ? "Analyzing..." : "Analyze"}
                 </button>
               </div>
             )}
 
-            {/* ==================================================
-                OR DIVIDER
-            ================================================== */}
+            {/* OR DIVIDER */}
 
             <div className="app-id-divider">
               <span>OR</span>
             </div>
 
-            {/* ==================================================
-                MANUAL APP ID
-            ================================================== */}
+            {/* MANUAL APP ID */}
 
             <div className="search-container">
               <input
@@ -434,9 +372,6 @@ function Dashboard({
                 value={appId}
                 onChange={(event) => {
                   setAppId(event.target.value);
-
-                  // Manual App ID entry cancels the selected
-                  // search result.
                   setSelectedGame(null);
                 }}
                 onKeyDown={(event) => {
@@ -451,49 +386,34 @@ function Dashboard({
               <button
                 type="button"
                 onClick={() => handleAnalyze()}
-                disabled={
-                  loading || !appId.trim()
-                }
+                disabled={loading || !appId.trim()}
               >
-                {loading
-                  ? "Analyzing..."
-                  : "Analyze"}
+                {loading ? "Analyzing..." : "Analyze"}
               </button>
             </div>
 
             <p className="app-id-help">
-              Example:{" "}
-              <strong>2694490</strong> for Path
+              Example: <strong>2694490</strong> for Path
               of Exile 2
             </p>
           </div>
         </section>
 
-        {/* ==================================================
-            ERROR
-        ================================================== */}
+        {/* ERROR */}
 
         {error && !loading && (
-          <section
-            className="analyze-error"
-            role="alert"
-          >
+          <section className="analyze-error" role="alert">
             <strong>Couldn't analyze that game</strong>
-
             <p>{error}</p>
           </section>
         )}
 
-        {/* ==================================================
-            LOADING
-        ================================================== */}
+        {/* LOADING */}
 
         {loading && (
           <section className="loading-card">
             <div className="loading-spinner"></div>
-
             <h3>Analyzing Reviews...</h3>
-
             <p>
               Collecting and processing player feedback.
               A game analyzed for the first time takes
@@ -502,30 +422,31 @@ function Dashboard({
           </section>
         )}
 
-        {/* ==================================================
-            ANALYZED GAME RESULTS
-        ================================================== */}
+        {/* ANALYZED GAME RESULTS */}
 
         {analyzed && analysis && !loading && (
           <>
-            {/* ==================================================
-                CURRENT GAME
-            ================================================== */}
+            {/* CURRENT GAME */}
 
             <section className="game-status">
-              <div>
-                <span className="status-label">
-                  CURRENTLY ANALYZED
-                </span>
+              <div className="dashboard-selected-game-info">
+                <DashboardGameThumb
+                  appId={analyzedAppId}
+                  name={gameName}
+                />
 
-                <h2>{gameName}</h2>
+                <div>
+                  <span className="status-label">
+                    CURRENTLY ANALYZED
+                  </span>
 
-                <p>
-                  Steam App ID:{" "}
-                  <strong>
-                    {analyzedAppId}
-                  </strong>
-                </p>
+                  <h2>{gameName}</h2>
+
+                  <p>
+                    Steam App ID:{" "}
+                    <strong>{analyzedAppId}</strong>
+                  </p>
+                </div>
               </div>
 
               <button
@@ -537,91 +458,60 @@ function Dashboard({
               </button>
             </section>
 
-            {/* ==================================================
-                STATS
-            ================================================== */}
+            {/* STATS */}
 
             <section className="stats-grid">
               <div className="stat-card">
-                <span className="stat-label">
-                  TOTAL REVIEWS
-                </span>
-
+                <span className="stat-label">TOTAL REVIEWS</span>
                 <strong className="stat-value">
                   {analysis.summary.totalReviews.toLocaleString()}
                 </strong>
               </div>
 
               <div className="stat-card">
-                <span className="stat-label">
-                  POSITIVE REVIEWS
-                </span>
-
+                <span className="stat-label">POSITIVE REVIEWS</span>
                 <strong className="stat-value">
                   {analysis.summary.positivePercentage}%
                 </strong>
-
                 <span className="stat-detail">
-                  {analysis.summary.positiveReviews.toLocaleString()}{" "}
-                  reviews
+                  {analysis.summary.positiveReviews.toLocaleString()} reviews
                 </span>
               </div>
 
               <div className="stat-card">
-                <span className="stat-label">
-                  NEGATIVE REVIEWS
-                </span>
-
+                <span className="stat-label">NEGATIVE REVIEWS</span>
                 <strong className="stat-value">
                   {analysis.summary.negativePercentage}%
                 </strong>
-
                 <span className="stat-detail">
-                  {analysis.summary.negativeReviews.toLocaleString()}{" "}
-                  reviews
+                  {analysis.summary.negativeReviews.toLocaleString()} reviews
                 </span>
               </div>
             </section>
 
-            {/* ==================================================
-                ANALYSIS SUMMARY
-            ================================================== */}
+            {/* ANALYSIS SUMMARY */}
 
             <section className="analysis-summary">
               <div>
-                <span className="summary-label">
-                  ANALYSIS SUMMARY
-                </span>
-
-                <h2>
-                  What are players saying?
-                </h2>
-
-                <p>
-                  {analysis.analysisSummary}
-                </p>
+                <span className="summary-label">ANALYSIS SUMMARY</span>
+                <h2>What are players saying?</h2>
+                <p>{analysis.analysisSummary}</p>
               </div>
 
               <div className="summary-stat">
                 <strong>
                   {analysis.summary.positivePercentage}%
                 </strong>
-
                 <span>Recommended</span>
               </div>
             </section>
 
-            {/* ==================================================
-                TOP ISSUES
-            ================================================== */}
+            {/* TOP ISSUES */}
 
             <section className="dashboard-card">
               <div className="card-header">
                 <div>
-                  <span className="card-label">
-                    REVIEW ANALYSIS
-                  </span>
-
+                  <span className="card-label">REVIEW ANALYSIS</span>
                   <h2>Top Issues</h2>
                 </div>
               </div>
@@ -629,24 +519,15 @@ function Dashboard({
               <div className="issue-list">
                 {topIssues.length === 0 && (
                   <p className="dashboard-note">
-                    No common topics found in the
-                    negative reviews.
+                    No common topics found in the negative reviews.
                   </p>
                 )}
 
                 {topIssues.map((issue) => (
-                  <div
-                    className="issue-item"
-                    key={issue.name}
-                  >
+                  <div className="issue-item" key={issue.name}>
                     <div className="issue-info">
-                      <span>
-                        {issue.name}
-                      </span>
-
-                      <strong>
-                        {issue.count.toLocaleString()}
-                      </strong>
+                      <span>{issue.name}</span>
+                      <strong>{issue.count.toLocaleString()}</strong>
                     </div>
 
                     <div className="issue-bar">
@@ -654,9 +535,9 @@ function Dashboard({
                         className="issue-bar-fill"
                         style={{
                           width: `${
-                            (issue.count /
-                              topIssues[0].count) *
-                            100
+                            topIssues[0]?.count
+                              ? (issue.count / topIssues[0].count) * 100
+                              : 0
                           }%`,
                         }}
                       />
@@ -666,62 +547,44 @@ function Dashboard({
               </div>
             </section>
 
-            {/* ==================================================
-                RECENT FEEDBACK
-            ================================================== */}
+            {/* RECENT FEEDBACK */}
 
             <section className="dashboard-card">
               <div className="card-header">
                 <div>
-                  <span className="card-label">
-                    PLAYER FEEDBACK
-                  </span>
-
+                  <span className="card-label">PLAYER FEEDBACK</span>
                   <h2>Recent Feedback</h2>
                 </div>
               </div>
 
               <div className="feedback-list">
-                {recentFeedback.map(
-                  (feedback, index) => (
-                    <div
-                      className="feedback-item"
-                      key={index}
-                    >
-                      <span
-                        className={`feedback-type ${feedback.type}`}
-                      >
-                        {feedback.type ===
-                        "positive"
-                          ? "Positive"
-                          : "Negative"}
-                      </span>
+                {recentFeedback.map((feedback, index) => (
+                  <div
+                    className="feedback-item"
+                    key={index}
+                  >
+                    <span className={`feedback-type ${feedback.type}`}>
+                      {feedback.type === "positive"
+                        ? "Positive"
+                        : "Negative"}
+                    </span>
 
-                      <p>
-                        {feedback.text}
-                      </p>
-                    </div>
-                  )
-                )}
+                    <p>{feedback.text}</p>
+                  </div>
+                ))}
               </div>
             </section>
           </>
         )}
 
-        {/* ==================================================
-            EMPTY STATE
-        ================================================== */}
+        {/* EMPTY STATE */}
 
         {!analyzed && !loading && (
           <section className="dashboard-empty">
-            <h2>
-              Ready to analyze a game?
-            </h2>
-
+            <h2>Ready to analyze a game?</h2>
             <p>
               Search for a Steam game above or enter
-              its App ID to begin analyzing player
-              reviews.
+              its App ID to begin analyzing player reviews.
             </p>
           </section>
         )}

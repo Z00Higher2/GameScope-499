@@ -68,6 +68,7 @@ def get_game_details(app_id):
         "game_developer": ", ".join(data.get("developers") or []),
         "game_publisher": ", ".join(data.get("publishers") or []),
         "game_price": price,
+        "game_header_image": data.get("header_image", ""),
     }
 
 # ==========================================

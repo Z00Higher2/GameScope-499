@@ -9,16 +9,24 @@ The website's dev server forwards every /api request here
 (see GameScope/vite.config.ts).
 """
 
+import time
+
 import requests
 from fastapi import FastAPI, HTTPException, Path, Query
 from mysql.connector import Error as MySQLError
 from fastapi.middleware.cors import CORSMiddleware
 
+import SteamGameReviewer_ as collector
 import pipeline
 from analysis import build_analysis, build_issues, build_review_cards
 
 STEAM_SEARCH_URL = "https://store.steampowered.com/api/storesearch/"
 MAX_APP_ID = 4_294_967_295
+
+# Steam rate-limits appdetails, so store details are cached for a while.
+DETAILS_CACHE_SECONDS = 3600
+DETAILS_CACHE_MAX = 256
+_details_cache = {}
 
 app = FastAPI(title="GameScope API")
 
@@ -45,6 +53,21 @@ def database_error(error):
         status_code=503,
         detail=f"Can't reach MySQL ({error.msg or error}). Is the database running?",
     )
+
+
+def fetch_store_details(app_id):
+    """Steam store details for a game, cached for an hour."""
+    now = time.time()
+    cached = _details_cache.get(app_id)
+    if cached and now - cached[0] < DETAILS_CACHE_SECONDS:
+        return cached[1]
+
+    game = collector.get_game_details(app_id)
+
+    if len(_details_cache) >= DETAILS_CACHE_MAX:
+        _details_cache.clear()
+    _details_cache[app_id] = (now, game)
+    return game
 
 
 def load_stored(app_id):
@@ -88,10 +111,41 @@ def search_games(q: str = Query(min_length=1, max_length=100)):
         ) from error
 
     return [
-        {"name": item["name"], "appId": str(item["id"])}
+        {
+            "name": item["name"],
+            "appId": str(item["id"]),
+            "image": item.get("tiny_image") or None,
+        }
         for item in response.json().get("items", [])
         if item.get("type") == "app"
     ][:8]
+
+
+@app.get("/api/games/{app_id}/details")
+def game_details(app_id: int = Path(gt=0, le=MAX_APP_ID)):
+    """Developer, release date, price and cover image straight from the
+    Steam store. Works before the game has been analyzed."""
+    try:
+        game = fetch_store_details(app_id)
+    except ValueError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except requests.RequestException as error:
+        raise HTTPException(
+            status_code=502, detail=f"Couldn't reach Steam: {error}"
+        ) from error
+
+    price = game["game_price"]  # "" when Steam gives no price
+
+    return {
+        "appId": str(app_id),
+        "name": game["game_name"],
+        "developer": game["game_developer"] or None,
+        "publisher": game["game_publisher"] or None,
+        "releaseDate": game["game_release_date"] or None,  # "YYYY-MM-DD"
+        "price": float(price) if price else None,
+        "shortDescription": game["game_description"] or None,
+        "headerImage": game.get("game_header_image") or None,
+    }
 
 
 @app.post("/api/analyze/{app_id}")

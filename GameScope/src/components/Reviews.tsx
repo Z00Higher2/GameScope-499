@@ -2,19 +2,21 @@ import { useEffect, useMemo, useState } from "react";
 import Navbar from "./Navbar";
 import { getReviewCards } from "../api";
 import type { GameAnalysis, ReviewCard } from "../api";
+import type { Page, Mode } from "../type";
 import "./Reviews.css";
 
 interface ReviewsProps {
   darkMode: boolean;
   setDarkMode: React.Dispatch<React.SetStateAction<boolean>>;
-  currentPage: "dashboard" | "issues" | "analytics" | "reviews" | "settings";
+  currentPage: Page;
   setCurrentPage: React.Dispatch<
-    React.SetStateAction<"dashboard" | "issues" | "analytics" | "reviews" | "settings">
+    React.SetStateAction<Page>
   >;
   onLogoClick: () => void;
   analyzed: boolean;
   analyzedAppId: string;
   analysis: GameAnalysis | null;
+  mode: Mode;
 }
 
 /*
@@ -53,6 +55,7 @@ function Reviews({
   analyzed,
   analyzedAppId,
   analysis,
+  mode,
 }: ReviewsProps) {
   const [sentimentFilter, setSentimentFilter] =
     useState("all");
@@ -310,6 +313,7 @@ function Reviews({
           currentPage={currentPage}
           setCurrentPage={setCurrentPage}
           onLogoClick={onLogoClick}
+          mode={mode}
         />
 
         <section className="reviews-loading">
@@ -358,6 +362,7 @@ function Reviews({
         currentPage={currentPage}
         setCurrentPage={setCurrentPage}
         onLogoClick={onLogoClick}
+        mode={mode}
       />
 
       {!analyzed ? (
