@@ -68,6 +68,21 @@ export interface GameAnalysis {
   positiveTopics: { topic: string; mentions: number }[];
   negativeTopics: { topic: string; mentions: number }[];
 
+    prosAndCons: {
+    pros: {
+      topic: string;
+      mentions: number;
+      totalMentions: number;
+      sentiment: "positive";
+    }[];
+    cons: {
+      topic: string;
+      mentions: number;
+      totalMentions: number;
+      sentiment: "negative";
+    }[];
+  };
+
   playtimeDistribution: { range: string; reviews: number }[];
 
   playtimeRecommendation: {
@@ -104,6 +119,7 @@ export interface GameAnalysis {
 
 export interface ReviewCard {
   id: number;
+  createdAt: string | null;
   sentiment: "positive" | "negative";
   quality: "high" | "moderate" | "low";
   qualityScore: number;

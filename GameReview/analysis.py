@@ -136,6 +136,80 @@ def find_topics(text):
     return [topic for topic, count in ranked if count]
 
 
+# ==========================================
+# Topic-Level Sentiment (Pros and Cons)
+# ==========================================
+
+POSITIVE_CUES = re.compile(
+    r"\b(?:"
+    r"love|loved|like|liked|enjoy|enjoyed|"
+    r"amazing|excellent|great|good|fantastic|"
+    r"fun|beautiful|brilliant|smooth|impressive|"
+    r"well[- ]made|well[- ]designed|satisfying|"
+    r"engaging|immersive|addictive|"
+    r"works well|runs well|"
+    r"improved|improvements"
+    r")\b",
+    re.IGNORECASE,
+)
+
+NEGATIVE_CUES = re.compile(
+    r"\b(?:"
+    r"hate|hated|dislike|disliked|"
+    r"terrible|awful|bad|poor|horrible|"
+    r"boring|frustrating|frustrated|annoying|"
+    r"broken|buggy|unplayable|"
+    r"laggy|lagging|stuttering|stutter|"
+    r"crashes|crashing|crashed|"
+    r"worse|worst|disappointing|"
+    r"overpriced|unbalanced|"
+    r"doesn't work|does not work|"
+    r"not worth|waste of"
+    r")\b",
+    re.IGNORECASE,
+)
+
+NEGATION_CUES = re.compile(
+    r"\b(?:not|never|no|hardly|isn't|aren't|"
+    r"wasn't|weren't|don't|doesn't|didn't|"
+    r"cannot|can't|without)\b",
+    re.IGNORECASE,
+)
+
+
+def topic_sentiment(text, topic_pattern, window=100):
+    """
+    Estimate sentiment around mentions of one topic.
+
+    Returns positive, negative, or neutral.
+    This is a keyword-based estimate, not an AI sentiment model.
+    """
+    positive = 0
+    negative = 0
+
+    for match in topic_pattern.finditer(text):
+        start = max(0, match.start() - window)
+        end = min(len(text), match.end() + window)
+        context = text[start:end]
+
+        positive_hits = len(POSITIVE_CUES.findall(context))
+        negative_hits = len(NEGATIVE_CUES.findall(context))
+
+        # Negation can reverse a nearby positive or negative cue.
+        if NEGATION_CUES.search(context):
+            positive_hits, negative_hits = negative_hits, positive_hits
+
+        positive += positive_hits
+        negative += negative_hits
+
+    if positive > negative:
+        return "positive"
+    if negative > positive:
+        return "negative"
+    return "neutral"
+
+
+
 def topic_word(topic):
     return topic if topic.isupper() else topic.lower()
 
@@ -336,6 +410,80 @@ def topic_counts(scored, recommended, limit=5):
         for topic, count in counts.most_common(limit)
     ]
 
+
+def topic_pros_cons(scored, limit=5):
+    """
+    Identify the topics players discuss most positively and negatively.
+
+    Each review contributes at most once to each topic, preventing
+    repeated mentions from one review from dominating the results.
+    """
+    topic_stats = {}
+
+    for review in scored:
+        # score_reviews() stores cleaned review text under "text".
+        text = review.get("text", "")
+
+        if not text:
+            continue
+
+        # Use the topics already detected for this review.
+        topics = review.get("topics", [])
+
+        for topic in set(topics):
+            pattern = TOPIC_PATTERNS.get(topic)
+
+            if pattern is None:
+                continue
+
+            sentiment = topic_sentiment(text, pattern)
+
+            if topic not in topic_stats:
+                topic_stats[topic] = {
+                    "positive": 0,
+                    "negative": 0,
+                    "neutral": 0,
+                }
+
+            topic_stats[topic][sentiment] += 1
+
+    # Only show topics with a clear positive or negative signal.
+    pros = []
+    cons = []
+
+    for topic, counts in topic_stats.items():
+        positive = counts["positive"]
+        negative = counts["negative"]
+        neutral = counts["neutral"]
+        total = positive + negative + neutral
+
+        if total == 0:
+            continue
+
+        if positive > negative and positive >= 2:
+            pros.append({
+                "topic": topic,
+                "mentions": positive,
+                "totalMentions": total,
+                "sentiment": "positive",
+            })
+
+        if negative > positive and negative >= 2:
+            cons.append({
+                "topic": topic,
+                "mentions": negative,
+                "totalMentions": total,
+                "sentiment": "negative",
+            })
+
+    # Put the most frequently positive/negative topics first.
+    pros.sort(key=lambda item: item["mentions"], reverse=True)
+    cons.sort(key=lambda item: item["mentions"], reverse=True)
+
+    return {
+        "pros": pros[:limit],
+        "cons": cons[:limit],
+    }
 
 def reliability(scored, filter_run):
     # Reliable = kept by the junk filter and at least moderate quality
@@ -602,20 +750,39 @@ def developer_signal(review):
     )
 
 
+
+
 def build_review_cards(stored):
     cards = []
+
     for review in score_reviews(stored["reviews"]):
         signals = review["topics"][:4] or ["General"]
+
+        # Preserve Steam's original review timestamp.
+        created_at = review.get("created_at")
+
+        if created_at is not None:
+            created_at = (
+                created_at.isoformat()
+                if hasattr(created_at, "isoformat")
+                else str(created_at)
+            )
+
         cards.append(
             {
                 "id": numeric_id(review),
-                "sentiment": "positive" if review["recommended"] else "negative",
+                "createdAt": created_at,
+                "sentiment": (
+                    "positive" if review["recommended"] else "negative"
+                ),
                 "quality": review["quality"],
                 "qualityScore": review["quality_score"],
                 "text": shorten(review["text"], 900),
                 "tags": signals,
                 "playtime": round(review["playtime"], 1),
-                "playtimeAtReview": round(review["playtime_at_review"], 1),
+                "playtimeAtReview": round(
+                    review["playtime_at_review"], 1
+                ),
                 "helpfulVotes": review["helpful_votes"],
                 "signals": signals,
                 "developerSignal": developer_signal(review),
@@ -623,8 +790,18 @@ def build_review_cards(stored):
                 "detailed": review["detailed"],
             }
         )
-    cards.sort(key=lambda card: (card["qualityScore"], card["helpfulVotes"]), reverse=True)
+
+    # Keep the default ranking: highest quality, then most helpful.
+    cards.sort(
+        key=lambda card: (
+            card["qualityScore"],
+            card["helpfulVotes"],
+        ),
+        reverse=True,
+    )
+
     return cards
+
 
 
 # ==========================================
@@ -691,6 +868,7 @@ def build_analysis(stored):
         ],
         "positiveTopics": positive_topics,
         "negativeTopics": negative_topics,
+        "prosAndCons": topic_pros_cons(scored),
         "playtimeDistribution": distribution,
         "playtimeRecommendation": by_playtime,
         "reliability": reliability(scored, filter_run),

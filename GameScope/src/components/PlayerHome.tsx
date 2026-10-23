@@ -71,6 +71,29 @@ function formatNumber(value: number): string {
   return value.toLocaleString("en-US");
 }
 
+
+/* ==================================================
+   STEAM IMAGE FALLBACKS
+================================================== */
+
+function getSteamImageSources(
+  appId: string,
+  preferredImage?: string | null
+): string[] {
+  const sources = [
+    preferredImage,
+    `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg`,
+    `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/header.jpg`,
+    `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/capsule_616x353.jpg`,
+    `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/capsule_616x353.jpg`,
+  ];
+
+  return [...new Set(sources.filter(
+    (source): source is string =>
+      typeof source === "string" && source.trim().length > 0
+  ))];
+}
+
 // ==================================================
 // GAME COVER
 // ==================================================
@@ -84,18 +107,16 @@ function GameCover({
   name: string;
   headerImage?: string | null;
 }) {
-  const sources = [
-    headerImage,
-    `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/header.jpg`,
-    `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg`,
-    `https://cdn.cloudflare.steamstatic.com/steam/apps/${appId}/header.jpg`,
-  ].filter((source): source is string => Boolean(source));
-
+  const sources = getSteamImageSources(appId, headerImage);
   const [sourceIndex, setSourceIndex] = useState(0);
+
+  useEffect(() => {
+    setSourceIndex(0);
+  }, [appId, headerImage]);
 
   if (sourceIndex >= sources.length) {
     return (
-      <div className="player-game-icon">
+      <div className="player-game-icon" aria-label={`${name} image unavailable`}>
         <span>{(name || "G").charAt(0).toUpperCase()}</span>
       </div>
     );
@@ -107,7 +128,6 @@ function GameCover({
       src={sources[sourceIndex]}
       alt={`${name} cover art`}
       loading="lazy"
-      referrerPolicy="no-referrer"
       onError={() => setSourceIndex((index) => index + 1)}
     />
   );
@@ -126,17 +146,19 @@ function SearchThumb({
   name: string;
   image?: string | null;
 }) {
-  const sources = [
-    image,
-    `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg`,
-    `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/header.jpg`,
-  ].filter((source): source is string => Boolean(source));
-
+  const sources = getSteamImageSources(appId, image);
   const [sourceIndex, setSourceIndex] = useState(0);
+
+  useEffect(() => {
+    setSourceIndex(0);
+  }, [appId, image]);
 
   if (sourceIndex >= sources.length) {
     return (
-      <span className="player-search-thumb player-search-thumb-fallback">
+      <span
+        className="player-search-thumb player-search-thumb-fallback"
+        aria-label={`${name} image unavailable`}
+      >
         {(name || "G").charAt(0).toUpperCase()}
       </span>
     );
@@ -148,11 +170,11 @@ function SearchThumb({
       src={sources[sourceIndex]}
       alt=""
       loading="lazy"
-      referrerPolicy="no-referrer"
       onError={() => setSourceIndex((index) => index + 1)}
     />
   );
 }
+
 
 // ==================================================
 // SEARCH RESULT WITH PRICE
@@ -801,7 +823,7 @@ function PlayerHome({
         )}
 
         <p className="player-search-hint">
-          Search by game name or enter an App ID, such as 2694490.
+          Search by game name or enter an App ID.
         </p>
       </section>
 

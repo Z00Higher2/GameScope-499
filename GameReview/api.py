@@ -1,3 +1,4 @@
+
 """
 GameScope API: connects the review pipeline and MySQL to the website.
 
@@ -20,13 +21,19 @@ import SteamGameReviewer_ as collector
 import pipeline
 from analysis import build_analysis, build_issues, build_review_cards
 
+
 STEAM_SEARCH_URL = "https://store.steampowered.com/api/storesearch/"
 MAX_APP_ID = 4_294_967_295
+
+STEAM_IMAGE_BASE = (
+    "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps"
+)
 
 # Steam rate-limits appdetails, so store details are cached for a while.
 DETAILS_CACHE_SECONDS = 3600
 DETAILS_CACHE_MAX = 256
 _details_cache = {}
+
 
 app = FastAPI(title="GameScope API")
 
@@ -55,10 +62,23 @@ def database_error(error):
     )
 
 
+def get_fallback_capsule(app_id):
+    """Build a standard Steam small-capsule image URL."""
+    return (
+        f"{STEAM_IMAGE_BASE}/{app_id}/capsule_sm_120.jpg"
+    )
+
+
+def get_fallback_header(app_id):
+    """Build a standard Steam header image URL."""
+    return f"{STEAM_IMAGE_BASE}/{app_id}/header.jpg"
+
+
 def fetch_store_details(app_id):
     """Steam store details for a game, cached for an hour."""
     now = time.time()
     cached = _details_cache.get(app_id)
+
     if cached and now - cached[0] < DETAILS_CACHE_SECONDS:
         return cached[1]
 
@@ -66,6 +86,7 @@ def fetch_store_details(app_id):
 
     if len(_details_cache) >= DETAILS_CACHE_MAX:
         _details_cache.clear()
+
     _details_cache[app_id] = (now, game)
     return game
 
@@ -75,10 +96,13 @@ def load_stored(app_id):
         stored = pipeline.load_game(app_id)
     except MySQLError as error:
         raise database_error(error) from error
+
     if stored is None or not stored["reviews"]:
         raise HTTPException(
-            status_code=404, detail=f"App ID {app_id} hasn't been analyzed yet."
+            status_code=404,
+            detail=f"App ID {app_id} hasn't been analyzed yet.",
         )
+
     return stored
 
 
@@ -93,11 +117,13 @@ def health():
         database = "connected"
     except MySQLError as error:
         database = f"unavailable: {error.msg or error}"
+
     return {"status": "ok", "database": database}
 
 
 @app.get("/api/search")
 def search_games(q: str = Query(min_length=1, max_length=100)):
+    """Search Steam games and return a thumbnail URL for each result."""
     try:
         response = requests.get(
             STEAM_SEARCH_URL,
@@ -105,46 +131,84 @@ def search_games(q: str = Query(min_length=1, max_length=100)):
             timeout=10,
         )
         response.raise_for_status()
+
     except requests.RequestException as error:
         raise HTTPException(
-            status_code=502, detail=f"Couldn't reach Steam search: {error}"
+            status_code=502,
+            detail=f"Couldn't reach Steam search: {error}",
         ) from error
 
-    return [
-        {
-            "name": item["name"],
-            "appId": str(item["id"]),
-            "image": item.get("tiny_image") or None,
-        }
-        for item in response.json().get("items", [])
-        if item.get("type") == "app"
-    ][:8]
+    items = response.json().get("items", [])
+    results = []
+
+    for item in items:
+        if item.get("type") != "app":
+            continue
+
+        app_id = item.get("id")
+        if not app_id:
+            continue
+
+        # Prefer the image returned by Steam search.
+        # Use a standard capsule URL when Steam omits its thumbnail.
+        image = (
+            item.get("tiny_image")
+            or get_fallback_capsule(app_id)
+        )
+
+        results.append(
+            {
+                "name": item.get("name", ""),
+                "appId": str(app_id),
+                "image": image,
+            }
+        )
+
+        if len(results) >= 8:
+            break
+
+    return results
 
 
 @app.get("/api/games/{app_id}/details")
 def game_details(app_id: int = Path(gt=0, le=MAX_APP_ID)):
-    """Developer, release date, price and cover image straight from the
-    Steam store. Works before the game has been analyzed."""
+    """
+    Return developer, release date, price and header image from Steam.
+    Works before the game has been analyzed.
+    """
     try:
         game = fetch_store_details(app_id)
+
     except ValueError as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
-    except requests.RequestException as error:
         raise HTTPException(
-            status_code=502, detail=f"Couldn't reach Steam: {error}"
+            status_code=404,
+            detail=str(error),
         ) from error
 
-    price = game["game_price"]  # "" when Steam gives no price
+    except requests.RequestException as error:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Couldn't reach Steam: {error}",
+        ) from error
+
+    price = game["game_price"]
+
+    # Prefer Steam's official header image.
+    # Fall back to the standard Steam header URL if it is missing.
+    header_image = (
+        game.get("game_header_image")
+        or get_fallback_header(app_id)
+    )
 
     return {
         "appId": str(app_id),
         "name": game["game_name"],
         "developer": game["game_developer"] or None,
         "publisher": game["game_publisher"] or None,
-        "releaseDate": game["game_release_date"] or None,  # "YYYY-MM-DD"
+        "releaseDate": game["game_release_date"] or None,
         "price": float(price) if price else None,
         "shortDescription": game["game_description"] or None,
-        "headerImage": game.get("game_header_image") or None,
+        "headerImage": header_image,
     }
 
 
@@ -154,28 +218,44 @@ def analyze_game(
     refresh: bool = False,
     max_reviews: int = Query(500, ge=50, le=5000),
 ):
-    """Collect, filter and store the game's reviews if they aren't stored
-    yet (or refresh=true), then return the analysis."""
+    """
+    Collect, filter and store reviews if they aren't stored yet
+    (or refresh=true), then return the analysis.
+    """
     try:
         stored = pipeline.load_game(app_id)
+
         if refresh or stored is None or not stored["reviews"]:
             pipeline.run_pipeline(app_id, max_reviews)
             stored = pipeline.load_game(app_id)
+
     except pipeline.GameNotFound as error:
-        raise HTTPException(status_code=404, detail=str(error)) from error
+        raise HTTPException(
+            status_code=404,
+            detail=str(error),
+        ) from error
+
     except (pipeline.PipelineError, ValueError) as error:
-        raise HTTPException(status_code=422, detail=str(error)) from error
+        raise HTTPException(
+            status_code=422,
+            detail=str(error),
+        ) from error
+
     except requests.RequestException as error:
         raise HTTPException(
-            status_code=502, detail=f"Couldn't reach Steam: {error}"
+            status_code=502,
+            detail=f"Couldn't reach Steam: {error}",
         ) from error
+
     except MySQLError as error:
         raise database_error(error) from error
 
     if stored is None or not stored["reviews"]:
         raise HTTPException(
-            status_code=404, detail=f"No reviews were stored for App ID {app_id}."
+            status_code=404,
+            detail=f"No reviews were stored for App ID {app_id}.",
         )
+
     return build_analysis(stored)
 
 
