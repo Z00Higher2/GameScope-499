@@ -600,3 +600,32 @@
     transition: none;
   }
 }
+
+
+/* =========================
+   NAVBAR FULL-WIDTH FIX
+========================= */
+
+.navbar {
+  box-sizing: border-box;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  margin: 0;
+}
+
+/* Keep the mobile navbar as a full-height sidebar */
+@media (max-width: 768px) {
+  .navbar {
+    right: auto;
+    width: 76px;
+    height: 100dvh;
+  }
+}
+
+@media (max-width: 480px) {
+  .navbar {
+    width: 64px;
+  }
+}

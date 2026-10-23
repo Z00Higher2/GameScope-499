@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 
 import Dashboard from "./components/Dashboard";
@@ -7,6 +8,7 @@ import Issues from "./components/Issues";
 import Intro from "./components/Intro";
 import Settings from "./components/Settings";
 import PlayerHome from "./components/PlayerHome";
+import CompareGames from "./components/CompareGames";
 import type { GameAnalysis } from "./api";
 
 import "./App.css";
@@ -21,18 +23,9 @@ const ACCENT_VALUES: Record<
   AccentColor,
   { accent: string; strong: string }
 > = {
-  purple: {
-    accent: "#7065ee",
-    strong: "#8b80ff",
-  },
-  blue: {
-    accent: "#4388ff",
-    strong: "#70a5ff",
-  },
-  green: {
-    accent: "#20a878",
-    strong: "#43c995",
-  },
+  purple: { accent: "#7065ee", strong: "#8b80ff" },
+  blue: { accent: "#4388ff", strong: "#70a5ff" },
+  green: { accent: "#20a878", strong: "#43c995" },
 };
 
 function getSavedAccentColor(): AccentColor {
@@ -42,40 +35,29 @@ function getSavedAccentColor(): AccentColor {
     if (saved) {
       const settings = JSON.parse(saved);
 
-      if (
-        ["purple", "blue", "green"].includes(
-          settings.accentColor
-        )
-      ) {
+      if (["purple", "blue", "green"].includes(settings.accentColor)) {
         return settings.accentColor as AccentColor;
       }
     }
   } catch {
-    // Use purple if saved settings are invalid.
+    // Use the default accent color.
   }
 
   return "purple";
 }
 
 function App() {
-  // Dark / light mode
   const [darkMode, setDarkMode] = useState(
-    () =>
-      localStorage.getItem("gamescope-dark-mode") === "true"
+    () => localStorage.getItem("gamescope-dark-mode") === "true"
   );
 
   useEffect(() => {
-    localStorage.setItem(
-      "gamescope-dark-mode",
-      String(darkMode)
-    );
+    localStorage.setItem("gamescope-dark-mode", String(darkMode));
   }, [darkMode]);
 
-  // Global accent color
   const [accentColor, setAccentColor] =
     useState<AccentColor>(getSavedAccentColor);
 
-  // Player / developer mode
   const [mode, setMode] = useState<Mode>(() =>
     localStorage.getItem("gamescope-mode") === "player"
       ? "player"
@@ -86,41 +68,64 @@ function App() {
     localStorage.setItem("gamescope-mode", mode);
   }, [mode]);
 
-  // Intro screen
   const [showIntro, setShowIntro] = useState(
-    () =>
-      sessionStorage.getItem("gamescope-show-intro") !==
-      "false"
+    () => sessionStorage.getItem("gamescope-show-intro") !== "false"
   );
 
-  // Current page
-  const [currentPage, setCurrentPage] =
-    useState<Page>(() =>
-      localStorage.getItem("gamescope-mode") === "player"
-        ? "player"
-        : "dashboard"
-    );
+  const [currentPage, setCurrentPage] = useState<Page>(() =>
+    localStorage.getItem("gamescope-mode") === "player"
+      ? "player"
+      : "dashboard"
+  );
 
-  // Shared analysis state
-  const [analyzed, setAnalyzed] = useState(false);
-  const [analyzedAppId, setAnalyzedAppId] = useState("");
-
-  const [analysis, setAnalysis] =
+  // Developer analysis state
+  const [developerAnalyzed, setDeveloperAnalyzed] = useState(false);
+  const [developerAppId, setDeveloperAppId] = useState("");
+  const [developerAnalysis, setDeveloperAnalysis] =
     useState<GameAnalysis | null>(null);
 
-  // Get started
-  const handleGetStarted = () => {
+  const clearDeveloperAnalysis = () => {
+    setDeveloperAnalyzed(false);
+    setDeveloperAppId("");
+    setDeveloperAnalysis(null);
+  };
+
+  // Player analysis state
+  const [playerAnalyzed, setPlayerAnalyzed] = useState(false);
+  const [playerAppId, setPlayerAppId] = useState("");
+  const [playerAnalysis, setPlayerAnalysis] =
+    useState<GameAnalysis | null>(null);
+
+  const clearPlayerAnalysis = () => {
+    setPlayerAnalyzed(false);
+    setPlayerAppId("");
+    setPlayerAnalysis(null);
+  };
+
+  // Keep this compatible with React.Dispatch<SetStateAction<Mode>>.
+  const handleModeChange: React.Dispatch<
+    React.SetStateAction<Mode>
+  > = (nextMode) => {
+    const resolvedMode =
+      typeof nextMode === "function"
+        ? nextMode(mode)
+        : nextMode;
+
+    if (resolvedMode === mode) return;
+
+    if (mode === "developer") {
+      clearDeveloperAnalysis();
+    } else {
+      clearPlayerAnalysis();
+    }
+
+    setMode(resolvedMode);
+    setCurrentPage(
+      resolvedMode === "player" ? "player" : "dashboard"
+    );
     setShowIntro(false);
 
-    sessionStorage.setItem(
-      "gamescope-show-intro",
-      "false"
-    );
-
-    const destination: Page =
-      mode === "player" ? "player" : "dashboard";
-
-    setCurrentPage(destination);
+    sessionStorage.setItem("gamescope-show-intro", "false");
 
     window.scrollTo({
       top: 0,
@@ -129,14 +134,26 @@ function App() {
     });
   };
 
-  // Logo click
-  const handleLogoClick = () => {
-    setShowIntro(true);
+  const handleGetStarted = () => {
+    setShowIntro(false);
+    sessionStorage.setItem("gamescope-show-intro", "false");
 
-    sessionStorage.setItem(
-      "gamescope-show-intro",
-      "true"
-    );
+    setCurrentPage(mode === "player" ? "player" : "dashboard");
+
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: "auto",
+    });
+  };
+
+  const handleLogoClick = () => {
+    // Reset both analyses when returning to the Intro screen.
+    clearDeveloperAnalysis();
+    clearPlayerAnalysis();
+
+    setShowIntro(true);
+    sessionStorage.setItem("gamescope-show-intro", "true");
 
     window.scrollTo({
       top: 0,
@@ -145,20 +162,15 @@ function App() {
     });
   };
 
-  // Analyze game from Player Home
-  const handleAnalyzeGame = (appId: string) => {
-    setAnalyzedAppId(appId);
-    setAnalyzed(true);
-    setCurrentPage("dashboard");
-
-    window.scrollTo({
-      top: 0,
-      left: 0,
-      behavior: "auto",
-    });
+  const handlePlayerAnalysis = (
+    appId: string,
+    result: GameAnalysis
+  ) => {
+    setPlayerAppId(appId);
+    setPlayerAnalysis(result);
+    setPlayerAnalyzed(true);
   };
 
-  // Shared page props
   const sharedProps = {
     darkMode,
     setDarkMode,
@@ -166,20 +178,25 @@ function App() {
     setCurrentPage,
     onLogoClick: handleLogoClick,
     mode,
-    setMode,
+    setMode: handleModeChange,
   };
 
   const accentValues = ACCENT_VALUES[accentColor];
+
+  const activeAnalyzed =
+    mode === "player" ? playerAnalyzed : developerAnalyzed;
+
+  const activeAppId =
+    mode === "player" ? playerAppId : developerAppId;
+
+  const activeAnalysis =
+    mode === "player" ? playerAnalysis : developerAnalysis;
 
   return (
     <div
       className={`app-container ${
         darkMode ? "dark-mode" : ""
-      } ${
-        mode === "player"
-          ? "player-mode"
-          : "developer-mode"
-      }`}
+      } ${mode === "player" ? "player-mode" : "developer-mode"}`}
       data-accent={accentColor}
       style={
         {
@@ -193,13 +210,12 @@ function App() {
           darkMode={darkMode}
           setDarkMode={setDarkMode}
           mode={mode}
-          setMode={setMode}
+          setMode={handleModeChange}
           onGetStarted={handleGetStarted}
         />
       ) : (
         <>
-          {/* Player Home */}
-          {currentPage === "player" && (
+          {currentPage === "player" && mode === "player" && (
             <PlayerHome
               darkMode={darkMode}
               setDarkMode={setDarkMode}
@@ -207,53 +223,52 @@ function App() {
               setCurrentPage={setCurrentPage}
               onLogoClick={handleLogoClick}
               mode={mode}
-              onAnalyzeGame={handleAnalyzeGame}
+              onAnalyzeGame={handlePlayerAnalysis}
             />
           )}
 
-          {/* Developer Dashboard */}
-          {currentPage === "dashboard" && (
+          {currentPage === "compare" && mode === "player" && (
+            <CompareGames {...sharedProps} />
+          )}
+
+          {currentPage === "dashboard" && mode === "developer" && (
             <Dashboard
               {...sharedProps}
-              analyzed={analyzed}
-              setAnalyzed={setAnalyzed}
-              analyzedAppId={analyzedAppId}
-              setAnalyzedAppId={setAnalyzedAppId}
-              analysis={analysis}
-              setAnalysis={setAnalysis}
+              analyzed={developerAnalyzed}
+              setAnalyzed={setDeveloperAnalyzed}
+              analyzedAppId={developerAppId}
+              setAnalyzedAppId={setDeveloperAppId}
+              analysis={developerAnalysis}
+              setAnalysis={setDeveloperAnalysis}
             />
           )}
 
-          {/* Reviews */}
           {currentPage === "reviews" && (
             <Reviews
               {...sharedProps}
-              analyzed={analyzed}
-              analyzedAppId={analyzedAppId}
-              analysis={analysis}
+              analyzed={activeAnalyzed}
+              analyzedAppId={activeAppId}
+              analysis={activeAnalysis}
             />
           )}
 
-          {/* Analytics */}
           {currentPage === "analytics" && (
             <Analytics
               {...sharedProps}
-              analyzed={analyzed}
-              analyzedAppId={analyzedAppId}
-              analysis={analysis}
+              analyzed={activeAnalyzed}
+              analyzedAppId={activeAppId}
+              analysis={activeAnalysis}
             />
           )}
 
-          {/* Issues */}
           {currentPage === "issues" && (
             <Issues
               {...sharedProps}
-              analyzed={analyzed}
-              analyzedAppId={analyzedAppId}
+              analyzed={activeAnalyzed}
+              analyzedAppId={activeAppId}
             />
           )}
 
-          {/* Settings */}
           {currentPage === "settings" && (
             <Settings
               {...sharedProps}

@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   searchGames,
   getGameDetails,
@@ -9,6 +9,7 @@ import type { GameDetails, GameAnalysis } from "../api";
 import Navbar from "./Navbar";
 import type { Page, Mode } from "../type";
 import "./PlayerHome.css";
+import RightGameForPlayer from "./RightGameForPlayer";
 
 interface PlayerHomeProps {
   darkMode: boolean;
@@ -17,7 +18,7 @@ interface PlayerHomeProps {
   setCurrentPage: React.Dispatch<React.SetStateAction<Page>>;
   onLogoClick: () => void;
   mode: Mode;
-  onAnalyzeGame?: (appId: string) => void;
+  onAnalyzeGame?: (appId: string, analysis: GameAnalysis) => void;
 }
 
 interface SearchGame {
@@ -26,17 +27,70 @@ interface SearchGame {
   image?: string | null;
 }
 
-const sampleGame = {
-  name: "Path of Exile 2",
-  appId: "2694490",
-  developer: "Grinding Gear Games",
-  releaseDate: "Dec 6, 2024",
-  price: "Free to Play",
-  positive: 72,
-  negative: 28,
-  totalReviews: 1284,
-  issues: ["Performance", "Bugs", "Inventory"],
-};
+// ==================================================
+// SCROLL REVEAL
+// ==================================================
+
+function useScrollReveal() {
+  const containerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const revealObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("is-visible");
+          } else {
+            entry.target.classList.remove("is-visible");
+          }
+        });
+      },
+      {
+        threshold: 0.05,
+        rootMargin: "0px 0px -20px 0px",
+      }
+    );
+
+    const observeRevealElements = (root: Element) => {
+      if (root.matches(".scroll-reveal")) {
+        revealObserver.observe(root);
+      }
+
+      root.querySelectorAll(".scroll-reveal").forEach((element) => {
+        revealObserver.observe(element);
+      });
+    };
+
+    // Observe elements already on the page.
+    observeRevealElements(container);
+
+    // Also observe elements added after Analyze Game is clicked.
+    const mutationObserver = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        mutation.addedNodes.forEach((node) => {
+          if (node instanceof Element) {
+            observeRevealElements(node);
+          }
+        });
+      });
+    });
+
+    mutationObserver.observe(container, {
+      childList: true,
+      subtree: true,
+    });
+
+    return () => {
+      revealObserver.disconnect();
+      mutationObserver.disconnect();
+    };
+  }, []);
+
+  return containerRef;
+}
 
 // ==================================================
 // PRICE AND DATE FORMATTING
@@ -71,10 +125,9 @@ function formatNumber(value: number): string {
   return value.toLocaleString("en-US");
 }
 
-
-/* ==================================================
-   STEAM IMAGE FALLBACKS
-================================================== */
+// ==================================================
+// STEAM IMAGE FALLBACKS
+// ==================================================
 
 function getSteamImageSources(
   appId: string,
@@ -88,10 +141,14 @@ function getSteamImageSources(
     `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/capsule_616x353.jpg`,
   ];
 
-  return [...new Set(sources.filter(
-    (source): source is string =>
-      typeof source === "string" && source.trim().length > 0
-  ))];
+  return [
+    ...new Set(
+      sources.filter(
+        (source): source is string =>
+          typeof source === "string" && source.trim().length > 0
+      )
+    ),
+  ];
 }
 
 // ==================================================
@@ -116,7 +173,10 @@ function GameCover({
 
   if (sourceIndex >= sources.length) {
     return (
-      <div className="player-game-icon" aria-label={`${name} image unavailable`}>
+      <div
+        className="player-game-icon"
+        aria-label={`${name} image unavailable`}
+      >
         <span>{(name || "G").charAt(0).toUpperCase()}</span>
       </div>
     );
@@ -175,7 +235,6 @@ function SearchThumb({
   );
 }
 
-
 // ==================================================
 // SEARCH RESULT WITH PRICE
 // ==================================================
@@ -188,7 +247,6 @@ function SearchResultItem({
   onSelect: (game: SearchGame) => void;
 }) {
   const [price, setPrice] = useState("Loading price...");
-  const [priceUnavailable, setPriceUnavailable] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -202,7 +260,6 @@ function SearchResultItem({
       .catch(() => {
         if (!controller.signal.aborted) {
           setPrice("Price unavailable");
-          setPriceUnavailable(true);
         }
       });
 
@@ -231,13 +288,7 @@ function SearchResultItem({
           App ID: {game.appId}
         </span>
 
-        <strong
-          className={`player-search-price ${
-            priceUnavailable ? "price-unavailable" : ""
-          }`}
-        >
-          {price}
-        </strong>
+        <strong className="player-search-price">{price}</strong>
       </span>
     </button>
   );
@@ -294,14 +345,12 @@ function AnalysisResults({
   const { summary } = analysis;
 
   return (
-    <section className="player-analysis" aria-live="polite">
+    <section className="player-analysis scroll-reveal">
       <div className="player-section-heading">
         <div>
           <span className="player-eyebrow">GAME INTELLIGENCE</span>
           <h2>Analysis results</h2>
-          <p>
-            Player feedback for {analysis.game.name}.
-          </p>
+          <p>Player feedback for {analysis.game.name}.</p>
         </div>
 
         <span className="player-demo-tag">ANALYSIS COMPLETE</span>
@@ -316,17 +365,13 @@ function AnalysisResults({
         <article className="player-analysis-stat positive">
           <span>Positive sentiment</span>
           <strong>{summary.positivePercentage.toFixed(1)}%</strong>
-          <small>
-            {formatNumber(summary.positiveReviews)} reviews
-          </small>
+          <small>{formatNumber(summary.positiveReviews)} reviews</small>
         </article>
 
         <article className="player-analysis-stat negative">
           <span>Negative sentiment</span>
           <strong>{summary.negativePercentage.toFixed(1)}%</strong>
-          <small>
-            {formatNumber(summary.negativeReviews)} reviews
-          </small>
+          <small>{formatNumber(summary.negativeReviews)} reviews</small>
         </article>
 
         <article className="player-analysis-stat">
@@ -335,7 +380,7 @@ function AnalysisResults({
         </article>
       </div>
 
-      <article className="player-analysis-card">
+      <article className="player-analysis-card scroll-reveal">
         <span className="player-eyebrow">SENTIMENT BREAKDOWN</span>
         <h3>What are players saying?</h3>
 
@@ -349,6 +394,7 @@ function AnalysisResults({
               )}%`,
             }}
           />
+
           <div
             className="player-sentiment-negative"
             style={{
@@ -365,6 +411,7 @@ function AnalysisResults({
             <i className="player-legend-dot positive-dot" />
             Positive {summary.positivePercentage.toFixed(1)}%
           </span>
+
           <span>
             <i className="player-legend-dot negative-dot" />
             Negative {summary.negativePercentage.toFixed(1)}%
@@ -379,7 +426,7 @@ function AnalysisResults({
       </article>
 
       <div className="player-analysis-columns">
-        <article className="player-analysis-card">
+        <article className="player-analysis-card scroll-reveal">
           <span className="player-eyebrow">PLAYER COMPLAINTS</span>
           <h3>Top issues</h3>
 
@@ -387,14 +434,10 @@ function AnalysisResults({
             <div className="player-analysis-list">
               {analysis.topIssues.slice(0, 6).map((issue, index) => (
                 <div className="player-analysis-list-item" key={issue.name}>
-                  <span className="player-analysis-rank">
-                    {index + 1}
-                  </span>
-
+                  <span className="player-analysis-rank">{index + 1}</span>
                   <span className="player-analysis-issue-name">
                     {issue.name}
                   </span>
-
                   <strong>{formatNumber(issue.count)}</strong>
                 </div>
               ))}
@@ -406,7 +449,7 @@ function AnalysisResults({
           )}
         </article>
 
-        <article className="player-analysis-card">
+        <article className="player-analysis-card scroll-reveal">
           <span className="player-eyebrow">KEY TAKEAWAYS</span>
           <h3>Player insights</h3>
 
@@ -430,7 +473,7 @@ function AnalysisResults({
         </article>
       </div>
 
-      <div className="player-analysis-extra">
+      <div className="player-analysis-extra scroll-reveal">
         <div>
           <span>Average player playtime</span>
           <strong>{summary.averagePlaytime.toFixed(1)} hours</strong>
@@ -453,7 +496,7 @@ function AnalysisResults({
       </div>
 
       {analysis.mostHelpfulReviews.length > 0 && (
-        <article className="player-analysis-card">
+        <article className="player-analysis-card scroll-reveal">
           <span className="player-eyebrow">COMMUNITY FEEDBACK</span>
           <h3>Most helpful reviews</h3>
 
@@ -488,8 +531,7 @@ function AnalysisResults({
 
       {analysis.analyzedAt && (
         <p className="player-analysis-timestamp">
-          Analysis timestamp:{" "}
-          {new Date(analysis.analyzedAt).toLocaleString()}
+          Analysis timestamp: {new Date(analysis.analyzedAt).toLocaleString()}
         </p>
       )}
 
@@ -526,14 +568,16 @@ function PlayerHome({
   setCurrentPage,
   onLogoClick,
   mode,
+  onAnalyzeGame,
 }: PlayerHomeProps) {
+  const revealRef = useScrollReveal();
+
   const [searchValue, setSearchValue] = useState("");
   const [searchResults, setSearchResults] = useState<SearchGame[]>([]);
   const [selectedGame, setSelectedGame] = useState<SearchGame | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState("");
 
-  const [sampleImage, setSampleImage] = useState<string | null>(null);
   const [details, setDetails] = useState<GameDetails | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailsError, setDetailsError] = useState("");
@@ -543,16 +587,25 @@ function PlayerHome({
   const [analysisError, setAnalysisError] = useState("");
   const [refreshing, setRefreshing] = useState(false);
 
+  const searchRequestId = useRef(0);
+  const analysisRequestId = useRef(0);
+
   const typedValue = searchValue.trim();
+
   const detailsAppId =
     selectedGame?.appId ??
     (/^\d+$/.test(typedValue) ? typedValue : "");
 
-  // Search Steam games.
+  // Search suggestions only. Selecting a result does not analyze it.
   useEffect(() => {
     const query = searchValue.trim();
 
-    if (query.length < 2 || /^\d+$/.test(query)) {
+    if (
+      query.length < 2 ||
+      /^\d+$/.test(query) ||
+      selectedGame !== null
+    ) {
+      searchRequestId.current += 1;
       setSearchResults([]);
       setSearchLoading(false);
       setSearchError("");
@@ -560,24 +613,34 @@ function PlayerHome({
     }
 
     const controller = new AbortController();
+    const requestId = ++searchRequestId.current;
 
     const timeoutId = window.setTimeout(async () => {
-      try {
-        setSearchLoading(true);
-        setSearchError("");
+      setSearchLoading(true);
+      setSearchError("");
 
+      try {
         const games = await searchGames(query, controller.signal);
 
-        if (!controller.signal.aborted) {
+        if (
+          !controller.signal.aborted &&
+          requestId === searchRequestId.current
+        ) {
           setSearchResults(games);
         }
       } catch {
-        if (!controller.signal.aborted) {
+        if (
+          !controller.signal.aborted &&
+          requestId === searchRequestId.current
+        ) {
           setSearchError("Unable to search games. Please try again.");
           setSearchResults([]);
         }
       } finally {
-        if (!controller.signal.aborted) {
+        if (
+          !controller.signal.aborted &&
+          requestId === searchRequestId.current
+        ) {
           setSearchLoading(false);
         }
       }
@@ -587,26 +650,9 @@ function PlayerHome({
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [searchValue]);
+  }, [searchValue, selectedGame]);
 
-  // Load the sample game's cover.
-  useEffect(() => {
-    const controller = new AbortController();
-
-    getGameDetails(sampleGame.appId, controller.signal)
-      .then((result) => {
-        if (!controller.signal.aborted) {
-          setSampleImage(result.headerImage ?? null);
-        }
-      })
-      .catch(() => {
-        // The cover component will try fallback URLs.
-      });
-
-    return () => controller.abort();
-  }, []);
-
-  // Load details for the selected game or typed App ID.
+  // Fetch store details only; never trigger review analysis here.
   useEffect(() => {
     if (!detailsAppId) {
       setDetails(null);
@@ -648,12 +694,11 @@ function PlayerHome({
     };
   }, [detailsAppId]);
 
-  // Analyze directly in Player Home. Do not navigate to Dashboard.
-  const runAnalysis = async (
-    appId: string,
-    refresh = false
-  ) => {
+  // This is the only function that requests a review analysis.
+  const runAnalysis = async (appId: string, refresh = false) => {
     if (!appId || analysisLoading || refreshing) return;
+
+    const requestId = ++analysisRequestId.current;
 
     setAnalysisError("");
 
@@ -666,19 +711,29 @@ function PlayerHome({
 
     try {
       const result = await analyzeGame(appId, refresh);
+
+      // Ignore stale responses if the user changed games.
+      if (requestId !== analysisRequestId.current) return;
+
       setAnalysis(result);
+      onAnalyzeGame?.(result.game.appId || appId, result);
     } catch (error) {
+      if (requestId !== analysisRequestId.current) return;
+
       setAnalysisError(
         error instanceof Error
           ? error.message
           : "Unable to analyze this game. Please try again."
       );
     } finally {
-      setAnalysisLoading(false);
-      setRefreshing(false);
+      if (requestId === analysisRequestId.current) {
+        setAnalysisLoading(false);
+        setRefreshing(false);
+      }
     }
   };
 
+  // Form submission is what starts the analysis.
   const handleSearch = () => {
     const value = searchValue.trim();
 
@@ -687,13 +742,13 @@ function PlayerHome({
       return;
     }
 
-    if (/^\d+$/.test(value)) {
-      void runAnalysis(value);
+    if (selectedGame && selectedGame.name === value) {
+      void runAnalysis(selectedGame.appId);
       return;
     }
 
-    if (selectedGame && selectedGame.name === value) {
-      void runAnalysis(selectedGame.appId);
+    if (/^\d+$/.test(value)) {
+      void runAnalysis(value);
       return;
     }
 
@@ -703,34 +758,58 @@ function PlayerHome({
   };
 
   const handleSearchChange = (value: string) => {
+    searchRequestId.current += 1;
+    analysisRequestId.current += 1;
+
     setSearchValue(value);
     setSelectedGame(null);
+    setSearchResults([]);
+    setSearchLoading(false);
     setSearchError("");
+
     setAnalysis(null);
     setAnalysisError("");
+    setAnalysisLoading(false);
+    setRefreshing(false);
   };
 
   const handleSelectGame = (game: SearchGame) => {
+    searchRequestId.current += 1;
+    analysisRequestId.current += 1;
+
     setSelectedGame(game);
     setSearchValue(game.name);
     setSearchResults([]);
+    setSearchLoading(false);
     setSearchError("");
+
     setAnalysis(null);
     setAnalysisError("");
+    setAnalysisLoading(false);
+    setRefreshing(false);
   };
 
   const handleChooseAnother = () => {
+    searchRequestId.current += 1;
+    analysisRequestId.current += 1;
+
     setSearchValue("");
     setSelectedGame(null);
     setSearchResults([]);
+    setSearchLoading(false);
+    setSearchError("");
+
     setAnalysis(null);
     setAnalysisError("");
-    setSearchError("");
+    setAnalysisLoading(false);
+    setRefreshing(false);
+
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
     <main
+      ref={revealRef}
       className={`player-home ${darkMode ? "player-home-dark" : ""}`}
     >
       <Navbar
@@ -742,10 +821,8 @@ function PlayerHome({
         mode={mode}
       />
 
-      <section className="player-hero">
-        <span className="player-eyebrow">
-          YOUR NEXT GAME STARTS HERE
-        </span>
+      <section className="player-hero scroll-reveal">
+        <span className="player-eyebrow">YOUR NEXT GAME STARTS HERE</span>
 
         <h1>
           Find your next game.
@@ -754,8 +831,8 @@ function PlayerHome({
         </h1>
 
         <p className="player-hero-description">
-          Explore real Steam player feedback, discover common
-          complaints, and decide which games are right for you.
+          Explore real Steam player feedback, discover common complaints,
+          and decide which games are right for you.
         </p>
 
         <form
@@ -775,13 +852,15 @@ function PlayerHome({
 
           <button
             type="submit"
-            disabled={analysisLoading || searchLoading}
+            disabled={analysisLoading || refreshing || searchLoading}
           >
             {analysisLoading
               ? "Analyzing..."
-              : searchLoading
-                ? "Searching..."
-                : "Analyze Game"}
+              : refreshing
+                ? "Refreshing..."
+                : searchLoading
+                  ? "Searching..."
+                  : "Analyze Game"}
           </button>
         </form>
 
@@ -795,18 +874,7 @@ function PlayerHome({
           </p>
         )}
 
-        {!searchLoading &&
-          !searchError &&
-          searchValue.trim().length >= 2 &&
-          !/^\d+$/.test(searchValue.trim()) &&
-          searchResults.length === 0 &&
-          !selectedGame && (
-            <p className="player-search-hint">
-              No matching results yet, or no search has completed.
-            </p>
-          )}
-
-        {searchResults.length > 0 && (
+        {searchResults.length > 0 && !selectedGame && (
           <div
             className="player-search-results"
             role="listbox"
@@ -827,9 +895,8 @@ function PlayerHome({
         </p>
       </section>
 
-      {/* SELECTED GAME OVERVIEW */}
-
-      <section className="player-overview">
+      {/* SELECTED GAME DETAILS */}
+      <section className="player-overview scroll-reveal">
         <div className="player-section-heading">
           <div>
             <span className="player-eyebrow">PLAYER INSIGHTS</span>
@@ -837,7 +904,7 @@ function PlayerHome({
           </div>
 
           <span className="player-demo-tag">
-            {detailsAppId ? "STEAM STORE DATA" : "SAMPLE DATA"}
+            {detailsAppId ? "STEAM STORE DATA" : "NO GAME SELECTED"}
           </span>
         </div>
 
@@ -897,78 +964,28 @@ function PlayerHome({
             )}
 
             <p className="player-data-disclaimer">
-              Analyze this game to see its review sentiment and common
-              complaints right here on this page.
+              Click Analyze Game to view review sentiment, common issues,
+              and personalized game-fit insights.
             </p>
           </article>
         ) : (
-          <article className="player-game-card">
-            <div className="player-game-heading">
-              <GameCover
-                key={`${sampleGame.appId}-${sampleImage ?? ""}`}
-                appId={sampleGame.appId}
-                name={sampleGame.name}
-                headerImage={sampleImage}
-              />
+          <article className="player-game-card player-empty-overview">
+            <div className="player-empty-overview-content">
+              <span className="player-eyebrow">READY TO EXPLORE?</span>
+              <h3>No game selected yet</h3>
 
-              <div>
-                <h3>{sampleGame.name}</h3>
-                <p>Steam App ID: {sampleGame.appId}</p>
-              </div>
+              <p className="player-game-description">
+                Search for a Steam game above or enter its App ID to view
+                its details and explore player feedback.
+              </p>
             </div>
-
-            <p className="player-game-description">
-              Get a quick picture of player sentiment and the problems
-              most often discussed in reviews.
-            </p>
-
-            <GameMeta
-              developer={sampleGame.developer}
-              releaseDate={sampleGame.releaseDate}
-              price={sampleGame.price}
-            />
-
-            <div className="player-stats">
-              <div className="player-stat positive">
-                <span>Positive reviews</span>
-                <strong>{sampleGame.positive}%</strong>
-              </div>
-
-              <div className="player-stat negative">
-                <span>Negative reviews</span>
-                <strong>{sampleGame.negative}%</strong>
-              </div>
-
-              <div className="player-stat">
-                <span>Reviews analyzed</span>
-                <strong>{formatNumber(sampleGame.totalReviews)}</strong>
-              </div>
-            </div>
-
-            <div className="player-issues">
-              <h4>Common complaints</h4>
-
-              <div className="player-issue-list">
-                {sampleGame.issues.map((issue) => (
-                  <span key={issue} className="player-issue">
-                    {issue}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <p className="player-data-disclaimer">
-              This overview uses demonstration values. Analyze a game
-              above to request its review analysis.
-            </p>
           </article>
         )}
       </section>
 
       {/* ANALYSIS LOADING */}
-
       {analysisLoading && (
-        <section className="player-analysis-loading" aria-live="polite">
+        <section className="player-analysis-loading scroll-reveal" aria-live="polite">
           <div className="player-analysis-spinner" />
           <h2>Analyzing player feedback...</h2>
           <p>
@@ -980,11 +997,11 @@ function PlayerHome({
       )}
 
       {/* ANALYSIS ERROR */}
-
       {analysisError && !analysisLoading && (
-        <section className="player-analysis-error" role="alert">
+        <section className="player-analysis-error scroll-reveal" role="alert">
           <h2>Analysis could not be completed</h2>
           <p>{analysisError}</p>
+
           <button
             type="button"
             className="player-analysis-primary"
@@ -997,18 +1014,29 @@ function PlayerHome({
         </section>
       )}
 
-      {/* REAL ANALYSIS RESULTS ON THE SAME PAGE */}
-
+      {/* RESULTS APPEAR AFTER ANALYSIS */}
       {analysis && !analysisLoading && (
-        <AnalysisResults
-          analysis={analysis}
-          onChooseAnother={handleChooseAnother}
-          onRefresh={() => void runAnalysis(analysis.game.appId, true)}
-          refreshing={refreshing}
-        />
+        <>
+          <AnalysisResults
+            analysis={analysis}
+            onChooseAnother={handleChooseAnother}
+            onRefresh={() => void runAnalysis(analysis.game.appId, true)}
+            refreshing={refreshing}
+          />
+
+          {/* Personalized assessment is hidden until analysis succeeds. */}
+          <section className="scroll-reveal">
+            <RightGameForPlayer
+              key={analysis.game.appId}
+              appId={analysis.game.appId}
+              gameName={analysis.game.name}
+              darkMode={darkMode}
+            />
+          </section>
+        </>
       )}
 
-      <footer className="player-footer">
+      <footer className="player-footer scroll-reveal">
         <span>GameScope</span>
         <span>Make informed gaming decisions.</span>
       </footer>

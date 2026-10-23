@@ -3044,3 +3044,15 @@
     font-size: 0.8rem;
   }
 }
+
+/* Keep Reviews content below the fixed navbar */
+.reviews-page {
+  padding-top: 100px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .reviews-page {
+    padding-top: 24px;
+  }
+}

@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 
 import Navbar from "./Navbar";
@@ -29,10 +30,6 @@ interface DashboardProps {
 // ==================================================
 // STEAM GAME THUMBNAIL
 // ==================================================
-// Loads the game's header image from Steam.
-// If the image cannot load, show the game's first letter.
-// ==================================================
-
 
 function DashboardGameThumb({
   appId,
@@ -45,7 +42,6 @@ function DashboardGameThumb({
 }) {
   const [imageIndex, setImageIndex] = useState(0);
 
-  // Prefer Steam's search thumbnail, then try alternate Steam images.
   const imageUrls = [
     image,
     `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg`,
@@ -54,6 +50,10 @@ function DashboardGameThumb({
     (url, index, urls): url is string =>
       Boolean(url) && urls.indexOf(url) === index
   );
+
+  useEffect(() => {
+    setImageIndex(0);
+  }, [appId, image]);
 
   return (
     <span className="dashboard-game-thumb-wrapper">
@@ -74,7 +74,6 @@ function DashboardGameThumb({
   );
 }
 
-
 function Dashboard({
   darkMode,
   setDarkMode,
@@ -94,11 +93,13 @@ function Dashboard({
   // ==================================================
 
   const [gameSearch, setGameSearch] = useState("");
-
   const [selectedGame, setSelectedGame] =
     useState<GameSearchResult | null>(null);
-
   const [appId, setAppId] = useState(analyzedAppId);
+
+  useEffect(() => {
+    setAppId(analyzedAppId);
+  }, [analyzedAppId]);
 
   // ==================================================
   // LOADING / ERRORS
@@ -113,7 +114,6 @@ function Dashboard({
 
   const [gameSearchResults, setGameSearchResults] =
     useState<GameSearchResult[]>([]);
-
   const [searchError, setSearchError] = useState("");
 
   useEffect(() => {
@@ -151,6 +151,7 @@ function Dashboard({
     };
   }, [gameSearch, selectedGame]);
 
+
   // ==================================================
   // ANALYZED GAME
   // ==================================================
@@ -180,8 +181,7 @@ function Dashboard({
     gameToAnalyze?: GameSearchResult,
     refresh = false
   ) => {
-    const trimmedAppId =
-      gameToAnalyze?.appId || appId.trim();
+    const trimmedAppId = gameToAnalyze?.appId || appId.trim();
 
     if (!trimmedAppId) {
       setError("Enter a Steam App ID or select a game.");
@@ -199,10 +199,7 @@ function Dashboard({
     setLoading(true);
 
     try {
-      const result = await analyzeGame(
-        trimmedAppId,
-        refresh
-      );
+      const result = await analyzeGame(trimmedAppId, refresh);
 
       setAnalysis(result);
       setAnalyzed(true);
@@ -235,7 +232,7 @@ function Dashboard({
   const handleReanalyze = () => {
     if (!analyzedAppId) return;
 
-    handleAnalyze(
+    void handleAnalyze(
       {
         name: gameName,
         appId: analyzedAppId,
@@ -253,6 +250,19 @@ function Dashboard({
     setAppId(game.appId);
     setGameSearch(game.name);
   };
+
+  const showDeveloperResults =
+    mode === "developer" &&
+    currentPage === "dashboard" &&
+    analyzed &&
+    analysis !== null &&
+    !loading;
+
+  const showDeveloperEmptyState =
+    mode === "developer" &&
+    currentPage === "dashboard" &&
+    !analyzed &&
+    !loading;
 
   return (
     <div className="dashboard-page">
@@ -306,11 +316,13 @@ function Dashboard({
               />
             </div>
 
-            {/* SEARCH RESULTS WITH STEAM IMAGES */}
+            {/* SEARCH ERRORS */}
 
             {searchError && !selectedGame && (
               <p className="app-id-help">{searchError}</p>
             )}
+
+            {/* SEARCH RESULTS */}
 
             {gameSearchResults.length > 0 && !selectedGame && (
               <div className="game-search-results">
@@ -335,15 +347,13 @@ function Dashboard({
                       </span>
                     </span>
 
-                    <span className="game-select-label">
-                      Select
-                    </span>
+                    <span className="game-select-label">Select</span>
                   </button>
                 ))}
               </div>
             )}
 
-            {/* SELECTED GAME WITH STEAM IMAGE */}
+            {/* SELECTED GAME */}
 
             {selectedGame && (
               <div className="selected-game">
@@ -358,9 +368,7 @@ function Dashboard({
                     <span className="selected-game-label">
                       SELECTED GAME
                     </span>
-
                     <strong>{selectedGame.name}</strong>
-
                     <small>
                       Steam App ID: {selectedGame.appId}
                     </small>
@@ -369,7 +377,7 @@ function Dashboard({
 
                 <button
                   type="button"
-                  onClick={() => handleAnalyze(selectedGame)}
+                  onClick={() => void handleAnalyze(selectedGame)}
                   disabled={loading}
                 >
                   {loading ? "Analyzing..." : "Analyze"}
@@ -377,7 +385,7 @@ function Dashboard({
               </div>
             )}
 
-            {/* OR DIVIDER */}
+            {/* DIVIDER */}
 
             <div className="app-id-divider">
               <span>OR</span>
@@ -395,7 +403,7 @@ function Dashboard({
                 }}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
-                    handleAnalyze();
+                    void handleAnalyze();
                   }
                 }}
                 placeholder="Enter Steam App ID..."
@@ -404,7 +412,7 @@ function Dashboard({
 
               <button
                 type="button"
-                onClick={() => handleAnalyze()}
+                onClick={() => void handleAnalyze()}
                 disabled={loading || !appId.trim()}
               >
                 {loading ? "Analyzing..." : "Analyze"}
@@ -438,7 +446,7 @@ function Dashboard({
 
         {/* ANALYZED GAME RESULTS */}
 
-        {analyzed && analysis && !loading && (
+        {showDeveloperResults && analysis && (
           <>
             {/* CURRENT GAME */}
 
@@ -453,12 +461,9 @@ function Dashboard({
                   <span className="status-label">
                     CURRENTLY ANALYZED
                   </span>
-
                   <h2>{gameName}</h2>
-
                   <p>
-                    Steam App ID:{" "}
-                    <strong>{analyzedAppId}</strong>
+                    Steam App ID: <strong>{analyzedAppId}</strong>
                   </p>
                 </div>
               </div>
@@ -513,9 +518,7 @@ function Dashboard({
               </div>
 
               <div className="summary-stat">
-                <strong>
-                  {analysis.summary.positivePercentage}%
-                </strong>
+                <strong>{analysis.summary.positivePercentage}%</strong>
                 <span>Recommended</span>
               </div>
             </section>
@@ -560,104 +563,102 @@ function Dashboard({
                 ))}
               </div>
             </section>
-            
+
             {/* PROS AND CONS */}
 
-          <section className="pros-cons-grid">
-            {/* PROS */}
-            <div className="dashboard-card pros-cons-card pros-card">
-              <div className="card-header">
-                <div>
-                  <span className="card-label">PLAYER SENTIMENT</span>
-                  <h2>Pros</h2>
+            <section className="pros-cons-grid">
+              <div className="dashboard-card pros-cons-card pros-card">
+                <div className="card-header">
+                  <div>
+                    <span className="card-label">PLAYER SENTIMENT</span>
+                    <h2>Pros</h2>
+                  </div>
+                </div>
+
+                <div className="pros-cons-list">
+                  {pros.length === 0 ? (
+                    <p className="dashboard-note">
+                      Not enough positive topic feedback yet.
+                    </p>
+                  ) : (
+                    pros.map((item) => (
+                      <div className="pros-cons-item" key={item.topic}>
+                        <div className="pros-cons-info">
+                          <span>{item.topic}</span>
+                          <strong>{item.mentions}</strong>
+                        </div>
+
+                        <div className="pros-cons-bar">
+                          <div
+                            className="pros-cons-bar-fill"
+                            style={{
+                              width: `${
+                                item.totalMentions > 0
+                                  ? Math.min(
+                                      (item.mentions / item.totalMentions) * 100,
+                                      100
+                                    )
+                                  : 0
+                              }%`,
+                            }}
+                          />
+                        </div>
+
+                        <small>
+                          Positive mentions out of {item.totalMentions} total
+                        </small>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 
-              <div className="pros-cons-list">
-                {pros.length === 0 ? (
-                  <p className="dashboard-note">
-                    Not enough positive topic feedback yet.
-                  </p>
-                ) : (
-                  pros.map((item) => (
-                    <div className="pros-cons-item" key={item.topic}>
-                      <div className="pros-cons-info">
-                        <span>{item.topic}</span>
-                        <strong>{item.mentions}</strong>
+              <div className="dashboard-card pros-cons-card cons-card">
+                <div className="card-header">
+                  <div>
+                    <span className="card-label">PLAYER SENTIMENT</span>
+                    <h2>Cons</h2>
+                  </div>
+                </div>
+
+                <div className="pros-cons-list">
+                  {cons.length === 0 ? (
+                    <p className="dashboard-note">
+                      Not enough negative topic feedback yet.
+                    </p>
+                  ) : (
+                    cons.map((item) => (
+                      <div className="pros-cons-item" key={item.topic}>
+                        <div className="pros-cons-info">
+                          <span>{item.topic}</span>
+                          <strong>{item.mentions}</strong>
+                        </div>
+
+                        <div className="pros-cons-bar">
+                          <div
+                            className="pros-cons-bar-fill"
+                            style={{
+                              width: `${
+                                item.totalMentions > 0
+                                  ? Math.min(
+                                      (item.mentions / item.totalMentions) * 100,
+                                      100
+                                    )
+                                  : 0
+                              }%`,
+                            }}
+                          />
+                        </div>
+
+                        <small>
+                          Negative mentions out of {item.totalMentions} total
+                        </small>
                       </div>
-
-                    <div className="pros-cons-bar">
-                        <div
-                          className="pros-cons-bar-fill"
-                          style={{
-                            width: `${
-                              item.totalMentions > 0
-                                ? Math.min(
-                                    (item.mentions / item.totalMentions) * 100,
-                                    100
-                                  )
-                                : 0
-                            }%`,
-                          }}
-                        />
-                      </div>
-
-                      <small>
-                        Positive mentions out of {item.totalMentions} total
-                      </small>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* CONS */}
-            <div className="dashboard-card pros-cons-card cons-card">
-              <div className="card-header">
-                <div>
-                  <span className="card-label">PLAYER SENTIMENT</span>
-                  <h2>Cons</h2>
+                    ))
+                  )}
                 </div>
               </div>
-
-              <div className="pros-cons-list">
-                {cons.length === 0 ? (
-                  <p className="dashboard-note">
-                    Not enough negative topic feedback yet.
-                  </p>
-                ) : (
-                  cons.map((item) => (
-                    <div className="pros-cons-item" key={item.topic}>
-                      <div className="pros-cons-info">
-                        <span>{item.topic}</span>
-                        <strong>{item.mentions}</strong>
-                      </div>
-
-                      <div className="pros-cons-bar">
-                      <div
-                        className="pros-cons-bar-fill"
-                        style={{
-                          width: `${
-                            item.totalMentions > 0
-                              ? Math.min(
-                                  (item.mentions / item.totalMentions) * 100,
-                                  100
-                                )
-                              : 0
-                          }%`,
-                        }}
-                      />
-                    </div>
-
-                    <small>
-                      Negative mentions out of {item.totalMentions} total
-                    </small>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </section>
+            </section>
 
             {/* RECENT FEEDBACK */}
 
@@ -671,16 +672,10 @@ function Dashboard({
 
               <div className="feedback-list">
                 {recentFeedback.map((feedback, index) => (
-                  <div
-                    className="feedback-item"
-                    key={index}
-                  >
+                  <div className="feedback-item" key={index}>
                     <span className={`feedback-type ${feedback.type}`}>
-                      {feedback.type === "positive"
-                        ? "Positive"
-                        : "Negative"}
+                      {feedback.type === "positive" ? "Positive" : "Negative"}
                     </span>
-
                     <p>{feedback.text}</p>
                   </div>
                 ))}
@@ -691,7 +686,7 @@ function Dashboard({
 
         {/* EMPTY STATE */}
 
-        {!analyzed && !loading && (
+        {showDeveloperEmptyState && (
           <section className="dashboard-empty">
             <h2>Ready to analyze a game?</h2>
             <p>

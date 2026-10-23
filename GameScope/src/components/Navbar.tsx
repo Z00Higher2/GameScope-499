@@ -108,6 +108,31 @@ function Navbar({
           <span className="nav-text">Reviews</span>
         </button>
 
+        {/* COMPARE GAMES — PLAYER MODE ONLY */}
+        {isPlayer && (
+          <button
+            type="button"
+            className={`nav-item ${
+              currentPage === "compare" ? "active" : ""
+            }`}
+            onClick={() => setCurrentPage("compare")}
+            aria-label="Compare Games"
+            title="Compare Games"
+          >
+            <span className="nav-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="3" y="4" width="7" height="16" rx="1.5" />
+                <rect x="14" y="4" width="7" height="16" rx="1.5" />
+                <path d="M5.5 8h2" />
+                <path d="M16.5 8h2" />
+                <path d="M5.5 12h2" />
+                <path d="M16.5 12h2" />
+              </svg>
+            </span>
+            <span className="nav-text">Compare</span>
+          </button>
+        )}
+
         {/* ISSUES — DEVELOPER MODE ONLY */}
         {isDeveloper && (
           <button

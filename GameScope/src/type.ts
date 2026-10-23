@@ -5,7 +5,8 @@ export type Page =
   | "reviews"
   | "issues"
   | "analytics"
-  | "settings";
+  | "settings"
+  | "compare";
 
 export type Mode = "player" | "developer";
 
