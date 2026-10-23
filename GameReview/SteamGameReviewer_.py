@@ -1,4 +1,7 @@
 import csv
+import json
+import os
+import re
 import time
 from datetime import datetime, timezone
 
@@ -9,7 +12,27 @@ import requests
 # ==========================================
 
 STEAM_DETAILS_URL = "https://store.steampowered.com/api/appdetails"
-STEAM_REVIEWS_URL = "https://store.steampowered.com/appreviews/{app_id}"
+STEAM_REVIEWS_URL = (
+    "https://api.steampowered.com/"
+    "IUserReviewsService/GetAppReviews/v1/"
+)
+STEAM_STORE_PAGE_URL = "https://store.steampowered.com/app/{app_id}/"
+REVIEWS_FILTER_RECENT = 1
+REVIEWS_TYPE_ALL = 0
+REVIEWS_PURCHASE_TYPE_ALL = 1
+
+
+def parse_steam_json(response, endpoint):
+    try:
+        return response.json()
+    except requests.exceptions.JSONDecodeError as error:
+        content_type = response.headers.get("Content-Type", "unknown")
+        raise requests.RequestException(
+            f"Steam's {endpoint} endpoint returned a non-JSON response "
+            f"(HTTP {response.status_code}, content type {content_type}, "
+            f"final URL {response.url}). Steam may be redirecting or blocking "
+            "the request; please wait and retry."
+        ) from error
 
 
 # ==========================================
@@ -26,7 +49,37 @@ def parse_release_date(value):
     return ""
 
 # ==========================================
-# Convert Steam Review Timestamp to MySQL DATETIME (UTC)
+# Get Early Access Release Date (store page)
+# The public appdetails API does not include this field, so it is read
+# from the store page. Returns "" if the game has none or the page layout
+# changes.
+# ==========================================
+
+def get_early_access_date(app_id):
+    try:
+        response = requests.get(
+            STEAM_STORE_PAGE_URL.format(app_id=app_id),
+            params={"l": "english"},
+            cookies={"birthtime": "0", "lastagecheckage": "1-0-1990",
+                     "wants_mature_content": "1"},
+            timeout=15,
+        )
+        response.raise_for_status()
+    except requests.RequestException:
+        return ""
+
+    text = re.sub(r"<[^>]+>", " ", response.text)
+    text = re.sub(r"\s+", " ", text)
+    match = re.search(
+        r"Early Access Release Date:?\s*"
+        r"(\d{1,2} [A-Za-z]{3,9},? \d{4}|[A-Za-z]{3,9} \d{1,2},? \d{4})",
+        text,
+        re.IGNORECASE,
+    )
+    return parse_release_date(match.group(1).replace(",", ", ").replace(",  ", ", ")) if match else ""
+
+# ==========================================
+# Convert Steam Unix Timestamp to DATETIME (UTC)
 # ==========================================
 
 def format_timestamp(value):
@@ -47,7 +100,7 @@ def get_game_details(app_id):
         timeout=15,
     )
     response.raise_for_status()
-    payload = response.json().get(str(app_id), {})
+    payload = parse_steam_json(response, "app details").get(str(app_id), {})
     if not payload.get("success"):
         raise ValueError(f"Steam could not find game App ID {app_id}.")
 
@@ -64,11 +117,11 @@ def get_game_details(app_id):
     return {
         "game_name": data.get("name", ""),
         "game_release_date": parse_release_date(release_info.get("date")),
+        "game_early_access_release_date": get_early_access_date(app_id),
         "game_description": data.get("short_description", ""),
         "game_developer": ", ".join(data.get("developers") or []),
         "game_publisher": ", ".join(data.get("publishers") or []),
         "game_price": price,
-        "game_header_image": data.get("header_image", ""),
     }
 
 # ==========================================
@@ -76,29 +129,38 @@ def get_game_details(app_id):
 # ==========================================
 
 def get_reviews(app_id, max_reviews=1000, language="english"):
-    url = STEAM_REVIEWS_URL.format(app_id=app_id)
     reviews = []
     review_ids = set()
     cursor = "*"
+    api_key = os.getenv("STEAM_WEB_API_KEY", "").strip()
 
     print(f"Collecting up to {max_reviews} reviews for App ID {app_id}...")
     while len(reviews) < max_reviews:
-        params = {
-            "json": 1,
-            "filter": "recent",
-            "language": language,
-            "review_type": "all",
-            "purchase_type": "all",
+        input_json = {
+            "appid": app_id,
+            "filter": REVIEWS_FILTER_RECENT,
+            "languages": [language],
+            "review_type": REVIEWS_TYPE_ALL,
+            "purchase_type": REVIEWS_PURCHASE_TYPE_ALL,
             "num_per_page": 100,
             "cursor": cursor,
         }
-        response = requests.get(url, params=params, timeout=15)
-        response.raise_for_status()
-        data = response.json()
-        if data.get("success") != 1:
-            raise ValueError("Steam's review API returned an unsuccessful response.")
+        params = {"input_json": json.dumps(input_json)}
+        if api_key:
+            params["key"] = api_key
 
-        batch = data.get("reviews", [])
+        response = requests.get(STEAM_REVIEWS_URL, params=params, timeout=15)
+        response.raise_for_status()
+        data = parse_steam_json(response, "reviews")
+        if not isinstance(data, dict):
+            raise ValueError("Steam's review API returned an invalid response.")
+        response_data = data.get("response")
+        if not isinstance(response_data, dict):
+            raise ValueError("Steam's review API returned an invalid response.")
+
+        batch = response_data.get("reviews")
+        if not isinstance(batch, list):
+            raise ValueError("Steam's review API returned an invalid reviews list.")
         if not batch:
             break
 
@@ -121,15 +183,22 @@ def get_reviews(app_id, max_reviews=1000, language="english"):
                     ),
                     "helpful_votes": review.get("votes_up") or 0,
                     "language": review.get("language", ""),
-                    "created_at": format_timestamp(review.get("timestamp_created")),
-                    "updated_at": format_timestamp(review.get("timestamp_updated")),
+                    "written_during_early_access": bool(
+                        review.get("written_during_early_access", False)
+                    ),
+                    "review_posted_at": format_timestamp(
+                        review.get("timestamp_created")
+                    ),
+                    "review_updated_at": format_timestamp(
+                        review.get("timestamp_updated")
+                    ),
                 }
             )
             if len(reviews) >= max_reviews:
                 break
 
         print(f"Collected {len(reviews)} / {max_reviews} reviews")
-        new_cursor = data.get("cursor")
+        new_cursor = response_data.get("cursor")
         if not new_cursor or new_cursor == cursor:
             break
         cursor = new_cursor
@@ -151,6 +220,7 @@ def save_reviews(reviews, app_id, game):
         "game_developer",
         "game_publisher",
         "game_price",
+        "game_early_access_release_date",
         "review_id",
         "review_text",
         "recommended",
@@ -158,8 +228,9 @@ def save_reviews(reviews, app_id, game):
         "playtime_at_review_hours",
         "helpful_votes",
         "language",
-        "created_at",
-        "updated_at",
+        "written_during_early_access",
+        "review_posted_at",
+        "review_updated_at",
     ]
 
     with open(filename, "w", newline="", encoding="utf-8-sig") as file:
@@ -175,6 +246,9 @@ def save_reviews(reviews, app_id, game):
                     "game_developer": game["game_developer"],
                     "game_publisher": game["game_publisher"],
                     "game_price": game["game_price"],
+                    "game_early_access_release_date": game[
+                        "game_early_access_release_date"
+                    ],
                     **review,
                 }
             )

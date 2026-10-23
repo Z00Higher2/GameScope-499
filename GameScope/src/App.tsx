@@ -102,7 +102,8 @@ function App() {
     setPlayerAnalysis(null);
   };
 
-  // Keep this compatible with React.Dispatch<SetStateAction<Mode>>.
+  
+  // Change the selected mode without leaving the Intro screen.
   const handleModeChange: React.Dispatch<
     React.SetStateAction<Mode>
   > = (nextMode) => {
@@ -113,25 +114,17 @@ function App() {
 
     if (resolvedMode === mode) return;
 
+    // Clear the previous mode's analysis when switching modes.
     if (mode === "developer") {
       clearDeveloperAnalysis();
     } else {
       clearPlayerAnalysis();
     }
 
+    // Only update the selected mode.
     setMode(resolvedMode);
-    setCurrentPage(
-      resolvedMode === "player" ? "player" : "dashboard"
-    );
-    setShowIntro(false);
 
-    sessionStorage.setItem("gamescope-show-intro", "false");
-
-    window.scrollTo({
-      top: 0,
-      left: 0,
-      behavior: "auto",
-    });
+    // Keep the Intro screen visible until Get Started is clicked.
   };
 
   const handleGetStarted = () => {
