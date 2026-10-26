@@ -76,6 +76,8 @@ If `(.venv)` does not appear, or the command returns an error, the virtual envir
 
 Check it at http://localhost:8000/api/health (`"database": "connected"` means MySQL is reachable).
 
+```
+
 ### 3. The website
 
 ```
