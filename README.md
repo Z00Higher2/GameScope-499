@@ -39,6 +39,38 @@ Copy `GameReview/.env.example` to `GameReview/.env` and fill in `MYSQL_PASSWORD`
 cd GameReview
 pip install -r requirements.txt
 python -m uvicorn api:app --reload --port 8000
+
+### 2.5. Activate the Virtual Environment (macOS only)
+
+From the `GameReview` directory, run:
+
+```bash
+source .venv/bin/activate
+```
+
+**How to Confirm Activation**
+
+If activation is successful, you should see `(.venv)` at the beginning of your terminal prompt.
+
+Example:
+
+```bash
+(.venv) itz00@Zuhayers-MacBook-Air GameReview %
+```
+
+You can also verify which Python executable is being used:
+
+```bash
+which python
+```
+
+The output should point to the Python executable inside your project's `.venv` directory, for example:
+
+```text
+/path/to/GameReview/.venv/bin/python
+```
+
+If `(.venv)` does not appear, or the command returns an error, the virtual environment may not have activated correctly.
 ```
 
 Check it at http://localhost:8000/api/health (`"database": "connected"` means MySQL is reachable).
