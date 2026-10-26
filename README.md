@@ -40,13 +40,14 @@ cd GameReview
 pip install -r requirements.txt
 python -m uvicorn api:app --reload --port 8000
 
+```
+
 ### 2.5. Activate the Virtual Environment (macOS only)
 
 From the `GameReview` directory, run:
 
 ```bash
 source .venv/bin/activate
-```
 
 **How to Confirm Activation**
 
