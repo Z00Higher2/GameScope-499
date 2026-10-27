@@ -22,6 +22,7 @@ function Navbar({
   onLogoClick,
   mode,
 }: NavbarProps) {
+  const [mobileExpanded, setMobileExpanded] = useState(false);
   const isPlayer = mode === "player";
   const isDeveloper = mode === "developer";
 
