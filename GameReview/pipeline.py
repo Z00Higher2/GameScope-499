@@ -58,14 +58,9 @@ def ensure_schema():
         if re.match(r"create\s+table", sql, re.IGNORECASE):
             create_tables.append(sql)
 
-    connection = importer.connect_database(use_database=False)
+    connection = importer.connect_database(use_database=True)
     try:
         cursor = connection.cursor()
-        cursor.execute(
-            f"CREATE DATABASE IF NOT EXISTS `{database}` "
-            "CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci"
-        )
-        cursor.execute(f"USE `{database}`")
         for sql in create_tables:
             cursor.execute(sql)
         cursor.close()
