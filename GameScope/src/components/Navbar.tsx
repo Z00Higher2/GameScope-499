@@ -2,6 +2,8 @@
 import "./Navbar.css";
 import logo from "../img/gamescope-logo-light.png";
 import type { Page, Mode } from "../type";
+import { useState } from "react";
+const [mobileExpanded, setMobileExpanded] = useState(false);
 
 interface NavbarProps {
   darkMode: boolean;
@@ -24,25 +26,26 @@ function Navbar({
   const isDeveloper = mode === "developer";
 
   return (
-    <nav
-      className={`navbar ${darkMode ? "dark-navbar" : ""}`}
+        <nav
+      className={`navbar ${darkMode ? "dark-navbar" : ""} ${
+        mobileExpanded ? "mobile-expanded" : ""
+      }`}
       aria-label="Main navigation"
     >
-      {/* LOGO */}
       <button
         type="button"
-        className="navbar-logo"
-        onClick={onLogoClick}
-        aria-label="Go to GameScope home"
+        className="mobile-nav-toggle"
+        onClick={() => setMobileExpanded((previous) => !previous)}
+        aria-expanded={mobileExpanded}
+        aria-label={mobileExpanded ? "Collapse navigation" : "Expand navigation"}
       >
-        <div className="logo-icon">
-          <img src={logo} alt="GameScope logo" />
-        </div>
-
-        <div className="logo-text">
-          <h2>GameScope</h2>
-          <span>Feedback Analyzer</span>
-        </div>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          {mobileExpanded ? (
+            <path d="m15 18-6-6 6-6" />
+          ) : (
+            <path d="m9 18 6-6-6-6" />
+          )}
+        </svg>
       </button>
 
       {/* MAIN NAVIGATION */}

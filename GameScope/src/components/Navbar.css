@@ -629,3 +629,141 @@
     width: 64px;
   }
 }
+
+
+/* =========================
+   MOBILE SIDEBAR EXPANSION
+========================= */
+
+/* Hidden on desktop */
+.mobile-nav-toggle {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .navbar {
+    width: 64px;
+    padding: 16px 7px;
+    align-items: center;
+    overflow-x: hidden;
+    transition: width 0.3s ease;
+  }
+
+  /* Menu toggle */
+  .mobile-nav-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+
+    width: 44px;
+    height: 44px;
+    margin-bottom: 16px;
+
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--accent-color);
+    cursor: pointer;
+  }
+
+  .mobile-nav-toggle svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .mobile-nav-toggle:hover {
+    background: var(--accent-soft);
+  }
+
+  /* Keep the logo icon visible */
+  .navbar-logo {
+    flex-shrink: 0;
+  }
+
+  .navbar-menu {
+    margin: 20px 0 0;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .navbar-bottom {
+    margin-top: auto;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .nav-item,
+  .theme-toggle {
+    width: 48px;
+    min-width: 48px;
+    padding: 0;
+    justify-content: center;
+    gap: 12px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .nav-text,
+  .logo-text {
+    display: none;
+  }
+
+  /* Expanded sidebar */
+  .navbar.mobile-expanded {
+    width: 220px;
+    padding-left: 12px;
+    padding-right: 12px;
+    align-items: stretch;
+    box-shadow: 4px 0 24px rgba(15, 23, 42, 0.12);
+  }
+
+  .navbar.mobile-expanded .navbar-logo {
+    justify-content: flex-start;
+  }
+
+  .navbar.mobile-expanded .logo-text {
+    display: flex;
+    min-width: 0;
+  }
+
+  .navbar.mobile-expanded .navbar-menu {
+    align-items: stretch;
+  }
+
+  .navbar.mobile-expanded .navbar-bottom {
+    align-items: stretch;
+  }
+
+  .navbar.mobile-expanded .nav-item,
+  .navbar.mobile-expanded .theme-toggle {
+    width: 100%;
+    min-width: 0;
+    padding: 0 12px;
+    justify-content: flex-start;
+  }
+
+  .navbar.mobile-expanded .nav-text {
+    display: inline;
+    white-space: nowrap;
+  }
+
+  .navbar.mobile-expanded .nav-item.active::after {
+    left: -12px;
+  }
+
+  .navbar.mobile-expanded .mobile-nav-toggle {
+    align-self: flex-end;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navbar {
+    transition: none;
+  }
+}
