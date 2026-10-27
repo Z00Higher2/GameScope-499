@@ -172,9 +172,12 @@ def health():
         return {"status": "ok", "database": "connected"}
 
     except MySQLError as error:
+        # Keep the public health response generic, but log the database error
+        # message on the server so cloud connection failures can be diagnosed.
         logger.error(
-            "Health check database failure: %s",
+            "Health check database failure: %s: %s",
             type(error).__name__,
+            error,
         )
 
         return {
