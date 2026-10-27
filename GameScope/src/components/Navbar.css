@@ -800,3 +800,137 @@
   }
 }
 
+
+/* =========================================
+   MOBILE MENU TRIGGER AND BACKDROP
+========================================= */
+
+.mobile-menu-trigger {
+  display: none;
+}
+
+.mobile-nav-backdrop {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-menu-trigger {
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 1200;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 44px;
+    height: 44px;
+
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    border-radius: 12px;
+
+    background: rgba(255, 255, 255, 0.96);
+    color: #334155;
+
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.12);
+    cursor: pointer;
+
+    transition:
+      left 0.3s ease,
+      background 0.2s ease,
+      color 0.2s ease;
+  }
+
+  .mobile-menu-trigger svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .mobile-menu-trigger.dark-trigger {
+    background: #18181b;
+    color: #f8fafc;
+  }
+
+  .mobile-menu-trigger.is-open {
+    left: 174px;
+  }
+
+  .navbar.mobile-collapsed {
+    transform: translateX(-100%);
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .navbar.mobile-expanded {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 1100;
+
+    width: 220px;
+    height: 100dvh;
+
+    transform: translateX(0);
+    visibility: visible;
+    pointer-events: auto;
+
+    overflow-y: auto;
+    overflow-x: hidden;
+
+    transition:
+      transform 0.3s ease,
+      width 0.3s ease,
+      visibility 0.3s ease;
+  }
+
+  .mobile-nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 1050;
+
+    width: 100%;
+    height: 100%;
+    padding: 0;
+
+    border: none;
+    border-radius: 0;
+
+    background: rgba(15, 23, 42, 0.25);
+  }
+
+  .navbar.mobile-expanded .navbar-logo {
+    justify-content: flex-start;
+  }
+
+  .navbar.mobile-expanded .logo-text {
+    display: flex;
+  }
+
+  .navbar.mobile-expanded .nav-item,
+  .navbar.mobile-expanded .theme-toggle {
+    width: 100%;
+    min-width: 0;
+    padding: 0 12px;
+    justify-content: flex-start;
+  }
+
+  .navbar.mobile-expanded .nav-text {
+    display: inline;
+    white-space: nowrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-menu-trigger,
+  .navbar,
+  .mobile-nav-backdrop {
+    transition: none;
+  }
+}
+

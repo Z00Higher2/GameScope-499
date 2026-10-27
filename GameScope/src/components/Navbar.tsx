@@ -31,209 +31,253 @@ function Navbar({
     setMobileExpanded(false);
   };
 
+  const toggleMobileNavbar = () => {
+    setMobileExpanded((previous) => !previous);
+  };
+
   return (
-    <nav
-      className={`navbar ${darkMode ? "dark-navbar" : ""} ${
-        mobileExpanded ? "mobile-expanded" : ""
-      }`}
-      aria-label="Main navigation"
-    >
-      {/* MOBILE EXPAND / COLLAPSE */}
+    <>
+      {/* Floating mobile menu button.
+          It stays visible while the navbar is hidden. */}
       <button
         type="button"
-        className="mobile-nav-toggle"
-        onClick={() => setMobileExpanded((previous) => !previous)}
+        className={`mobile-menu-trigger ${
+          mobileExpanded ? "is-open" : ""
+        } ${darkMode ? "dark-trigger" : ""}`}
+        onClick={toggleMobileNavbar}
         aria-expanded={mobileExpanded}
-        aria-label={mobileExpanded ? "Collapse navigation" : "Expand navigation"}
+        aria-controls="gamescope-navbar"
+        aria-label={
+          mobileExpanded ? "Close navigation menu" : "Open navigation menu"
+        }
       >
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          {mobileExpanded ? (
+        {mobileExpanded ? (
+          <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="m15 18-6-6 6-6" />
-          ) : (
-            <path d="m9 18 6-6-6-6" />
-          )}
-        </svg>
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 6h16" />
+            <path d="M4 12h16" />
+            <path d="M4 18h16" />
+          </svg>
+        )}
       </button>
 
-      {/* LOGO */}
-      <button
-        type="button"
-        className="navbar-logo"
-        onClick={onLogoClick}
-        aria-label="Go to GameScope home"
+      {/* Optional backdrop for the open mobile menu */}
+      {mobileExpanded && (
+        <button
+          type="button"
+          className="mobile-nav-backdrop"
+          onClick={() => setMobileExpanded(false)}
+          aria-label="Close navigation menu"
+          tabIndex={-1}
+        />
+      )}
+
+      <nav
+        id="gamescope-navbar"
+        className={`navbar ${darkMode ? "dark-navbar" : ""} ${
+          mobileExpanded ? "mobile-expanded" : "mobile-collapsed"
+        }`}
+        aria-label="Main navigation"
       >
-        <div className="logo-icon">
-          <img src={logo} alt="GameScope logo" />
+        {/* Desktop logo */}
+        <button
+          type="button"
+          className="navbar-logo"
+          onClick={onLogoClick}
+          aria-label="Go to GameScope home"
+        >
+          <div className="logo-icon">
+            <img src={logo} alt="GameScope logo" />
+          </div>
+
+          <div className="logo-text">
+            <h2>GameScope</h2>
+            <span>Feedback Analyzer</span>
+          </div>
+        </button>
+
+        {/* Main navigation */}
+        <div className="navbar-menu">
+          {isPlayer && (
+            <button
+              type="button"
+              className={`nav-item ${
+                currentPage === "player" ? "active" : ""
+              }`}
+              onClick={() => navigateTo("player")}
+              aria-label="Go to Player Home"
+            >
+              <span className="nav-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 11.5L12 4l9 7.5" />
+                  <path d="M5.5 10.5V20h13v-9.5" />
+                  <path d="M9.5 20v-5.5h5V20" />
+                </svg>
+              </span>
+              <span className="nav-text">Player Home</span>
+            </button>
+          )}
+
+          {isDeveloper && (
+            <button
+              type="button"
+              className={`nav-item ${
+                currentPage === "dashboard" ? "active" : ""
+              }`}
+              onClick={() => navigateTo("dashboard")}
+              aria-label="Go to Dashboard"
+            >
+              <span className="nav-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 11.5L12 4l9 7.5" />
+                  <path d="M5.5 10.5V20h13v-9.5" />
+                  <path d="M9.5 20v-5.5h5V20" />
+                </svg>
+              </span>
+              <span className="nav-text">Dashboard</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            className={`nav-item ${
+              currentPage === "reviews" ? "active" : ""
+            }`}
+            onClick={() => navigateTo("reviews")}
+            aria-label="Go to Reviews"
+          >
+            <span className="nav-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 4.5h16v12H9l-5 4v-16Z" />
+                <path d="M8 9h8" />
+                <path d="M8 12.5h5" />
+              </svg>
+            </span>
+            <span className="nav-text">Reviews</span>
+          </button>
+
+          {isPlayer && (
+            <button
+              type="button"
+              className={`nav-item ${
+                currentPage === "compare" ? "active" : ""
+              }`}
+              onClick={() => navigateTo("compare")}
+              aria-label="Compare Games"
+              title="Compare Games"
+            >
+              <span className="nav-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="3" y="4" width="7" height="16" rx="1.5" />
+                  <rect x="14" y="4" width="7" height="16" rx="1.5" />
+                  <path d="M5.5 8h2" />
+                  <path d="M16.5 8h2" />
+                  <path d="M5.5 12h2" />
+                  <path d="M16.5 12h2" />
+                </svg>
+              </span>
+              <span className="nav-text">Compare</span>
+            </button>
+          )}
+
+          {isDeveloper && (
+            <button
+              type="button"
+              className={`nav-item ${
+                currentPage === "issues" ? "active" : ""
+              }`}
+              onClick={() => navigateTo("issues")}
+              aria-label="Go to Issues"
+            >
+              <span className="nav-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 3 22 20H2L12 3Z" />
+                  <path d="M12 9v5" />
+                  <path d="M12 17h.01" />
+                </svg>
+              </span>
+              <span className="nav-text">Issues</span>
+            </button>
+          )}
+
+          {isDeveloper && (
+            <button
+              type="button"
+              className={`nav-item ${
+                currentPage === "analytics" ? "active" : ""
+              }`}
+              onClick={() => navigateTo("analytics")}
+              aria-label="Go to Analytics"
+            >
+              <span className="nav-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 19V5" />
+                  <path d="M4 19h17" />
+                  <path d="M7 15l4-4 3 2 5-6" />
+                </svg>
+              </span>
+              <span className="nav-text">Analytics</span>
+            </button>
+          )}
         </div>
 
-        <div className="logo-text">
-          <h2>GameScope</h2>
-          <span>Feedback Analyzer</span>
+        {/* Theme and settings */}
+        <div className="navbar-bottom">
+          <button
+            type="button"
+            className={`nav-item theme-toggle ${
+              darkMode ? "active" : ""
+            }`}
+            onClick={() => setDarkMode((previous) => !previous)}
+            aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+            title={darkMode ? "Light mode" : "Dark mode"}
+          >
+            <span className="nav-icon">
+              {darkMode ? (
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 2v2" />
+                  <path d="M12 20v2" />
+                  <path d="m4.93 4.93 1.42 1.42" />
+                  <path d="m17.65 17.65 1.42 1.42" />
+                  <path d="M2 12h2" />
+                  <path d="M20 12h2" />
+                  <path d="m4.93 19.07 1.42-1.42" />
+                  <path d="m17.65 6.35 1.42-1.42" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5 8.5 8.5 0 1 0 20.5 14.2Z" />
+                </svg>
+              )}
+            </span>
+            <span className="nav-text">
+              {darkMode ? "Light Mode" : "Dark Mode"}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            className={`nav-item ${
+              currentPage === "settings" ? "active" : ""
+            }`}
+            onClick={() => navigateTo("settings")}
+            aria-label="Go to Settings"
+          >
+            <span className="nav-icon">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" />
+                <path d="m19.4 15 .1.1a1.7 1.7 0 0 1-2.4 2.4l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.2a1.7 1.7 0 0 1-3.4 0v-.2a1.7 1.7 0 0 0-2.9-1.2l-.1.1a1.7 1.7 0 0 1-2.4-2.4l.1-.1a1.7 1.7 0 0 0-1.2-2.9H4a1.7 1.7 0 0 1 0-3.4h.2a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a1.7 1.7 0 0 1 2.4-2.4l.1.1a1.7 1.7 0 0 0 2.9-1.2V2a1.7 1.7 0 0 1 3.4 0v.2a1.7 1.7 0 0 0 2.9 1.2l.1-.1a1.7 1.7 0 0 1 2.4 2.4l-.1.1a1.7 1.7 0 0 0 1.2 2.9h.2a1.7 1.7 0 0 1 0 3.4h-.2a1.7 1.7 0 0 0-1.2 2.9Z" />
+              </svg>
+            </span>
+            <span className="nav-text">Settings</span>
+          </button>
         </div>
-      </button>
-
-      {/* MAIN NAVIGATION */}
-      <div className="navbar-menu">
-        {isPlayer && (
-          <button
-            type="button"
-            className={`nav-item ${currentPage === "player" ? "active" : ""}`}
-            onClick={() => navigateTo("player")}
-            aria-label="Go to Player Home"
-          >
-            <span className="nav-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M3 11.5L12 4l9 7.5" />
-                <path d="M5.5 10.5V20h13v-9.5" />
-                <path d="M9.5 20v-5.5h5V20" />
-              </svg>
-            </span>
-            <span className="nav-text">Player Home</span>
-          </button>
-        )}
-
-        {isDeveloper && (
-          <button
-            type="button"
-            className={`nav-item ${currentPage === "dashboard" ? "active" : ""}`}
-            onClick={() => navigateTo("dashboard")}
-            aria-label="Go to Dashboard"
-          >
-            <span className="nav-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M3 11.5L12 4l9 7.5" />
-                <path d="M5.5 10.5V20h13v-9.5" />
-                <path d="M9.5 20v-5.5h5V20" />
-              </svg>
-            </span>
-            <span className="nav-text">Dashboard</span>
-          </button>
-        )}
-
-        <button
-          type="button"
-          className={`nav-item ${currentPage === "reviews" ? "active" : ""}`}
-          onClick={() => navigateTo("reviews")}
-          aria-label="Go to Reviews"
-        >
-          <span className="nav-icon">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 4.5h16v12H9l-5 4v-16Z" />
-              <path d="M8 9h8" />
-              <path d="M8 12.5h5" />
-            </svg>
-          </span>
-          <span className="nav-text">Reviews</span>
-        </button>
-
-        {isPlayer && (
-          <button
-            type="button"
-            className={`nav-item ${currentPage === "compare" ? "active" : ""}`}
-            onClick={() => navigateTo("compare")}
-            aria-label="Compare Games"
-            title="Compare Games"
-          >
-            <span className="nav-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <rect x="3" y="4" width="7" height="16" rx="1.5" />
-                <rect x="14" y="4" width="7" height="16" rx="1.5" />
-                <path d="M5.5 8h2" />
-                <path d="M16.5 8h2" />
-                <path d="M5.5 12h2" />
-                <path d="M16.5 12h2" />
-              </svg>
-            </span>
-            <span className="nav-text">Compare</span>
-          </button>
-        )}
-
-        {isDeveloper && (
-          <button
-            type="button"
-            className={`nav-item ${currentPage === "issues" ? "active" : ""}`}
-            onClick={() => navigateTo("issues")}
-            aria-label="Go to Issues"
-          >
-            <span className="nav-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 3 22 20H2L12 3Z" />
-                <path d="M12 9v5" />
-                <path d="M12 17h.01" />
-              </svg>
-            </span>
-            <span className="nav-text">Issues</span>
-          </button>
-        )}
-
-        {isDeveloper && (
-          <button
-            type="button"
-            className={`nav-item ${currentPage === "analytics" ? "active" : ""}`}
-            onClick={() => navigateTo("analytics")}
-            aria-label="Go to Analytics"
-          >
-            <span className="nav-icon">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 19V5" />
-                <path d="M4 19h17" />
-                <path d="M7 15l4-4 3 2 5-6" />
-              </svg>
-            </span>
-            <span className="nav-text">Analytics</span>
-          </button>
-        )}
-      </div>
-
-      {/* THEME AND SETTINGS */}
-      <div className="navbar-bottom">
-        <button
-          type="button"
-          className={`nav-item theme-toggle ${darkMode ? "active" : ""}`}
-          onClick={() => setDarkMode((previous) => !previous)}
-          aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
-          title={darkMode ? "Light mode" : "Dark mode"}
-        >
-          <span className="nav-icon">
-            {darkMode ? (
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="12" cy="12" r="4" />
-                <path d="M12 2v2" />
-                <path d="M12 20v2" />
-                <path d="m4.93 4.93 1.42 1.42" />
-                <path d="m17.65 17.65 1.42 1.42" />
-                <path d="M2 12h2" />
-                <path d="M20 12h2" />
-                <path d="m4.93 19.07 1.42-1.42" />
-                <path d="m17.65 6.35 1.42-1.42" />
-              </svg>
-            ) : (
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M20.5 14.2A8.5 8.5 0 0 1 9.8 3.5 8.5 8.5 0 1 0 20.5 14.2Z" />
-              </svg>
-            )}
-          </span>
-          <span className="nav-text">
-            {darkMode ? "Light Mode" : "Dark Mode"}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          className={`nav-item ${currentPage === "settings" ? "active" : ""}`}
-          onClick={() => navigateTo("settings")}
-          aria-label="Go to Settings"
-        >
-          <span className="nav-icon">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" />
-              <path d="m19.4 15 .1.1a1.7 1.7 0 0 1-2.4 2.4l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.2a1.7 1.7 0 0 1-3.4 0v-.2a1.7 1.7 0 0 0-2.9-1.2l-.1.1a1.7 1.7 0 0 1-2.4-2.4l.1-.1a1.7 1.7 0 0 0-1.2-2.9H4a1.7 1.7 0 0 1 0-3.4h.2a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a1.7 1.7 0 0 1 2.4-2.4l.1.1a1.7 1.7 0 0 0 2.9-1.2V2a1.7 1.7 0 0 1 3.4 0v.2a1.7 1.7 0 0 0 2.9 1.2l.1-.1a1.7 1.7 0 0 1 2.4 2.4l-.1.1a1.7 1.7 0 0 0 1.2 2.9h.2a1.7 1.7 0 0 1 0 3.4h-.2a1.7 1.7 0 0 0-1.2 2.9Z" />
-            </svg>
-          </span>
-          <span className="nav-text">Settings</span>
-        </button>
-      </div>
-    </nav>
+      </nav>
+    </>
   );
 }
 
