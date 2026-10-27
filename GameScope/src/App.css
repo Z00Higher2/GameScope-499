@@ -155,3 +155,24 @@ select:focus-visible {
   }
 
 }
+
+
+/* =========================================================
+   MOBILE CONTENT WIDTH
+   Let the page use the full screen width.
+   The navbar overlays the content when expanded.
+========================================================= */
+
+.app-container {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .app-container {
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
+
