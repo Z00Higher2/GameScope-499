@@ -771,3 +771,32 @@
     transition: none;
   }
 }
+
+
+/* =========================================
+   MOBILE NAVBAR: HIDE WHEN COLLAPSED
+========================================= */
+
+@media (max-width: 768px) {
+  /* Hide the sidebar when collapsed */
+  .navbar:not(.mobile-expanded) {
+    transform: translateX(-100%);
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  /* Show the sidebar when expanded */
+  .navbar.mobile-expanded {
+    transform: translateX(0);
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .navbar {
+    transition:
+      transform 0.3s ease,
+      width 0.3s ease,
+      visibility 0.3s ease;
+  }
+}
+
