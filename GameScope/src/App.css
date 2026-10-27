@@ -154,15 +154,4 @@ select:focus-visible {
       color 0.3s ease;
   }
 
-  /* Reserve more space while the sidebar is expanded */
-  body:has(.navbar.mobile-expanded) .app-container:not(.intro-active) {
-    padding-left: 220px;
-  }
 }
-
-@media (max-width: 480px) {
-  body:has(.navbar:not(.mobile-expanded)) .app-container:not(.intro-active) {
-    padding-left: 64px;
-  }
-}
-
