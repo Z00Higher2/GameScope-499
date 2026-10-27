@@ -1,3 +1,8 @@
+:root {
+  --mobile-navbar-width: 64px;
+  --mobile-navbar-expanded-width: 220px;
+}
+
 /* =========================
    NAVBAR
 ========================= */
@@ -642,7 +647,7 @@
 
 @media (max-width: 768px) {
   .navbar {
-    width: 64px;
+    width: var(--mobile-navbar-width);
     padding: 16px 7px;
     align-items: center;
     overflow-x: hidden;
@@ -716,8 +721,7 @@
 
   /* Expanded sidebar */
   .navbar.mobile-expanded {
-    width: 220px;
-    padding-left: 12px;
+    width: var(--mobile-navbar-expanded-width);    padding-left: 12px;
     padding-right: 12px;
     align-items: stretch;
     box-shadow: 4px 0 24px rgba(15, 23, 42, 0.12);

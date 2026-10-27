@@ -130,3 +130,39 @@ select:focus-visible {
   outline: 2px solid var(--accent-color, #8b5cf6);
   outline-offset: 3px;
 }
+
+/* =========================================================
+   MOBILE NAVBAR CONTENT OFFSET
+   Keeps page content clear of the fixed sidebar
+========================================================= */
+
+@media (max-width: 768px) {
+  .app-container:not(.intro-active) {
+    --mobile-content-offset: 64px;
+  }
+
+  /* Reserve space for the collapsed navbar */
+  .app-container:not(.intro-active) > * {
+    min-width: 0;
+  }
+
+  body:has(.navbar) .app-container:not(.intro-active) {
+    padding-left: var(--mobile-content-offset);
+    transition:
+      padding-left 0.3s ease,
+      background 0.3s ease,
+      color 0.3s ease;
+  }
+
+  /* Reserve more space while the sidebar is expanded */
+  body:has(.navbar.mobile-expanded) .app-container:not(.intro-active) {
+    padding-left: 220px;
+  }
+}
+
+@media (max-width: 480px) {
+  body:has(.navbar:not(.mobile-expanded)) .app-container:not(.intro-active) {
+    padding-left: 64px;
+  }
+}
+
