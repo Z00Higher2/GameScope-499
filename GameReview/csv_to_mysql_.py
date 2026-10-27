@@ -193,6 +193,7 @@ def parse_rows(rows, requested_app_id):
 # Connect to MySQL Database
 # ==========================================
 
+
 def connect_database(use_database=True):
     settings = {
         "host": os.getenv("MYSQL_HOST", "localhost"),
@@ -200,10 +201,19 @@ def connect_database(use_database=True):
         "user": os.getenv("MYSQL_USER", "root"),
         "password": os.getenv("MYSQL_PASSWORD", ""),
     }
-    # pipeline.py connects without a database first so it can create it
+
+    # Enable SSL certificate verification when a CA certificate is configured.
+    ssl_ca = os.getenv("MYSQL_SSL_CA")
+    if ssl_ca:
+        settings["ssl_ca"] = ssl_ca
+        settings["ssl_verify_cert"] = True
+
+    # Include the database only when requested.
     if use_database:
         settings["database"] = DATABASE
+
     return mysql.connector.connect(**settings)
+
 
 # ==========================================
 # Import Game and Reviews into MySQL
