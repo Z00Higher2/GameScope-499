@@ -132,16 +132,28 @@ _analysis_requests = defaultdict(deque)
 _analysis_lock = Lock()
 
 
+
 def check_analysis_rate_limit(client_ip):
     """Allow up to 5 analysis requests per IP in a 60-second window."""
     now = time.monotonic()
     cutoff = now - ANALYSIS_RATE_WINDOW
 
     with _analysis_lock:
-        requests_for_ip = _analysis_requests[client_ip]
+        # Remove expired timestamps and delete IP entries that are empty.
+        expired_ips = []
 
-        while requests_for_ip and requests_for_ip[0] <= cutoff:
-            requests_for_ip.popleft()
+        for ip, timestamps in _analysis_requests.items():
+            while timestamps and timestamps[0] <= cutoff:
+                timestamps.popleft()
+
+            if not timestamps:
+                expired_ips.append(ip)
+
+        for ip in expired_ips:
+            del _analysis_requests[ip]
+
+        # Check the current IP after expired entries are cleaned up.
+        requests_for_ip = _analysis_requests[client_ip]
 
         if len(requests_for_ip) >= ANALYSIS_RATE_LIMIT:
             return False

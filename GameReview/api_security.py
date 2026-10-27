@@ -107,28 +107,23 @@ def test_analysis_hides_steam_request_error():
     assert "Sensitive internal connection details" not in response.text
 
 
-def test_analysis_rate_limit_blocks_excess_requests():
-    from fastapi.testclient import TestClient
 
-    test_client = TestClient(api.app)
+def test_analysis_rate_limit_blocks_excess_requests():
     test_ip = "198.51.100.25"
 
-    # Clear any previous requests from this test IP.
+    # Remove any previous test state for this IP.
     api._analysis_requests.pop(test_ip, None)
 
-    with patch.object(
-        api,
-        "check_analysis_rate_limit",
-        side_effect=[True, True, True, True, True, False],
-    ):
-        # The first five requests are allowed.
+    try:
+        # The actual limiter should allow five requests.
         for _ in range(5):
-            # Call the helper directly through its endpoint behavior
-            # in the next step, rather than triggering the pipeline.
             assert api.check_analysis_rate_limit(test_ip) is True
 
         # The sixth request should be blocked.
         assert api.check_analysis_rate_limit(test_ip) is False
+    finally:
+        # Avoid leaving test data in the shared limiter.
+        api._analysis_requests.pop(test_ip, None)
 
 
 def test_analysis_endpoint_returns_429_when_rate_limited():
