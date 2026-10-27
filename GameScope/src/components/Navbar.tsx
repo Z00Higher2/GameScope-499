@@ -1,9 +1,8 @@
 
+import React from "react";
 import "./Navbar.css";
 import logo from "../img/gamescope-logo-light.png";
 import type { Page, Mode } from "../type";
-import { useState } from "react";
-const [mobileExpanded, setMobileExpanded] = useState(false);
 
 interface NavbarProps {
   darkMode: boolean;
@@ -22,17 +21,24 @@ function Navbar({
   onLogoClick,
   mode,
 }: NavbarProps) {
-  const [mobileExpanded, setMobileExpanded] = useState(false);
+  const [mobileExpanded, setMobileExpanded] = React.useState(false);
+
   const isPlayer = mode === "player";
   const isDeveloper = mode === "developer";
 
+  const navigateTo = (page: Page) => {
+    setCurrentPage(page);
+    setMobileExpanded(false);
+  };
+
   return (
-        <nav
+    <nav
       className={`navbar ${darkMode ? "dark-navbar" : ""} ${
         mobileExpanded ? "mobile-expanded" : ""
       }`}
       aria-label="Main navigation"
     >
+      {/* MOBILE EXPAND / COLLAPSE */}
       <button
         type="button"
         className="mobile-nav-toggle"
@@ -49,16 +55,30 @@ function Navbar({
         </svg>
       </button>
 
+      {/* LOGO */}
+      <button
+        type="button"
+        className="navbar-logo"
+        onClick={onLogoClick}
+        aria-label="Go to GameScope home"
+      >
+        <div className="logo-icon">
+          <img src={logo} alt="GameScope logo" />
+        </div>
+
+        <div className="logo-text">
+          <h2>GameScope</h2>
+          <span>Feedback Analyzer</span>
+        </div>
+      </button>
+
       {/* MAIN NAVIGATION */}
       <div className="navbar-menu">
-        {/* PLAYER HOME — PLAYER MODE ONLY */}
         {isPlayer && (
           <button
             type="button"
-            className={`nav-item ${
-              currentPage === "player" ? "active" : ""
-            }`}
-            onClick={() => setCurrentPage("player")}
+            className={`nav-item ${currentPage === "player" ? "active" : ""}`}
+            onClick={() => navigateTo("player")}
             aria-label="Go to Player Home"
           >
             <span className="nav-icon">
@@ -72,14 +92,11 @@ function Navbar({
           </button>
         )}
 
-        {/* DASHBOARD — DEVELOPER MODE ONLY */}
         {isDeveloper && (
           <button
             type="button"
-            className={`nav-item ${
-              currentPage === "dashboard" ? "active" : ""
-            }`}
-            onClick={() => setCurrentPage("dashboard")}
+            className={`nav-item ${currentPage === "dashboard" ? "active" : ""}`}
+            onClick={() => navigateTo("dashboard")}
             aria-label="Go to Dashboard"
           >
             <span className="nav-icon">
@@ -93,13 +110,10 @@ function Navbar({
           </button>
         )}
 
-        {/* REVIEWS — BOTH MODES */}
         <button
           type="button"
-          className={`nav-item ${
-            currentPage === "reviews" ? "active" : ""
-          }`}
-          onClick={() => setCurrentPage("reviews")}
+          className={`nav-item ${currentPage === "reviews" ? "active" : ""}`}
+          onClick={() => navigateTo("reviews")}
           aria-label="Go to Reviews"
         >
           <span className="nav-icon">
@@ -112,14 +126,11 @@ function Navbar({
           <span className="nav-text">Reviews</span>
         </button>
 
-        {/* COMPARE GAMES — PLAYER MODE ONLY */}
         {isPlayer && (
           <button
             type="button"
-            className={`nav-item ${
-              currentPage === "compare" ? "active" : ""
-            }`}
-            onClick={() => setCurrentPage("compare")}
+            className={`nav-item ${currentPage === "compare" ? "active" : ""}`}
+            onClick={() => navigateTo("compare")}
             aria-label="Compare Games"
             title="Compare Games"
           >
@@ -137,14 +148,11 @@ function Navbar({
           </button>
         )}
 
-        {/* ISSUES — DEVELOPER MODE ONLY */}
         {isDeveloper && (
           <button
             type="button"
-            className={`nav-item ${
-              currentPage === "issues" ? "active" : ""
-            }`}
-            onClick={() => setCurrentPage("issues")}
+            className={`nav-item ${currentPage === "issues" ? "active" : ""}`}
+            onClick={() => navigateTo("issues")}
             aria-label="Go to Issues"
           >
             <span className="nav-icon">
@@ -158,14 +166,11 @@ function Navbar({
           </button>
         )}
 
-        {/* ANALYTICS — DEVELOPER MODE ONLY */}
         {isDeveloper && (
           <button
             type="button"
-            className={`nav-item ${
-              currentPage === "analytics" ? "active" : ""
-            }`}
-            onClick={() => setCurrentPage("analytics")}
+            className={`nav-item ${currentPage === "analytics" ? "active" : ""}`}
+            onClick={() => navigateTo("analytics")}
             aria-label="Go to Analytics"
           >
             <span className="nav-icon">
@@ -180,18 +185,13 @@ function Navbar({
         )}
       </div>
 
-      {/* RIGHT SIDE */}
+      {/* THEME AND SETTINGS */}
       <div className="navbar-bottom">
-        {/* DARK / LIGHT MODE — BOTH MODES */}
         <button
           type="button"
-          className={`nav-item theme-toggle ${
-            darkMode ? "active" : ""
-          }`}
+          className={`nav-item theme-toggle ${darkMode ? "active" : ""}`}
           onClick={() => setDarkMode((previous) => !previous)}
-          aria-label={
-            darkMode ? "Switch to light mode" : "Switch to dark mode"
-          }
+          aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
           title={darkMode ? "Light mode" : "Dark mode"}
         >
           <span className="nav-icon">
@@ -218,13 +218,10 @@ function Navbar({
           </span>
         </button>
 
-        {/* SETTINGS — BOTH MODES */}
         <button
           type="button"
-          className={`nav-item ${
-            currentPage === "settings" ? "active" : ""
-          }`}
-          onClick={() => setCurrentPage("settings")}
+          className={`nav-item ${currentPage === "settings" ? "active" : ""}`}
+          onClick={() => navigateTo("settings")}
           aria-label="Go to Settings"
         >
           <span className="nav-icon">
