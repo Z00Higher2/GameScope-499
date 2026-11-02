@@ -4,99 +4,18 @@ import Navbar from "./Navbar";
 import "./Settings.css";
 import type { AccentColor } from "../App";
 import type { Page, Mode } from "../type";
+import {
+  DEFAULT_PREFERENCES,
+  SETTINGS_KEY,
+  loadPreferences,
+} from "../preferences";
+import type {
+  Preferences,
+  ReviewSort,
+  Sentiment,
+} from "../preferences";
 
-
-type Sentiment = "all" | "positive" | "negative";
-type ReviewSort =
-  | "helpful"
-  | "quality"
-  | "playtime"
-  | "newest"
-  | "oldest";
-
-interface Preferences {
-  animations: boolean;
-  accentColor: string;
-  compactLayout: boolean;
-
-  defaultSentiment: Sentiment;
-  defaultSort: ReviewSort;
-  hideLowQuality: boolean;
-
-  minimumReviewLength: number;
-  minimumPlaytime: number;
-  minimumIssueMentions: number;
-  issueSentiment: Sentiment;
-
-  defaultPage: "dashboard" | "analytics" | "issues" | "reviews";
-  showSummaryCards: boolean;
-  showCharts: boolean;
-
-  reviewLimit: number;
-  reviewLanguage: string;
-  reviewTimeRange: string;
-
-  exportReviews: boolean;
-  exportIssues: boolean;
-  exportStatistics: boolean;
-
-  preferredGenres: string[];
-  hideOwnedGames: boolean;
-  recommendationPriority: "sentiment" | "quality" | "issues";
-
-  notifications: boolean;
-}
-
-const DEFAULT_PREFERENCES: Preferences = {
-  animations: true,
-  accentColor: "purple",
-  compactLayout: false,
-
-  defaultSentiment: "all",
-  defaultSort: "helpful",
-  hideLowQuality: false,
-
-  minimumReviewLength: 5,
-  minimumPlaytime: 0,
-  minimumIssueMentions: 10,
-  issueSentiment: "negative",
-
-  defaultPage: "dashboard",
-  showSummaryCards: true,
-  showCharts: true,
-
-  reviewLimit: 1000,
-  reviewLanguage: "english",
-  reviewTimeRange: "all",
-
-  exportReviews: true,
-  exportIssues: true,
-  exportStatistics: true,
-
-  preferredGenres: [],
-  hideOwnedGames: false,
-  recommendationPriority: "quality",
-
-  notifications: false,
-};
-
-const SETTINGS_KEY = "gamescope-settings";
 const FAVORITES_KEY = "gamescope-favorite-games";
-
-function loadPreferences(): Preferences {
-  try {
-    const stored = localStorage.getItem(SETTINGS_KEY);
-
-    if (!stored) return DEFAULT_PREFERENCES;
-
-    return {
-      ...DEFAULT_PREFERENCES,
-      ...JSON.parse(stored),
-    };
-  } catch {
-    return DEFAULT_PREFERENCES;
-  }
-}
 
 function loadFavorites(): string[] {
   try {
@@ -384,7 +303,7 @@ function Settings({
           <div className="settings-card">
             <SettingSelect
               title="Default sentiment"
-              description="Which review sentiment should be selected first?"
+              description="Which review sentiment the Reviews page selects first."
               value={preferences.defaultSentiment}
               options={[
                 ["all", "All reviews"],
@@ -403,7 +322,7 @@ function Settings({
 
             <SettingSelect
               title="Default sorting"
-              description="Choose the initial order of reviews."
+              description="The order the Reviews page starts in."
               value={preferences.defaultSort}
               options={[
                 ["helpful", "Most helpful"],
@@ -421,7 +340,7 @@ function Settings({
 
             <SettingToggle
               title="Hide low-quality reviews"
-              description="Save a preference to filter low-quality reviews when supported."
+              description="Hide reviews rated low quality on the Reviews page."
               checked={preferences.hideLowQuality}
               onChange={(value) =>
                 updatePreference("hideLowQuality", value)
@@ -444,7 +363,7 @@ function Settings({
           <div className="settings-card">
             <SettingNumber
               title="Minimum review length"
-              description="Minimum word count for reviews considered in quality analysis."
+              description="Hide reviews shorter than this many words on the Reviews page."
               value={preferences.minimumReviewLength}
               min={1}
               max={500}
@@ -457,7 +376,7 @@ function Settings({
 
             <SettingNumber
               title="Minimum playtime"
-              description="Preferred minimum player hours for experienced-feedback filters."
+              description="Hide reviews written with fewer hours played than this on the Reviews page."
               value={preferences.minimumPlaytime}
               min={0}
               max={10000}
@@ -471,7 +390,7 @@ function Settings({
 
             <SettingNumber
               title="Issue mention threshold"
-              description="Minimum mentions before an issue is eligible to appear."
+              description="Minimum reviews complaining about a topic before it appears on the Issues page."
               value={preferences.minimumIssueMentions}
               min={1}
               max={100000}
@@ -499,9 +418,9 @@ function Settings({
           </div>
 
           <p className="settings-note">
-            These thresholds are saved locally as preferences. They
-            will not change real analysis results until the backend
-            reads and applies them.
+            Review length and playtime apply on the Reviews page, and the
+            issue mention threshold applies on the Issues page. The issue
+            detection sentiment is saved as a preference but not applied yet.
           </p>
         </section>
 
@@ -579,7 +498,7 @@ function Settings({
           <div className="settings-card">
             <SettingSelect
               title="Preferred review collection size"
-              description="Target number of reviews for a future collection request."
+              description="How many reviews to collect from Steam when a game is analyzed or re-analyzed."
               value={String(preferences.reviewLimit)}
               options={[
                 ["100", "100 reviews"],
@@ -594,28 +513,22 @@ function Settings({
 
             <div className="settings-divider" />
 
-            <SettingSelect
-              title="Review language"
-              description="Preferred language for future review collection."
-              value={preferences.reviewLanguage}
-              options={[
-                ["english", "English"],
-                ["all", "All available languages"],
-                ["spanish", "Spanish"],
-                ["french", "French"],
-                ["german", "German"],
-                ["portuguese", "Portuguese"],
-              ]}
-              onChange={(value) =>
-                updatePreference("reviewLanguage", value)
-              }
-            />
+            <div className="settings-row">
+              <div className="settings-row-copy">
+                <h3>Review language</h3>
+                <p>
+                  Topic detection only understands English, so the junk
+                  filter removes reviews in other languages.
+                </p>
+              </div>
+              <span className="settings-status">English</span>
+            </div>
 
             <div className="settings-divider" />
 
             <SettingSelect
               title="Review time range"
-              description="Preferred time range for future analysis."
+              description="Only use reviews posted in this time range, on every page."
               value={preferences.reviewTimeRange}
               options={[
                 ["all", "All available time"],
@@ -650,7 +563,7 @@ function Settings({
             <div className="settings-section-icon">⇩</div>
             <div>
               <h2>Export & Reports</h2>
-              <p>Choose what future analysis reports should include.</p>
+              <p>Choose what the Issues page's exported report includes.</p>
             </div>
           </div>
 
@@ -702,8 +615,8 @@ function Settings({
           </div>
 
           <p className="settings-note">
-            Review and issue report exports require the actual review
-            and issue data to be connected. This button exports your
+            These choose what goes into Export report on the Issues
+            page. The Export Preferences button above downloads your
             settings, not the game's reviews.
           </p>
         </section>

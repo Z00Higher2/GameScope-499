@@ -140,6 +140,34 @@ create table if not exists review_filter_runs(
     index idx_filter_runs_game (game_id, run_at)
 ) ENGINE = InnoDB;
 
+
+-- ============================================================
+-- ISSUE STATUSES
+-- The status a developer sets for each issue on the Issues page
+-- (written by pipeline.py)
+-- ============================================================
+
+create table if not exists issue_statuses(
+    game_id int unsigned not null,
+    topic varchar(50) not null,
+
+    status enum (
+        'Detected',
+        'Investigating',
+        'In Progress',
+        'Resolved'
+    ) not null default 'Detected',
+
+    updated_at timestamp not null default current_timestamp
+        on update current_timestamp,
+
+    primary key (game_id, topic),
+    foreign key (game_id)
+    references games(game_id)
+    on update cascade
+    on delete cascade
+) ENGINE = InnoDB;
+
 show tables;
 
 describe games;
@@ -147,9 +175,11 @@ describe reviews;
 describe game_updates;
 describe reviews_import;
 describe review_filter_runs;
+describe issue_statuses;
 
 select * from games;
 select * from reviews;
 select * from game_updates;
 select * from reviews_import;
 select * from review_filter_runs;
+select * from issue_statuses;

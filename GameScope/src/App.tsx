@@ -9,7 +9,9 @@ import Intro from "./components/Intro";
 import Settings from "./components/Settings";
 import PlayerHome from "./components/PlayerHome";
 import CompareGames from "./components/CompareGames";
+import { analyzeGame, getAnalysis } from "./api";
 import type { GameAnalysis } from "./api";
+import { loadPreferences } from "./preferences";
 
 import "./App.css";
 
@@ -102,6 +104,32 @@ function App() {
     setPlayerAnalysis(null);
   };
 
+  // Settings > Review time range changes which reviews are analyzed,
+  // so reload the analyses after it changes.
+  const [timeRange, setTimeRange] = useState(
+    () => loadPreferences().reviewTimeRange
+  );
+
+  useEffect(() => {
+    if (currentPage === "settings") return;
+
+    const latest = loadPreferences().reviewTimeRange;
+    if (latest === timeRange) return;
+    setTimeRange(latest);
+
+    if (developerAppId) {
+      getAnalysis(developerAppId)
+        .then(setDeveloperAnalysis)
+        .catch(() => undefined);
+    }
+
+    if (playerAppId) {
+      getAnalysis(playerAppId)
+        .then(setPlayerAnalysis)
+        .catch(() => undefined);
+    }
+  }, [currentPage, timeRange, developerAppId, playerAppId]);
+
   
   // Change the selected mode without leaving the Intro screen.
   const handleModeChange: React.Dispatch<
@@ -162,6 +190,15 @@ function App() {
     setPlayerAppId(appId);
     setPlayerAnalysis(result);
     setPlayerAnalyzed(true);
+  };
+
+  // Issues > Compare across games > Open this game
+  const openDeveloperGame = async (appId: string) => {
+    const result = await analyzeGame(appId);
+
+    setDeveloperAppId(result.game.appId);
+    setDeveloperAnalysis(result);
+    setDeveloperAnalyzed(true);
   };
 
   const sharedProps = {
@@ -259,6 +296,8 @@ function App() {
               {...sharedProps}
               analyzed={activeAnalyzed}
               analyzedAppId={activeAppId}
+              analysis={activeAnalysis}
+              onOpenGame={openDeveloperGame}
             />
           )}
 

@@ -4,6 +4,7 @@ import Navbar from "./Navbar";
 import { getReviewCards } from "../api";
 import type { GameAnalysis, ReviewCard } from "../api";
 import type { Page, Mode } from "../type";
+import { loadPreferences } from "../preferences";
 import "./Reviews.css";
 
 interface ReviewsProps {
@@ -105,9 +106,12 @@ function Reviews({
   analysis,
   mode,
 }: ReviewsProps) {
-  const [sentimentFilter, setSentimentFilter] = useState("all");
+  const [preferences] = useState(loadPreferences);
+  const [sentimentFilter, setSentimentFilter] = useState<string>(
+    preferences.defaultSentiment
+  );
   const [qualityFilter, setQualityFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("quality");
+  const [sortBy, setSortBy] = useState<string>(preferences.defaultSort);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeSignal, setActiveSignal] = useState<string | null>(null);
 
@@ -155,8 +159,23 @@ function Reviews({
     icon: signalIcons[signal.name] ?? "◆",
   }));
 
+  // Settings > hide low quality, minimum review length and minimum playtime
+  const visibleReviews = useMemo(
+    () =>
+      reviewCards.filter(
+        (review) =>
+          !(preferences.hideLowQuality && review.quality === "low") &&
+          review.text.trim().split(/\s+/).length >=
+            preferences.minimumReviewLength &&
+          review.playtimeAtReview >= preferences.minimumPlaytime
+      ),
+    [reviewCards, preferences]
+  );
+
+  const hiddenBySettings = reviewCards.length - visibleReviews.length;
+
   const filteredReviews = useMemo(() => {
-    let reviews = [...reviewCards];
+    let reviews = [...visibleReviews];
 
     if (sentimentFilter !== "all") {
       reviews = reviews.filter(
@@ -247,7 +266,7 @@ function Reviews({
 
     return reviews;
   }, [
-    reviewCards,
+    visibleReviews,
     sentimentFilter,
     qualityFilter,
     sortBy,
@@ -264,7 +283,7 @@ function Reviews({
   const resetFilters = () => {
     setSentimentFilter("all");
     setQualityFilter("all");
-    setSortBy("quality");
+    setSortBy(preferences.defaultSort);
     setSearchQuery("");
     setActiveSignal(null);
   };
@@ -686,6 +705,8 @@ function Reviews({
               <p className="reviews-result-count" aria-live="polite">
                 Showing {filteredReviews.length} of {reviewCards.length} loaded
                 reviews
+                {hiddenBySettings > 0 &&
+                  ` · ${hiddenBySettings} hidden by your Settings`}
               </p>
             </div>
 

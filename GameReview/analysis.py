@@ -142,12 +142,14 @@ def find_topics(text):
 
 POSITIVE_CUES = re.compile(
     r"\b(?:"
-    r"love|loved|like|liked|enjoy|enjoyed|"
+    r"love|loved|liked|enjoy|enjoyed|"
     r"amazing|excellent|great|good|fantastic|"
     r"fun|beautiful|brilliant|smooth|impressive|"
+    r"awesome|incredible|perfect|best|solid|polished|"
+    r"gorgeous|stunning|memorable|masterpiece|"
     r"well[- ]made|well[- ]designed|satisfying|"
     r"engaging|immersive|addictive|"
-    r"works well|runs well|"
+    r"works well|runs well|worth it|"
     r"improved|improvements"
     r")\b",
     re.IGNORECASE,
@@ -158,11 +160,13 @@ NEGATIVE_CUES = re.compile(
     r"hate|hated|dislike|disliked|"
     r"terrible|awful|bad|poor|horrible|"
     r"boring|frustrating|frustrated|annoying|"
-    r"broken|buggy|unplayable|"
+    r"broken|buggy|unplayable|unfinished|"
     r"laggy|lagging|stuttering|stutter|"
     r"crashes|crashing|crashed|"
-    r"worse|worst|disappointing|"
+    r"worse|worst|disappointing|disappointed|"
     r"overpriced|unbalanced|"
+    r"lackluster|mediocre|repetitive|tedious|grindy|"
+    r"clunky|janky|shallow|trash|garbage|ruined|"
     r"doesn't work|does not work|"
     r"not worth|waste of"
     r")\b",
@@ -176,31 +180,59 @@ NEGATION_CUES = re.compile(
     re.IGNORECASE,
 )
 
+CLAUSE_BREAKS = re.compile(
+    r"[.!?;\n]+|\b(?:but|however|although|though|despite|except|whereas)\b",
+    re.IGNORECASE,
+)
 
-def topic_sentiment(text, topic_pattern, window=100):
+NEGATION_REACH = 3
+
+
+def clause_around(text, start, end):
+    clause_start = 0
+    for brk in CLAUSE_BREAKS.finditer(text, 0, start):
+        clause_start = brk.end()
+    next_break = CLAUSE_BREAKS.search(text, end)
+    clause = text[clause_start : next_break.start() if next_break else len(text)]
+    return comma_part(clause, start - clause_start, end - clause_start)
+
+
+def comma_part(clause, start, end):
+    # "great story, awful servers": read only the comma-separated part with
+    # the topic, unless that part has no sentiment words of its own
+    part_start = clause.rfind(",", 0, start) + 1
+    part_end = clause.find(",", end)
+    part = clause[part_start : part_end if part_end != -1 else len(clause)]
+    if POSITIVE_CUES.search(part) or NEGATIVE_CUES.search(part):
+        return part
+    return clause
+
+
+def negated(clause, cue_start):
+    words_before = clause[:cue_start].split()[-NEGATION_REACH:]
+    return any(NEGATION_CUES.fullmatch(word.strip(",:\"'()")) for word in words_before)
+
+
+def topic_sentiment(text, topic_pattern):
     """
     Estimate sentiment around mentions of one topic.
 
-    Returns positive, negative, or neutral.
+    Only the clause containing the topic is read, so "great story but awful
+    servers" is positive for Story. A negation only flips a cue it sits
+    right in front of ("not good"). Returns positive, negative, or neutral.
     This is a keyword-based estimate, not an AI sentiment model.
     """
     positive = 0
     negative = 0
 
     for match in topic_pattern.finditer(text):
-        start = max(0, match.start() - window)
-        end = min(len(text), match.end() + window)
-        context = text[start:end]
-
-        positive_hits = len(POSITIVE_CUES.findall(context))
-        negative_hits = len(NEGATIVE_CUES.findall(context))
-
-        # Negation can reverse a nearby positive or negative cue.
-        if NEGATION_CUES.search(context):
-            positive_hits, negative_hits = negative_hits, positive_hits
-
-        positive += positive_hits
-        negative += negative_hits
+        clause = clause_around(text, match.start(), match.end())
+        for cue_pattern, is_positive in ((POSITIVE_CUES, True), (NEGATIVE_CUES, False)):
+            for cue in cue_pattern.finditer(clause):
+                if is_positive != negated(clause, cue.start()):
+                    positive += 1
+                else:
+                    negative += 1
 
     if positive > negative:
         return "positive"
@@ -616,17 +648,24 @@ def key_insights(scored, positive, negative, positive_pct, negative_topics, filt
 # ==========================================
 
 ISSUE_TREND_PERIODS = 7
+MIN_ISSUE_COMPLAINTS = 3
 
 
-def issue_priority(negative_mentions, negative_reviews):
-    share = negative_mentions / negative_reviews if negative_reviews else 0
-    if negative_mentions >= 5 and share >= 0.25:
+def issue_priority(complaints, total_reviews):
+    share = complaints / total_reviews if total_reviews else 0
+    if complaints >= 5 and share >= 0.04:
         return "Critical"
-    if negative_mentions >= 3 and share >= 0.15:
+    if complaints >= 3 and share >= 0.02:
         return "High"
-    if negative_mentions >= 2:
+    if complaints >= 2:
         return "Medium"
     return "Low"
+
+
+def is_complaint(review, topic):
+    # The topic's own clause decides; a neutral mention follows the review's verdict
+    sentiment = topic_sentiment(review["text"], TOPIC_PATTERNS[topic])
+    return sentiment == "negative" or (sentiment == "neutral" and not review["recommended"])
 
 
 def trend_periods(scored):
@@ -656,36 +695,32 @@ def issue_trend(reviews, periods):
     return [round(100 * count / busiest) if busiest else 0 for count in counts]
 
 
-def issue_examples(negative, positive):
+def issue_examples(complaints, others):
     by_quality = lambda r: (r["quality_score"], r["helpful_votes"])
-    negative = sorted(negative, key=by_quality, reverse=True)
-    positive = sorted(positive, key=by_quality, reverse=True)
-    picked = negative[:2] + positive[:1]
-    picked += (negative[2:] + positive[1:])[: 3 - len(picked)]
-    return [
-        {
-            "type": "positive" if r["recommended"] else "negative",
-            "text": shorten(r["text"], 240),
-        }
-        for r in picked
-    ]
+    complaints = sorted(complaints, key=by_quality, reverse=True)
+    others = sorted(others, key=by_quality, reverse=True)
+    picked = [(r, "negative") for r in complaints[:2]] + [(r, "positive") for r in others[:1]]
+    spare = [(r, "negative") for r in complaints[2:]] + [(r, "positive") for r in others[1:]]
+    picked += spare[: 3 - len(picked)]
+    return [{"type": kind, "text": shorten(r["text"], 240)} for r, kind in picked]
 
 
-def build_issues(stored):
+def build_issues(stored, min_complaints=MIN_ISSUE_COMPLAINTS):
     scored = score_reviews(stored["reviews"])
-    negative_reviews = sum(1 for r in scored if not r["recommended"])
     periods, labels = trend_periods(scored)
 
     issues = []
     for topic, pattern in TOPIC_PATTERNS.items():
-        mentioning = [r for r in scored if topic in r["topics"]]
-        negative = [r for r in mentioning if not r["recommended"]]
-        if not negative:
+        complaints = [r for r in scored if topic in r["topics"] and is_complaint(r, topic)]
+        if len(complaints) < min_complaints:
             continue
-        positive = [r for r in mentioning if r["recommended"]]
+        complaint_ids = {r["review_id"] for r in complaints}
+        mentioning = [r for r in scored if topic in r["topics"]]
+        others = [r for r in mentioning if r["review_id"] not in complaint_ids]
+        from_recommended = sum(1 for r in complaints if r["recommended"])
 
         words = Counter(
-            match.lower() for r in negative for match in pattern.findall(r["text"])
+            match.lower() for r in complaints for match in pattern.findall(r["text"])
         )
         common = ", ".join(f'"{word}"' for word, _ in words.most_common(3))
 
@@ -693,26 +728,85 @@ def build_issues(stored):
             {
                 "name": topic,
                 "mentions": len(mentioning),
-                "negative": len(negative),
-                "positive": len(positive),
+                "negative": len(complaints),
+                "positive": len(others),
                 "helpfulVotes": round(
                     average([r["helpful_votes"] for r in mentioning]), 1
                 ),
-                "priority": issue_priority(len(negative), negative_reviews),
+                "priority": issue_priority(len(complaints), len(scored)),
                 "description": (
-                    f"Mentioned in {len(negative)} of "
-                    f"{count_of(negative_reviews, 'negative review')} "
-                    f"({percent(len(negative), negative_reviews)}%) and "
-                    f"{count_of(len(positive), 'positive review')}. "
+                    f"Complained about in {len(complaints)} of "
+                    f"{count_of(len(scored), 'review')} "
+                    f"({round(100 * len(complaints) / len(scored), 1)}%), "
+                    f"including {from_recommended} that still recommend the game. "
+                    f"Praised or neutral in {len(others)}. "
                     f"Common words: {common}."
                 ),
-                "examples": issue_examples(negative, positive),
-                "trend": issue_trend(mentioning, periods),
+                "examples": issue_examples(complaints, others),
+                "trend": issue_trend(complaints, periods),
             }
         )
 
     issues.sort(key=lambda issue: (issue["negative"], issue["mentions"]), reverse=True)
-    return {"trendLabels": labels, "issues": issues}
+    return {
+        "trendLabels": labels,
+        "minComplaints": min_complaints,
+        "totalReviews": len(scored),
+        "issues": issues,
+    }
+
+
+# ==========================================
+# Issue Search: How Players Talk About One Topic in One Game
+# ==========================================
+
+MIN_TREND_MENTIONS = 5
+
+
+def complaint_rate(reviews, topic):
+    return percent(sum(1 for r in reviews if is_complaint(r, topic)), len(reviews))
+
+
+def topic_trend(scored, mentioning, topic):
+    # Compare the older half of the reviews with the newer half
+    dates = sorted(r["created_at"] for r in scored if r["created_at"])
+    if len(dates) < 2 or dates[0] == dates[-1]:
+        return None
+    middle = dates[len(dates) // 2]
+
+    earlier = [r for r in mentioning if r["created_at"] and r["created_at"] < middle]
+    recent = [r for r in mentioning if r["created_at"] and r["created_at"] >= middle]
+    if len(earlier) < MIN_TREND_MENTIONS or len(recent) < MIN_TREND_MENTIONS:
+        return None
+
+    earlier_rate = complaint_rate(earlier, topic)
+    recent_rate = complaint_rate(recent, topic)
+    return {
+        "since": middle.isoformat(),
+        "earlierComplaintRate": earlier_rate,
+        "recentComplaintRate": recent_rate,
+        "change": recent_rate - earlier_rate,
+    }
+
+
+def topic_standing(stored, topic):
+    scored = score_reviews(stored["reviews"])
+    pattern = TOPIC_PATTERNS[topic]
+    mentioning = [r for r in scored if topic in r["topics"]]
+    complaints = sum(1 for r in mentioning if is_complaint(r, topic))
+    praised = sum(
+        1 for r in mentioning if topic_sentiment(r["text"], pattern) == "positive"
+    )
+
+    return {
+        "totalReviews": len(scored),
+        "mentions": len(mentioning),
+        "praised": praised,
+        "complaints": complaints,
+        "praiseRate": percent(praised, len(mentioning)),
+        "complaintRate": percent(complaints, len(mentioning)),
+        "trend": topic_trend(scored, mentioning, topic),
+    }
 
 
 # ==========================================

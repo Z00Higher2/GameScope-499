@@ -246,3 +246,81 @@ def load_game(app_id):
         "filter_run": filter_run,
         "analyzed_at": analyzed_at,
     }
+
+
+# ==========================================
+# Issue Statuses Set on the Issues Page
+# ==========================================
+
+def list_games():
+    """Every game that has stored reviews, for Issue Search."""
+    ensure_schema()
+
+    connection = importer.connect_database()
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT app_id, game_name
+            FROM games
+            WHERE EXISTS (
+                SELECT 1 FROM reviews WHERE reviews.game_id = games.game_id
+            )
+            ORDER BY game_name
+            """
+        )
+        games = cursor.fetchall()
+        cursor.close()
+    finally:
+        connection.close()
+
+    return games
+
+
+def find_game_id(app_id):
+    ensure_schema()
+
+    connection = importer.connect_database()
+    try:
+        cursor = connection.cursor()
+        cursor.execute("SELECT game_id FROM games WHERE app_id = %s", (app_id,))
+        row = cursor.fetchone()
+        cursor.close()
+    finally:
+        connection.close()
+
+    return row[0] if row else None
+
+
+def load_issue_statuses(game_id):
+    connection = importer.connect_database()
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT topic, status FROM issue_statuses WHERE game_id = %s",
+            (game_id,),
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+    finally:
+        connection.close()
+
+    return {row["topic"]: row["status"] for row in rows}
+
+
+def save_issue_status(game_id, topic, status):
+    connection = importer.connect_database()
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            """
+            INSERT INTO issue_statuses (game_id, topic, status)
+            VALUES (%s, %s, %s)
+            ON DUPLICATE KEY UPDATE status = VALUES(status)
+            """,
+            (game_id, topic, status),
+        )
+        connection.commit()
+        cursor.close()
+    finally:
+        connection.close()
