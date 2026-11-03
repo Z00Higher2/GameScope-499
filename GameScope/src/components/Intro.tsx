@@ -10,6 +10,8 @@ interface IntroProps {
   mode: Mode;
   setMode: React.Dispatch<React.SetStateAction<Mode>>;
   onGetStarted: () => void;
+  onLoginClick: () => void;
+
 }
 
 function Reveal({
@@ -160,6 +162,7 @@ function Intro({
   mode,
   setMode,
   onGetStarted,
+  onLoginClick,
 }: IntroProps) {
   return (
     <div className={`intro-page ${darkMode ? "intro-dark" : ""}`}>
@@ -177,6 +180,22 @@ function Intro({
           </div>
           <span>GameScope</span>
         </div>
+
+        {/* Login (same look as the app Navbar) */}
+        <button
+          type="button"
+          className="intro-login-nav"
+          onClick={onLoginClick}
+          aria-label="Go to Login"
+        >
+          <span className="intro-login-icon">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 21a8 8 0 0 1 16 0" />
+            </svg>
+          </span>
+          <span className="intro-login-text">Login</span>
+        </button>
 
         <button
           type="button"

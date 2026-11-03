@@ -16,6 +16,10 @@ interface ReviewsProps {
   analyzedAppId: string;
   analysis: GameAnalysis | null;
   mode: Mode;
+  setMode: React.Dispatch<React.SetStateAction<Mode>>;
+  isLoggedIn?: boolean;
+  accountEmail?: string;
+  onLogout?: () => void;
 }
 
 type Review = ReviewCard;
@@ -104,6 +108,10 @@ function Reviews({
   analyzedAppId,
   analysis,
   mode,
+  setMode,
+  isLoggedIn = false,
+  accountEmail = "",
+  onLogout,
 }: ReviewsProps) {
   const [sentimentFilter, setSentimentFilter] = useState("all");
   const [qualityFilter, setQualityFilter] = useState("all");
@@ -310,14 +318,20 @@ function Reviews({
   if (isLoading) {
     return (
       <main className={`reviews-page ${darkMode ? "dark-mode" : ""}`}>
-        <Navbar
-          darkMode={darkMode}
-          setDarkMode={setDarkMode}
-          currentPage={currentPage}
-          setCurrentPage={setCurrentPage}
-          onLogoClick={onLogoClick}
-          mode={mode}
-        />
+        
+      <Navbar
+        darkMode={darkMode}
+        setDarkMode={setDarkMode}
+        currentPage={currentPage}
+        setCurrentPage={setCurrentPage}
+        onLogoClick={onLogoClick}
+        mode={mode}
+        setMode={setMode}
+        isLoggedIn={isLoggedIn}
+        accountEmail={accountEmail}
+        onLogout={onLogout}
+      />
+
 
         <section className="reviews-loading" aria-live="polite">
           <div className="reviews-loading-content">
@@ -347,14 +361,20 @@ function Reviews({
 
   return (
     <main className={`reviews-page ${darkMode ? "dark-mode" : ""}`}>
-      <Navbar
-        darkMode={darkMode}
-        setDarkMode={setDarkMode}
-        currentPage={currentPage}
-        setCurrentPage={setCurrentPage}
-        onLogoClick={onLogoClick}
-        mode={mode}
-      />
+      
+        <Navbar
+          darkMode={darkMode}
+          setDarkMode={setDarkMode}
+          currentPage={currentPage}
+          setCurrentPage={setCurrentPage}
+          onLogoClick={onLogoClick}
+          mode={mode}
+          setMode={setMode}
+          isLoggedIn={isLoggedIn}
+          accountEmail={accountEmail}
+          onLogout={onLogout}
+        />
+
 
       {!analyzed ? (
         <section className="reviews-empty reviews-animate reviews-animate-1">

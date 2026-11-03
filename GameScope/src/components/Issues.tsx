@@ -16,6 +16,10 @@ interface IssuesProps {
   analyzed: boolean;
   analyzedAppId: string;
   mode: Mode;
+  setMode: React.Dispatch<React.SetStateAction<Mode>>;
+  isLoggedIn?: boolean;
+  accountEmail?: string;
+  onLogout?: () => void;
 }
 
 type Priority = "Critical" | "High" | "Medium" | "Low";
@@ -106,6 +110,10 @@ function Issues({
   analyzed,
   analyzedAppId,
   mode,
+  setMode,
+  isLoggedIn = false,
+  accountEmail = "",
+  onLogout,
 }: IssuesProps) {
   const [selectedIssueName, setSelectedIssueName] =
     useState("");
@@ -288,14 +296,20 @@ function Issues({
       <div
         className={`issues-page ${darkMode ? "issues-dark" : ""}`}
       >
-        <Navbar
-          darkMode={darkMode}
-          setDarkMode={setDarkMode}
-          currentPage={currentPage}
-          setCurrentPage={setCurrentPage}
-          onLogoClick={onLogoClick}
-          mode={mode}
-        />
+        
+      <Navbar
+        darkMode={darkMode}
+        setDarkMode={setDarkMode}
+        currentPage={currentPage}
+        setCurrentPage={setCurrentPage}
+        onLogoClick={onLogoClick}
+        mode={mode}
+        setMode={setMode}
+        isLoggedIn={isLoggedIn}
+        accountEmail={accountEmail}
+        onLogout={onLogout}
+      />
+
 
         <main className="issues-main">
           <section className="issues-card issues-detail-empty">
@@ -322,6 +336,7 @@ function Issues({
       <div
         className={`issues-page ${darkMode ? "issues-dark" : ""}`}
       >
+        
         <Navbar
           darkMode={darkMode}
           setDarkMode={setDarkMode}
@@ -329,7 +344,12 @@ function Issues({
           setCurrentPage={setCurrentPage}
           onLogoClick={onLogoClick}
           mode={mode}
+          setMode={setMode}
+          isLoggedIn={isLoggedIn}
+          accountEmail={accountEmail}
+          onLogout={onLogout}
         />
+
 
         <main className="issues-main">
           <section className="issues-card issues-detail-empty">
@@ -350,14 +370,20 @@ function Issues({
     <div
       className={`issues-page ${darkMode ? "issues-dark" : ""}`}
     >
-      <Navbar
-        darkMode={darkMode}
-        setDarkMode={setDarkMode}
-        currentPage={currentPage}
-        setCurrentPage={setCurrentPage}
-        onLogoClick={onLogoClick}
-        mode={mode}
-      />
+      
+        <Navbar
+          darkMode={darkMode}
+          setDarkMode={setDarkMode}
+          currentPage={currentPage}
+          setCurrentPage={setCurrentPage}
+          onLogoClick={onLogoClick}
+          mode={mode}
+          setMode={setMode}
+          isLoggedIn={isLoggedIn}
+          accountEmail={accountEmail}
+          onLogout={onLogout}
+        />
+
 
       <main className="issues-main">
         <section className="issues-header">

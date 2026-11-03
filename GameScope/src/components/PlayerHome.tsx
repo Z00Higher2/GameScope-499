@@ -19,6 +19,12 @@ interface PlayerHomeProps {
   onLogoClick: () => void;
   mode: Mode;
   onAnalyzeGame?: (appId: string, analysis: GameAnalysis) => void;
+
+  // Authentication
+  setMode: React.Dispatch<React.SetStateAction<Mode>>;
+  isLoggedIn: boolean;
+  accountEmail: string;
+  onLogout: () => void;
 }
 
 interface SearchGame {
@@ -569,6 +575,12 @@ function PlayerHome({
   onLogoClick,
   mode,
   onAnalyzeGame,
+
+  // Authentication
+  setMode,
+  isLoggedIn = false,
+  accountEmail = "",
+  onLogout,
 }: PlayerHomeProps) {
   const revealRef = useScrollReveal();
 
@@ -812,14 +824,19 @@ function PlayerHome({
       ref={revealRef}
       className={`player-home ${darkMode ? "player-home-dark" : ""}`}
     >
-      <Navbar
-        darkMode={darkMode}
-        setDarkMode={setDarkMode}
-        currentPage={currentPage}
-        setCurrentPage={setCurrentPage}
-        onLogoClick={onLogoClick}
-        mode={mode}
-      />
+      
+        <Navbar
+          darkMode={darkMode}
+          setDarkMode={setDarkMode}
+          currentPage={currentPage}
+          setCurrentPage={setCurrentPage}
+          onLogoClick={onLogoClick}
+          mode={mode}
+          setMode={setMode}
+          isLoggedIn={isLoggedIn}
+          accountEmail={accountEmail}
+          onLogout={onLogout}
+        />
 
       <section className="player-hero scroll-reveal">
         <span className="player-eyebrow">YOUR NEXT GAME STARTS HERE</span>

@@ -6,6 +6,10 @@ export type Page =
   | "issues"
   | "analytics"
   | "settings"
+  | "profile"
+  | "login"
+  | "signup"
+  | "forgot-password"
   | "compare";
 
 export type Mode = "player" | "developer";

@@ -25,6 +25,12 @@ interface DashboardProps {
   setAnalysis: React.Dispatch<React.SetStateAction<GameAnalysis | null>>;
 
   onLogoClick: () => void;
+
+  // Authentication
+  setMode: React.Dispatch<React.SetStateAction<Mode>>;
+  isLoggedIn?: boolean;
+  accountEmail?: string;
+  onLogout?: () => void;
 }
 
 // ==================================================
@@ -87,6 +93,13 @@ function Dashboard({
   setAnalysis,
   onLogoClick,
   mode,
+
+  // Authentication
+  setMode,
+  isLoggedIn = false,
+  accountEmail = "",
+  onLogout,
+  
 }: DashboardProps) {
   // ==================================================
   // GAME SEARCH
@@ -150,7 +163,6 @@ function Dashboard({
       controller.abort();
     };
   }, [gameSearch, selectedGame]);
-
 
   // ==================================================
   // ANALYZED GAME
@@ -266,6 +278,7 @@ function Dashboard({
 
   return (
     <div className="dashboard-page">
+      
       <Navbar
         darkMode={darkMode}
         setDarkMode={setDarkMode}
@@ -273,7 +286,12 @@ function Dashboard({
         setCurrentPage={setCurrentPage}
         onLogoClick={onLogoClick}
         mode={mode}
+        setMode={setMode}
+        isLoggedIn={isLoggedIn}
+        accountEmail={accountEmail}
+        onLogout={onLogout}
       />
+
 
       <main className="dashboard-main">
         {/* HEADER */}

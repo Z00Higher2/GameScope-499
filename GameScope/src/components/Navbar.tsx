@@ -11,6 +11,12 @@ interface NavbarProps {
   setCurrentPage: React.Dispatch<React.SetStateAction<Page>>;
   onLogoClick: () => void;
   mode: Mode;
+  setMode: React.Dispatch<React.SetStateAction<Mode>>;
+
+  // Authentication
+  isLoggedIn?: boolean;
+  accountEmail?: string;
+  onLogout?: () => void;
 }
 
 function Navbar({
@@ -20,25 +26,89 @@ function Navbar({
   setCurrentPage,
   onLogoClick,
   mode,
+  setMode,
+  isLoggedIn = false,
+  accountEmail = "",
+  onLogout,
 }: NavbarProps) {
   const [mobileExpanded, setMobileExpanded] = React.useState(false);
+  const [accountDropdownOpen, setAccountDropdownOpen] =
+    React.useState(false);
+
+  const accountDropdownRef = React.useRef<HTMLDivElement>(null);
 
   const isPlayer = mode === "player";
   const isDeveloper = mode === "developer";
 
+  // Close account dropdown when clicking outside or pressing Escape.
+  React.useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        accountDropdownRef.current &&
+        !accountDropdownRef.current.contains(event.target as Node)
+      ) {
+        setAccountDropdownOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setAccountDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, []);
+
+  // Navigation
   const navigateTo = (page: Page) => {
+    // Compare is available only to logged-in Players.
+    if (page === "compare" && (!isLoggedIn || !isPlayer)) {
+      setCurrentPage("login");
+      setMobileExpanded(false);
+      setAccountDropdownOpen(false);
+      return;
+    }
+
     setCurrentPage(page);
     setMobileExpanded(false);
+    setAccountDropdownOpen(false);
   };
 
   const toggleMobileNavbar = () => {
     setMobileExpanded((previous) => !previous);
   };
 
+  // Switch between Player and Developer modes.
+  const handleModeSwitch = (newMode: Mode) => {
+    if (newMode === mode) return;
+
+    setMode(newMode);
+    setAccountDropdownOpen(false);
+    setMobileExpanded(false);
+  };
+
+  const handleLogout = () => {
+    const confirmed = window.confirm(
+      "Are you sure you want to log out?"
+    );
+
+    if (confirmed) {
+      setAccountDropdownOpen(false);
+      setMobileExpanded(false);
+      onLogout?.();
+    }
+  };
+
   return (
     <>
-      {/* Floating mobile menu button.
-          It stays visible while the navbar is hidden. */}
+      {/* Floating mobile menu button */}
       <button
         type="button"
         className={`mobile-menu-trigger ${
@@ -48,7 +118,9 @@ function Navbar({
         aria-expanded={mobileExpanded}
         aria-controls="gamescope-navbar"
         aria-label={
-          mobileExpanded ? "Close navigation menu" : "Open navigation menu"
+          mobileExpanded
+            ? "Close navigation menu"
+            : "Open navigation menu"
         }
       >
         {mobileExpanded ? (
@@ -64,7 +136,7 @@ function Navbar({
         )}
       </button>
 
-      {/* Optional backdrop for the open mobile menu */}
+      {/* Mobile menu backdrop */}
       {mobileExpanded && (
         <button
           type="button"
@@ -101,6 +173,7 @@ function Navbar({
 
         {/* Main navigation */}
         <div className="navbar-menu">
+          {/* Player Home */}
           {isPlayer && (
             <button
               type="button"
@@ -121,6 +194,7 @@ function Navbar({
             </button>
           )}
 
+          {/* Developer Dashboard */}
           {isDeveloper && (
             <button
               type="button"
@@ -141,6 +215,7 @@ function Navbar({
             </button>
           )}
 
+          {/* Reviews */}
           <button
             type="button"
             className={`nav-item ${
@@ -159,7 +234,8 @@ function Navbar({
             <span className="nav-text">Reviews</span>
           </button>
 
-          {isPlayer && (
+          {/* Compare Games - Logged-in Players only */}
+          {isPlayer && isLoggedIn && (
             <button
               type="button"
               className={`nav-item ${
@@ -183,6 +259,7 @@ function Navbar({
             </button>
           )}
 
+          {/* Issues - Developer only */}
           {isDeveloper && (
             <button
               type="button"
@@ -203,6 +280,7 @@ function Navbar({
             </button>
           )}
 
+          {/* Analytics - Developer only */}
           {isDeveloper && (
             <button
               type="button"
@@ -224,15 +302,18 @@ function Navbar({
           )}
         </div>
 
-        {/* Theme and settings */}
+        {/* Theme, Settings and Account */}
         <div className="navbar-bottom">
+          {/* Theme toggle */}
           <button
             type="button"
             className={`nav-item theme-toggle ${
               darkMode ? "active" : ""
             }`}
             onClick={() => setDarkMode((previous) => !previous)}
-            aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={
+              darkMode ? "Switch to light mode" : "Switch to dark mode"
+            }
             title={darkMode ? "Light mode" : "Dark mode"}
           >
             <span className="nav-icon">
@@ -254,11 +335,13 @@ function Navbar({
                 </svg>
               )}
             </span>
+
             <span className="nav-text">
               {darkMode ? "Light Mode" : "Dark Mode"}
             </span>
           </button>
 
+          {/* Settings */}
           <button
             type="button"
             className={`nav-item ${
@@ -275,6 +358,138 @@ function Navbar({
             </span>
             <span className="nav-text">Settings</span>
           </button>
+
+          {/* Account section */}
+          {!isLoggedIn ? (
+            <button
+              type="button"
+              className={`nav-item ${
+                currentPage === "login" ? "active" : ""
+              }`}
+              onClick={() => navigateTo("login")}
+              aria-label="Go to Login"
+            >
+              <span className="nav-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="8" r="4" />
+                  <path d="M4 21a8 8 0 0 1 16 0" />
+                </svg>
+              </span>
+              <span className="nav-text">Login</span>
+            </button>
+          ) : (
+            <div
+              className="account-dropdown-wrapper"
+              ref={accountDropdownRef}
+            >
+              {/* Account button */}
+              <button
+                type="button"
+                className="nav-item account-display"
+                onClick={() =>
+                  setAccountDropdownOpen((previous) => !previous)
+                }
+                aria-expanded={accountDropdownOpen}
+                aria-haspopup="true"
+                aria-label="Open account menu"
+              >
+                <span className="nav-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="12" cy="8" r="4" />
+                    <path d="M4 21a8 8 0 0 1 16 0" />
+                  </svg>
+                </span>
+
+                <span className="account-info">
+                  <span className="nav-text account-email">
+                    {accountEmail || "Logged in"}
+                  </span>
+
+                  <span className="account-mode">
+                    {isPlayer ? "Player Mode" : "Developer Mode"}
+                  </span>
+                </span>
+              </button>
+
+              {/* Account dropdown panel */}
+              {accountDropdownOpen && (
+                <div className="account-dropdown" role="menu">
+                  <div className="account-dropdown-header">
+                    <strong>{accountEmail || "Logged in"}</strong>
+                    <span>Account</span>
+                  </div>
+
+                  <div className="account-dropdown-details">
+                    <span>Current mode</span>
+                    <strong>
+                      {isPlayer ? "Player Mode" : "Developer Mode"}
+                    </strong>
+                  </div>
+
+                  <div className="account-dropdown-details">
+                    <span>Account status</span>
+                    <strong className="account-status">
+                      <span className="status-dot" />
+                      Logged in
+                    </strong>
+                  </div>
+
+                  {/* View Profile */}
+                  <button
+                    type="button"
+                    className="account-dropdown-profile"
+                    role="menuitem"
+                    onClick={() => navigateTo("profile")}
+                  >
+                    <span>View Profile</span>
+                    <span>→</span>
+                  </button>
+
+                  {/* Mode switching */}
+                  <div className="account-mode-switcher">
+                    <span className="account-mode-switcher-label">
+                      Switch mode
+                    </span>
+
+                    <button
+                      type="button"
+                      className={`account-mode-option ${
+                        isPlayer ? "selected" : ""
+                      }`}
+                      role="menuitem"
+                      disabled={isPlayer}
+                      onClick={() => handleModeSwitch("player")}
+                    >
+                      <span>Player Mode</span>
+                      {isPlayer && <span aria-label="Current mode">✓</span>}
+                    </button>
+
+                    <button
+                      type="button"
+                      className={`account-mode-option ${
+                        isDeveloper ? "selected" : ""
+                      }`}
+                      role="menuitem"
+                      disabled={isDeveloper}
+                      onClick={() => handleModeSwitch("developer")}
+                    >
+                      <span>Developer Mode</span>
+                      {isDeveloper && <span aria-label="Current mode">✓</span>}
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="account-dropdown-logout"
+                    role="menuitem"
+                    onClick={handleLogout}
+                  >
+                    <span>Logout</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </nav>
     </>

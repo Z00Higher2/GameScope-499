@@ -8,7 +8,11 @@ import Issues from "./components/Issues";
 import Intro from "./components/Intro";
 import Settings from "./components/Settings";
 import PlayerHome from "./components/PlayerHome";
+import Login from "./components/Login";
 import CompareGames from "./components/CompareGames";
+import SignUp from "./components/SignUp";
+import ForgotPassword from "./components/ForgotPassword";
+import Profile from "./components/Profile";
 import type { GameAnalysis } from "./api";
 
 import "./App.css";
@@ -18,6 +22,7 @@ import type { Page, Mode, AccentColor } from "./type";
 export type { Page, Mode, AccentColor } from "./type";
 
 const SETTINGS_KEY = "gamescope-settings";
+const AUTH_KEY = "gamescope-demo-account";
 
 const ACCENT_VALUES: Record<
   AccentColor,
@@ -27,6 +32,10 @@ const ACCENT_VALUES: Record<
   blue: { accent: "#4388ff", strong: "#70a5ff" },
   green: { accent: "#20a878", strong: "#43c995" },
 };
+
+interface DemoAccount {
+  email: string;
+}
 
 function getSavedAccentColor(): AccentColor {
   try {
@@ -46,6 +55,26 @@ function getSavedAccentColor(): AccentColor {
   return "purple";
 }
 
+function getSavedAccount(): DemoAccount | null {
+  try {
+    const saved = localStorage.getItem(AUTH_KEY);
+
+    if (!saved) return null;
+
+    const account = JSON.parse(saved);
+
+    if (typeof account.email === "string") {
+      // Older demo accounts may still contain a mode field.
+      // Ignore it because mode is now selected independently.
+      return { email: account.email };
+    }
+  } catch {
+    // Ignore invalid saved session data.
+  }
+
+  return null;
+}
+
 function App() {
   const [darkMode, setDarkMode] = useState(
     () => localStorage.getItem("gamescope-dark-mode") === "true"
@@ -58,10 +87,21 @@ function App() {
   const [accentColor, setAccentColor] =
     useState<AccentColor>(getSavedAccentColor);
 
-  const [mode, setMode] = useState<Mode>(() =>
-    localStorage.getItem("gamescope-mode") === "player"
-      ? "player"
-      : "developer"
+  // ------------------------------------------
+  // DEMO LOGIN SESSION
+  // ------------------------------------------
+
+  const [account, setAccount] = useState<DemoAccount | null>(
+    getSavedAccount
+  );
+
+  const isLoggedIn = account !== null;
+
+  const [mode, setMode] = useState<Mode>(
+    () =>
+      localStorage.getItem("gamescope-mode") === "player"
+        ? "player"
+        : "developer"
   );
 
   useEffect(() => {
@@ -72,13 +112,24 @@ function App() {
     () => sessionStorage.getItem("gamescope-show-intro") !== "false"
   );
 
-  const [currentPage, setCurrentPage] = useState<Page>(() =>
-    localStorage.getItem("gamescope-mode") === "player"
-      ? "player"
-      : "dashboard"
-  );
+  const [currentPage, setCurrentPage] = useState<Page>(() => {
+    const savedAccount = getSavedAccount();
 
-  // Developer analysis state
+    const savedMode = localStorage.getItem("gamescope-mode");
+
+    if (savedAccount) {
+      return savedMode === "player" ? "player" : "dashboard";
+    }
+
+    return savedMode === "player" ? "player" : "dashboard";
+  });
+
+  const [loginFromIntro, setLoginFromIntro] = useState(false);
+
+  // ------------------------------------------
+  // DEVELOPER ANALYSIS STATE
+  // ------------------------------------------
+
   const [developerAnalyzed, setDeveloperAnalyzed] = useState(false);
   const [developerAppId, setDeveloperAppId] = useState("");
   const [developerAnalysis, setDeveloperAnalysis] =
@@ -90,7 +141,10 @@ function App() {
     setDeveloperAnalysis(null);
   };
 
-  // Player analysis state
+  // ------------------------------------------
+  // PLAYER ANALYSIS STATE
+  // ------------------------------------------
+
   const [playerAnalyzed, setPlayerAnalyzed] = useState(false);
   const [playerAppId, setPlayerAppId] = useState("");
   const [playerAnalysis, setPlayerAnalysis] =
@@ -102,11 +156,14 @@ function App() {
     setPlayerAnalysis(null);
   };
 
-  
-  // Change the selected mode without leaving the Intro screen.
+  // ------------------------------------------
+  // MODE SELECTION
+  // ------------------------------------------
+
   const handleModeChange: React.Dispatch<
     React.SetStateAction<Mode>
   > = (nextMode) => {
+    // A logged-in user can switch between Player and Developer modes.
     const resolvedMode =
       typeof nextMode === "function"
         ? nextMode(mode)
@@ -114,18 +171,21 @@ function App() {
 
     if (resolvedMode === mode) return;
 
-    // Clear the previous mode's analysis when switching modes.
     if (mode === "developer") {
       clearDeveloperAnalysis();
     } else {
       clearPlayerAnalysis();
     }
 
-    // Only update the selected mode.
     setMode(resolvedMode);
-
-    // Keep the Intro screen visible until Get Started is clicked.
+    setCurrentPage(
+      resolvedMode === "player" ? "player" : "dashboard"
+    );
   };
+
+  // ------------------------------------------
+  // INTRO NAVIGATION
+  // ------------------------------------------
 
   const handleGetStarted = () => {
     setShowIntro(false);
@@ -141,7 +201,6 @@ function App() {
   };
 
   const handleLogoClick = () => {
-    // Reset both analyses when returning to the Intro screen.
     clearDeveloperAnalysis();
     clearPlayerAnalysis();
 
@@ -155,6 +214,10 @@ function App() {
     });
   };
 
+  // ------------------------------------------
+  // PLAYER ANALYSIS
+  // ------------------------------------------
+
   const handlePlayerAnalysis = (
     appId: string,
     result: GameAnalysis
@@ -164,6 +227,112 @@ function App() {
     setPlayerAnalyzed(true);
   };
 
+  // ------------------------------------------
+  // LOGIN
+  // ------------------------------------------
+
+  const handleLogin = (
+    email: string,
+    password: string,
+    selectedMode: Mode
+  ) => {
+    // Frontend demonstration only.
+    // Replace this with your group's login API later.
+
+    if (!email.trim() || !password.trim()) {
+      alert("Please enter your email and password.");
+      return;
+    }
+
+    const newAccount: DemoAccount = {
+      email: email.trim(),
+    };
+
+    localStorage.setItem(AUTH_KEY, JSON.stringify(newAccount));
+
+    setAccount(newAccount);
+    setMode(selectedMode);
+
+    setShowIntro(false);
+    sessionStorage.setItem("gamescope-show-intro", "false");
+
+    setCurrentPage(
+      selectedMode === "player" ? "player" : "dashboard"
+    );
+
+    setLoginFromIntro(false);
+  };
+
+  // ------------------------------------------
+  // SIGN UP
+  // ------------------------------------------
+
+  const handleSignUp = (
+    email: string,
+    password: string,
+    selectedMode: Mode
+  ) => {
+    // Frontend demonstration only.
+    // No account is actually created on a server.
+
+    if (!email.trim() || !password.trim()) {
+      alert("Please enter your email and password.");
+      return;
+    }
+
+    const newAccount: DemoAccount = {
+      email: email.trim(),
+    };
+
+    localStorage.setItem(AUTH_KEY, JSON.stringify(newAccount));
+
+    setAccount(newAccount);
+    setMode(selectedMode);
+
+    setShowIntro(false);
+    sessionStorage.setItem("gamescope-show-intro", "false");
+
+    setCurrentPage(
+      selectedMode === "player" ? "player" : "dashboard"
+    );
+  };
+
+  // ------------------------------------------
+  // LOGOUT
+  // ------------------------------------------
+
+  const handleLogout = () => {
+    localStorage.removeItem(AUTH_KEY);
+
+    setAccount(null);
+
+    clearPlayerAnalysis();
+    clearDeveloperAnalysis();
+
+    setShowIntro(true);
+    sessionStorage.setItem("gamescope-show-intro", "true");
+
+    setCurrentPage("player");
+  };
+
+  // ------------------------------------------
+  // PLAYER-ONLY PAGE ACCESS
+  // ------------------------------------------
+
+  const handleCompareClick = () => {
+    if (!isLoggedIn) {
+      setLoginFromIntro(false);
+      setCurrentPage("login");
+      return;
+    }
+
+    setCurrentPage("compare");
+  };
+
+  // ------------------------------------------
+  // SHARED PROPS
+  // ------------------------------------------
+
   const sharedProps = {
     darkMode,
     setDarkMode,
@@ -172,6 +341,9 @@ function App() {
     onLogoClick: handleLogoClick,
     mode,
     setMode: handleModeChange,
+    isLoggedIn,
+    accountEmail: account?.email ?? "",
+    onLogout: handleLogout,
   };
 
   const accentValues = ACCENT_VALUES[accentColor];
@@ -184,6 +356,10 @@ function App() {
 
   const activeAnalysis =
     mode === "player" ? playerAnalysis : developerAnalysis;
+
+  // ------------------------------------------
+  // RENDER
+  // ------------------------------------------
 
   return (
     <div
@@ -198,32 +374,89 @@ function App() {
         } as React.CSSProperties
       }
     >
-      {showIntro ? (
+      {showIntro &&
+      currentPage !== "login" &&
+      currentPage !== "signup" &&
+      currentPage !== "forgot-password" ? (
         <Intro
           darkMode={darkMode}
           setDarkMode={setDarkMode}
           mode={mode}
           setMode={handleModeChange}
           onGetStarted={handleGetStarted}
+          onLoginClick={() => {
+            setLoginFromIntro(true);
+            setCurrentPage("login");
+          }}
         />
       ) : (
         <>
+         {/* PLAYER HOMEPAGE */}
           {currentPage === "player" && mode === "player" && (
             <PlayerHome
-              darkMode={darkMode}
-              setDarkMode={setDarkMode}
-              currentPage={currentPage}
-              setCurrentPage={setCurrentPage}
-              onLogoClick={handleLogoClick}
-              mode={mode}
+              {...sharedProps}
               onAnalyzeGame={handlePlayerAnalysis}
             />
           )}
 
-          {currentPage === "compare" && mode === "player" && (
-            <CompareGames {...sharedProps} />
+          {/* LOGIN */}
+          {currentPage === "login" && (
+            <Login
+              darkMode={darkMode}
+              mode={mode}
+              onLogin={handleLogin}
+              onSignUpClick={() => setCurrentPage("signup")}
+              onBack={() => {
+                if (loginFromIntro) {
+                  setCurrentPage(
+                    mode === "player" ? "player" : "dashboard"
+                  );
+
+                  setShowIntro(true);
+                  sessionStorage.setItem(
+                    "gamescope-show-intro",
+                    "true"
+                  );
+                } else {
+                  setCurrentPage(
+                    mode === "player" ? "player" : "dashboard"
+                  );
+                }
+
+                setLoginFromIntro(false);
+              }}
+              onForgotPasswordClick={() =>
+                setCurrentPage("forgot-password")
+              }
+            />
           )}
 
+          {/* SIGN UP */}
+          {currentPage === "signup" && (
+            <SignUp
+              darkMode={darkMode}
+              mode={mode}
+              onSignUp={handleSignUp}
+              onBack={() => setCurrentPage("login")}
+            />
+          )}
+
+          {/* FORGOT PASSWORD */}
+          {currentPage === "forgot-password" && (
+            <ForgotPassword
+              darkMode={darkMode}
+              onBack={() => setCurrentPage("login")}
+            />
+          )}
+
+          {/* PLAYER-ONLY: COMPARE GAMES (LOGIN REQUIRED) */}
+          {currentPage === "compare" &&
+            mode === "player" &&
+            isLoggedIn && (
+              <CompareGames {...sharedProps} />
+            )}
+
+          {/* DEVELOPER DASHBOARD */}
           {currentPage === "dashboard" && mode === "developer" && (
             <Dashboard
               {...sharedProps}
@@ -236,6 +469,7 @@ function App() {
             />
           )}
 
+          {/* REVIEW ANALYSIS */}
           {currentPage === "reviews" && (
             <Reviews
               {...sharedProps}
@@ -245,6 +479,7 @@ function App() {
             />
           )}
 
+          {/* ANALYTICS */}
           {currentPage === "analytics" && (
             <Analytics
               {...sharedProps}
@@ -254,6 +489,7 @@ function App() {
             />
           )}
 
+          {/* ISSUES */}
           {currentPage === "issues" && (
             <Issues
               {...sharedProps}
@@ -262,6 +498,12 @@ function App() {
             />
           )}
 
+          {/* PROFILE */}
+          {currentPage === "profile" && isLoggedIn && (
+            <Profile {...sharedProps} />
+          )}
+          
+          {/* SETTINGS */}
           {currentPage === "settings" && (
             <Settings
               {...sharedProps}

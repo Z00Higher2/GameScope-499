@@ -1976,3 +1976,101 @@
     animation: none;
   }
 }
+
+.intro-login-button {
+  margin-left: auto;
+  margin-right: 12px;
+  padding: 10px 22px;
+  border: 1px solid var(--accent-color, #7065ee);
+  border-radius: 10px;
+  background: var(--accent-color, #7065ee);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.intro-login-button:hover {
+  transform: translateY(-2px);
+  opacity: 0.9;
+}
+
+.intro-dark .intro-login-button {
+  border-color: var(--accent-strong, #8b80ff);
+  background: var(--accent-strong, #8b80ff);
+}
+
+/* =========================================
+   INTRO NAV: LOGIN (matches Navbar nav-item)
+   Append to Intro.css and delete the old
+   .intro-login-button rules.
+========================================= */
+
+.intro-login-nav {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+
+  height: 42px;
+  padding: 0 14px;
+  margin-left: auto; /* remove if .intro-nav uses space-between */
+
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+
+  color: #64748b;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 550;
+
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.intro-login-nav:hover {
+  color: var(--accent-hover);
+  background: var(--accent-soft);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.05);
+}
+
+.intro-login-icon {
+  width: 19px;
+  height: 19px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.intro-login-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.25s ease;
+}
+
+.intro-login-nav:hover .intro-login-icon svg {
+  transform: scale(1.12);
+}
+
+/* Dark mode */
+.intro-dark .intro-login-nav {
+  color: #94a3b8;
+}
+
+.intro-dark .intro-login-nav:hover {
+  color: var(--accent-color);
+  background: var(--accent-soft);
+}

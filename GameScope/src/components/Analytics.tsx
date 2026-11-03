@@ -28,13 +28,16 @@ import type { Page, Mode } from "../type";
 interface AnalyticsProps {
   darkMode: boolean;
   setDarkMode: React.Dispatch<React.SetStateAction<boolean>>;
-
-  currentPage: Page ;
-  mode: Mode;
+  currentPage: Page;
   setCurrentPage: React.Dispatch<
-    React.SetStateAction<Page>
-  >;
+      React.SetStateAction<Page>
+    >;  
+  mode: Mode;
 
+  setMode: React.Dispatch<React.SetStateAction<Mode>>;
+  isLoggedIn?: boolean;
+  accountEmail?: string;
+  onLogout?: () => void;
   /*
     APP STATE
 
@@ -397,6 +400,10 @@ function Analytics({
   analysis,
   onLogoClick,
   mode,
+  setMode,
+  isLoggedIn = false,
+  accountEmail = "",
+  onLogout,
 }: AnalyticsProps) {
   /* =========================================================
      DATA
@@ -410,6 +417,7 @@ function Analytics({
   if (!analyzedProp || !analysis) {
     return (
       <div className={`analytics-page ${darkMode ? "dark-mode" : ""}`}>
+        
         <Navbar
           darkMode={darkMode}
           setDarkMode={setDarkMode}
@@ -417,7 +425,12 @@ function Analytics({
           setCurrentPage={setCurrentPage}
           onLogoClick={onLogoClick}
           mode={mode}
+          setMode={setMode}
+          isLoggedIn={isLoggedIn}
+          accountEmail={accountEmail}
+          onLogout={onLogout}
         />
+
 
         <main className="analytics-main">
           <Reveal>
@@ -539,6 +552,7 @@ function Analytics({
 
   return (
     <div className={`analytics-page ${darkMode ? "dark-mode" : ""}`}>
+      
       <Navbar
         darkMode={darkMode}
         setDarkMode={setDarkMode}
@@ -546,7 +560,12 @@ function Analytics({
         setCurrentPage={setCurrentPage}
         onLogoClick={onLogoClick}
         mode={mode}
+        setMode={setMode}
+        isLoggedIn={isLoggedIn}
+        accountEmail={accountEmail}
+        onLogout={onLogout}
       />
+
 
       <main className="analytics-main">
 

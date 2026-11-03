@@ -82,6 +82,7 @@ const DEFAULT_PREFERENCES: Preferences = {
 
 const SETTINGS_KEY = "gamescope-settings";
 const FAVORITES_KEY = "gamescope-favorite-games";
+const STEAM_PROFILE_KEY = "gamescope-steam-profile";
 
 function loadPreferences(): Preferences {
   try {
@@ -120,6 +121,11 @@ interface SettingsProps {
   setAccentColor: React.Dispatch<
     React.SetStateAction<AccentColor>
   >;
+
+  setMode: React.Dispatch<React.SetStateAction<Mode>>;
+  isLoggedIn?: boolean;
+  accountEmail?: string;
+  onLogout?: () => void;
 }
 
 function Settings({
@@ -131,6 +137,10 @@ function Settings({
   accentColor,
   setAccentColor,
   mode,
+  setMode,
+  isLoggedIn = false,
+  accountEmail = "",
+  onLogout,
 }: SettingsProps) {
   const [preferences, setPreferences] =
     useState<Preferences>(loadPreferences);
@@ -138,6 +148,13 @@ function Settings({
   const [favorites, setFavorites] = useState<string[]>(loadFavorites);
   const [favoriteInput, setFavoriteInput] = useState("");
   const [savedMessage, setSavedMessage] = useState("");
+
+  const [steamProfile, setSteamProfile] = useState(() => {
+  return localStorage.getItem(STEAM_PROFILE_KEY) || "";
+});
+
+const [steamInput, setSteamInput] = useState(steamProfile);
+const [steamError, setSteamError] = useState("");
 
   useEffect(() => {
     localStorage.setItem(
@@ -189,6 +206,52 @@ function Settings({
     );
     setSavedMessage("Game removed from your saved list.");
   };
+
+  const connectSteam = () => {
+  const profile = steamInput.trim();
+
+  try {
+    const url = new URL(profile);
+
+    const validHost =
+      url.hostname === "steamcommunity.com" ||
+      url.hostname === "www.steamcommunity.com";
+
+    const validPath =
+      /^\/(id|profiles)\/[A-Za-z0-9_-]+\/?$/.test(url.pathname);
+
+    if (
+      !validHost ||
+      url.protocol !== "https:" ||
+      !validPath
+    ) {
+      setSteamError(
+        "Enter a valid Steam profile URL, such as https://steamcommunity.com/id/username."
+      );
+      return;
+    }
+
+    const normalizedProfile = `https://steamcommunity.com${url.pathname}`;
+
+    localStorage.setItem(STEAM_PROFILE_KEY, normalizedProfile);
+
+    setSteamProfile(normalizedProfile);
+    setSteamInput(normalizedProfile);
+    setSteamError("");
+    setSavedMessage("Steam profile saved locally.");
+  } catch {
+    setSteamError("Please enter a valid Steam profile URL.");
+  }
+};
+
+const disconnectSteam = () => {
+  localStorage.removeItem(STEAM_PROFILE_KEY);
+
+  setSteamProfile("");
+  setSteamInput("");
+  setSteamError("");
+  setSavedMessage("Steam profile disconnected.");
+};
 
   const exportPreferences = () => {
     const exportData = {
@@ -247,6 +310,7 @@ function Settings({
         preferences.compactLayout ? "settings-compact" : ""
       }`}
     >
+      
       <Navbar
         darkMode={darkMode}
         setDarkMode={setDarkMode}
@@ -254,7 +318,12 @@ function Settings({
         setCurrentPage={setCurrentPage}
         onLogoClick={onLogoClick}
         mode={mode}
+        setMode={setMode}
+        isLoggedIn={isLoggedIn}
+        accountEmail={accountEmail}
+        onLogout={onLogout}
       />
+
 
       <main className="settings-main">
         <header className="settings-header">
@@ -707,6 +776,123 @@ function Settings({
             settings, not the game's reviews.
           </p>
         </section>
+
+
+        {/* STEAM ACCOUNT */}
+
+        {mode === "player" && (
+          <section className="settings-section" id="steam-account">
+            <div className="settings-section-heading">
+              <div className="settings-section-icon">🎮</div>
+
+              <div>
+                <h2>Steam Account</h2>
+                <p>Connect your Steam gaming profile to GameScope.</p>
+              </div>
+            </div>
+
+            <div className="settings-card">
+              <div className="steam-account-header">
+                <div className="steam-logo">S</div>
+
+                <div className="steam-account-info">
+                  <h3>Steam Profile</h3>
+                  <p>
+                    Link your Steam community profile to your GameScope account.
+                  </p>
+                </div>
+
+                <span
+                  className={`steam-status ${
+                    steamProfile ? "steam-connected" : "steam-disconnected"
+                  }`}
+                >
+                  {steamProfile ? "Linked" : "Not linked"}
+                </span>
+              </div>
+
+              <div className="settings-divider" />
+
+              {steamProfile ? (
+                <div className="steam-linked-content">
+                  <div className="steam-profile-details">
+                    <span className="steam-profile-label">
+                      SAVED STEAM PROFILE
+                    </span>
+
+                    <a
+                      href={steamProfile}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="steam-profile-link"
+                    >
+                      {steamProfile}
+                      <span>↗</span>
+                    </a>
+                  </div>
+
+                  <div className="steam-actions">
+                    <button
+                      type="button"
+                      className="settings-secondary-button"
+                      onClick={() => {
+                        setSteamProfile("");
+                        setSteamInput("");
+                        localStorage.removeItem(STEAM_PROFILE_KEY);
+                        setSteamError("");
+                        setSavedMessage("Steam profile disconnected.");
+                      }}
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="steam-connect-form">
+                  <label htmlFor="steam-profile-url">
+                    Steam Community Profile URL
+                  </label>
+
+                  <input
+                    id="steam-profile-url"
+                    type="url"
+                    className="settings-input"
+                    placeholder="https://steamcommunity.com/id/username"
+                    value={steamInput}
+                    onChange={(event) => {
+                      setSteamInput(event.target.value);
+                      setSteamError("");
+                    }}
+                  />
+
+                  {steamError && (
+                    <p className="steam-error" role="alert">
+                      {steamError}
+                    </p>
+                  )}
+
+                  <button
+                    type="button"
+                    className="settings-primary-button"
+                    onClick={connectSteam}
+                  >
+                    Link Steam Profile
+                  </button>
+
+                  <p className="settings-note">
+                    You can find your profile URL in your Steam Community profile.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <p className="settings-note">
+              This frontend currently saves your Steam profile URL locally.
+              It does not authenticate your Steam account or retrieve your
+              Steam games yet.
+            </p>
+          </section>
+        )}
 
         {/* 7. PLAYER PREFERENCES */}
 

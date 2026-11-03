@@ -1038,3 +1038,184 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+
+/* =========================================================
+   STEAM ACCOUNT LINKING
+========================================================= */
+
+.steam-account-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 22px 24px;
+}
+
+.steam-logo {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  place-items: center;
+
+  border: 1px solid var(--settings-border);
+  border-radius: 13px;
+
+  color: #ffffff;
+  background: linear-gradient(135deg, #263d59, #101b2b);
+
+  font-size: 23px;
+  font-weight: 900;
+}
+
+.steam-account-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.steam-account-info h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.steam-account-info p {
+  margin: 5px 0 0;
+  color: var(--settings-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.steam-status {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.steam-connected {
+  color: #20a878;
+  border-color: rgba(32, 168, 120, 0.25);
+  background: rgba(32, 168, 120, 0.1);
+}
+
+.steam-disconnected {
+  color: var(--settings-muted);
+  border-color: var(--settings-border);
+  background: var(--settings-hover);
+}
+
+.steam-linked-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px 24px;
+}
+
+.steam-profile-details {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.steam-profile-label {
+  color: var(--settings-muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.steam-profile-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+
+  color: var(--settings-accent);
+  font-size: 11px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.steam-profile-link:hover {
+  text-decoration: underline;
+}
+
+.steam-profile-link span {
+  flex: 0 0 auto;
+}
+
+.steam-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.steam-connect-form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 20px 24px;
+}
+
+.steam-connect-form label {
+  color: var(--settings-text);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.steam-connect-form .settings-input {
+  width: 100%;
+}
+
+.steam-error {
+  margin: 0;
+  color: #e05252;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.steam-connect-form .settings-note {
+  margin: 0;
+}
+
+/* Steam account accessibility */
+
+.steam-profile-link:focus-visible {
+  outline: 2px solid var(--settings-accent);
+  outline-offset: 4px;
+  border-radius: 3px;
+}
+
+/* Steam account responsive layout */
+
+@media (max-width: 600px) {
+  .steam-account-header {
+    flex-wrap: wrap;
+    padding: 18px 16px;
+  }
+
+  .steam-status {
+    margin-left: auto;
+  }
+
+  .steam-linked-content {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 18px 16px;
+  }
+
+  .steam-connect-form {
+    padding: 18px 16px;
+  }
+
+  .steam-actions {
+    width: 100%;
+  }
+}

@@ -1,0 +1,645 @@
+
+/* =========================================================
+   GAMESCOPE PROFILE
+========================================================= */
+
+.profile-page {
+  min-height: 100vh;
+  background: var(--background, #f6f7fb);
+  color: var(--text-primary, #25243a);
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+.profile-content {
+  width: min(1100px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 55px 0 80px;
+}
+
+.profile-heading {
+  margin-bottom: 32px;
+}
+
+.profile-eyebrow {
+  color: var(--accent-color, #7065ee);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+.profile-heading h1 {
+  margin: 12px 0 8px;
+  font-size: clamp(30px, 5vw, 42px);
+  font-weight: 800;
+  letter-spacing: -1.5px;
+}
+
+.profile-heading p {
+  margin: 0;
+  color: var(--text-secondary, #85849a);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* Profile card */
+
+.profile-card {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 30px;
+  border: 1px solid rgba(130, 130, 160, 0.15);
+  border-radius: 18px;
+  background: var(--card-background, #ffffff);
+  box-shadow: 0 8px 30px rgba(30, 25, 70, 0.04);
+}
+
+.profile-avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 82px;
+  height: 82px;
+  border-radius: 24px;
+  background: var(--accent-color, #7065ee);
+  color: #ffffff;
+  font-size: 32px;
+  font-weight: 800;
+  box-shadow: 0 8px 20px rgba(112, 101, 238, 0.2);
+}
+
+.profile-user-info h2 {
+  margin: 0 0 7px;
+  font-size: 21px;
+  font-weight: 800;
+}
+
+.profile-user-info p {
+  margin: 0 0 12px;
+  color: var(--text-secondary, #85849a);
+  font-size: 13px;
+}
+
+.profile-mode {
+  display: inline-flex;
+  padding: 6px 11px;
+  border-radius: 20px;
+  background: var(--accent-soft, rgba(112, 101, 238, 0.1));
+  color: var(--accent-color, #7065ee);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* Mode-specific section */
+
+.profile-section {
+  margin-top: 26px;
+  padding: 28px 30px;
+  border: 1px solid rgba(130, 130, 160, 0.15);
+  border-radius: 18px;
+  background: var(--card-background, #ffffff);
+}
+
+.profile-section h2 {
+  margin: 0 0 10px;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.profile-section p {
+  margin: 0;
+  color: var(--text-secondary, #85849a);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+/* Dark mode */
+
+.dark-mode .profile-page {
+  background: #10101a;
+  color: #f0efff;
+}
+
+.dark-mode .profile-card,
+.dark-mode .profile-section {
+  background: #191927;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+}
+
+/* Responsive */
+
+@media (max-width: 600px) {
+  .profile-content {
+    width: calc(100% - 30px);
+    padding-top: 35px;
+  }
+
+  .profile-card {
+    gap: 16px;
+    padding: 20px;
+  }
+
+  .profile-avatar {
+    width: 65px;
+    height: 65px;
+    border-radius: 19px;
+    font-size: 26px;
+  }
+
+  .profile-user-info h2 {
+    font-size: 17px;
+    overflow-wrap: anywhere;
+  }
+
+  .profile-user-info p {
+    overflow-wrap: anywhere;
+  }
+
+  .profile-section {
+    padding: 22px;
+  }
+}
+
+
+/* =========================================================
+   PROFILE PICTURE UPLOAD
+========================================================= */
+
+.profile-avatar {
+  overflow: hidden;
+}
+
+.profile-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.profile-picture-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.profile-upload-button,
+.profile-remove-button {
+  padding: 11px 17px;
+  border-radius: 9px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.profile-upload-button {
+  border: 1px solid var(--accent-color, #7065ee);
+  background: var(--accent-color, #7065ee);
+  color: white;
+}
+
+.profile-upload-button:hover {
+  filter: brightness(1.1);
+  transform: translateY(-2px);
+}
+
+.profile-remove-button {
+  border: 1px solid rgba(220, 70, 70, 0.35);
+  background: transparent;
+  color: #dc4646;
+}
+
+.profile-remove-button:hover {
+  background: rgba(220, 70, 70, 0.08);
+}
+
+.profile-upload-hint {
+  display: block;
+  margin-top: 12px;
+  color: var(--text-secondary, #85849a);
+  font-size: 11px;
+}
+
+.profile-upload-error {
+  margin-top: 12px !important;
+  color: #dc4646 !important;
+  font-size: 12px !important;
+}
+
+
+
+/* =========================================================
+   EDIT PROFILE
+========================================================= */
+
+.profile-edit-button {
+  margin-left: auto;
+  padding: 11px 17px;
+  border: 1px solid var(--accent-color, #7065ee);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--accent-color, #7065ee);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.profile-edit-button:hover {
+  background: var(--accent-color, #7065ee);
+  color: white;
+}
+
+.profile-edit-panel {
+  animation: profileFadeIn 0.25s ease;
+}
+
+.profile-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.profile-form-group label {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.profile-form-group input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(130, 130, 160, 0.25);
+  border-radius: 9px;
+  outline: none;
+  background: var(--background, #f6f7fb);
+  color: inherit;
+  font-family: inherit;
+  font-size: 13px;
+  transition: 0.2s ease;
+}
+
+.profile-form-group input:focus {
+  border-color: var(--accent-color, #7065ee);
+  box-shadow: 0 0 0 3px var(--accent-soft, rgba(112, 101, 238, 0.1));
+}
+
+.profile-form-group input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.profile-form-group span {
+  color: var(--text-secondary, #85849a);
+  font-size: 11px;
+}
+
+.profile-edit-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 25px;
+}
+
+.profile-save-button,
+.profile-cancel-button {
+  padding: 11px 18px;
+  border-radius: 9px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.profile-save-button {
+  border: 1px solid var(--accent-color, #7065ee);
+  background: var(--accent-color, #7065ee);
+  color: white;
+}
+
+.profile-cancel-button {
+  border: 1px solid rgba(130, 130, 160, 0.3);
+  background: transparent;
+  color: inherit;
+}
+
+.profile-save-button:hover,
+.profile-cancel-button:hover {
+  transform: translateY(-2px);
+}
+
+.dark-mode .profile-form-group input {
+  background: #10101a;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+@keyframes profileFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 600px) {
+  .profile-card {
+    flex-wrap: wrap;
+  }
+
+  .profile-edit-button {
+    margin-left: 0;
+  }
+}
+
+/* =========================================================
+   PLAYER PROFILE — FAVORITE GENRES
+========================================================= */
+
+.profile-genres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.profile-genre {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 17px;
+
+  border: 1px solid rgba(130, 130, 160, 0.25);
+  border-radius: 10px;
+
+  background: var(--background, #f6f7fb);
+  color: var(--text-primary, #252438);
+
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+
+  cursor: pointer;
+  user-select: none;
+
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+/* Hide the default checkbox */
+.profile-genre input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+
+  accent-color: var(--accent-color, #7065ee);
+  cursor: pointer;
+}
+
+/* Hover effect */
+.profile-genre:hover {
+  border-color: var(--accent-color, #7065ee);
+  transform: translateY(-2px);
+}
+
+/* Selected genre */
+.profile-genre.selected {
+  background: var(--accent-soft, rgba(112, 101, 238, 0.12));
+  border-color: var(--accent-color, #7065ee);
+  color: var(--accent-color, #7065ee);
+
+  box-shadow: 0 3px 12px var(--accent-glow, rgba(112, 101, 238, 0.12));
+}
+
+/* Selected hover */
+.profile-genre.selected:hover {
+  background: var(--accent-color, #7065ee);
+  color: #ffffff;
+}
+
+/* Dark mode */
+.dark-mode .profile-genre {
+  background: #171725;
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #d7d6e5;
+}
+
+.dark-mode .profile-genre.selected {
+  background: var(--accent-soft, rgba(139, 128, 255, 0.15));
+  border-color: var(--accent-color, #8b80ff);
+  color: var(--accent-color, #8b80ff);
+}
+
+.dark-mode .profile-genre.selected:hover {
+  background: var(--accent-color, #8b80ff);
+  color: #ffffff;
+}
+
+/* Mobile layout */
+@media (max-width: 600px) {
+  .profile-genres {
+    gap: 9px;
+  }
+
+  .profile-genre {
+    padding: 10px 13px;
+    font-size: 11px;
+  }
+}
+
+/* =========================================================
+   DEVELOPER PROFILE
+========================================================= */
+
+.profile-managed-games {
+  margin-top: 32px;
+  padding-top: 25px;
+  border-top: 1px solid rgba(130, 130, 160, 0.18);
+}
+
+.profile-managed-games h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 750;
+  color: var(--text-primary, #252438);
+}
+
+.profile-managed-games > p {
+  margin: 0 0 18px;
+  color: var(--text-secondary, #85849a);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* Add game input and button */
+.profile-add-game {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.profile-add-game input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 14px;
+
+  border: 1px solid rgba(130, 130, 160, 0.25);
+  border-radius: 9px;
+
+  background: var(--background, #f6f7fb);
+  color: inherit;
+
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.profile-add-game input:focus {
+  border-color: var(--accent-color, #7065ee);
+  box-shadow: 0 0 0 3px var(
+    --accent-soft,
+    rgba(112, 101, 238, 0.1)
+  );
+}
+
+.profile-add-game .profile-upload-button {
+  white-space: nowrap;
+}
+
+/* Managed game list */
+.profile-game-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.profile-game-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+
+  padding: 14px 16px;
+
+  border: 1px solid rgba(130, 130, 160, 0.18);
+  border-radius: 10px;
+
+  background: var(--background, #f6f7fb);
+
+  transition:
+    border-color 0.2s ease,
+    transform 0.2s ease,
+    background 0.2s ease;
+}
+
+.profile-game-item:hover {
+  border-color: var(--accent-color, #7065ee);
+  transform: translateY(-2px);
+}
+
+.profile-game-item span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+
+  color: var(--text-primary, #252438);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+/* Empty game list */
+.profile-empty-games {
+  margin-top: 18px !important;
+  padding: 20px;
+
+  border: 1px dashed rgba(130, 130, 160, 0.3);
+  border-radius: 10px;
+
+  text-align: center;
+  color: var(--text-secondary, #85849a);
+  font-size: 12px;
+}
+
+/* Developer save confirmation */
+.profile-edit-actions .profile-upload-hint {
+  align-self: center;
+  margin-top: 0;
+  color: var(--accent-color, #7065ee);
+  font-weight: 650;
+}
+
+/* =========================================================
+   DEVELOPER PROFILE — DARK MODE
+========================================================= */
+
+.dark-mode .profile-managed-games {
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark-mode .profile-managed-games h3 {
+  color: #eeeeF8;
+}
+
+.dark-mode .profile-add-game input {
+  background: #10101a;
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #eeeeF8;
+}
+
+.dark-mode .profile-game-item {
+  background: #171725;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark-mode .profile-game-item:hover {
+  border-color: var(--accent-color, #8b80ff);
+}
+
+.dark-mode .profile-game-item span {
+  color: #eeeeF8;
+}
+
+.dark-mode .profile-empty-games {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+/* =========================================================
+   RESPONSIVE DEVELOPER PROFILE
+========================================================= */
+
+@media (max-width: 600px) {
+  .profile-add-game {
+    flex-direction: column;
+  }
+
+  .profile-add-game .profile-upload-button {
+    width: 100%;
+  }
+
+  .profile-game-item {
+    padding: 12px;
+  }
+
+  .profile-game-item .profile-remove-button {
+    flex-shrink: 0;
+  }
+
+  .profile-edit-actions {
+    flex-wrap: wrap;
+  }
+}
