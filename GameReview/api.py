@@ -12,8 +12,11 @@ The website's dev server forwards every /api request here
 
 import time
 import logging
+from datetime import datetime, timedelta, timezone
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Path, Query, Request
+from pydantic import BaseModel
 
 
 import requests
@@ -23,7 +26,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import SteamGameReviewer_ as collector
 import pipeline
-from analysis import build_analysis, build_issues, build_review_cards
+from analysis import (
+    MIN_ISSUE_COMPLAINTS,
+    TOPIC_PATTERNS,
+    build_analysis,
+    build_issues,
+    build_review_cards,
+    topic_standing,
+)
 
 #
 #=================================================
@@ -109,7 +119,39 @@ def fetch_store_details(app_id):
     return game
 
 
-def load_stored(app_id):
+def reviews_within(reviews, days):
+    if days is None:
+        return reviews
+
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
+    return [
+        review
+        for review in reviews
+        if review["created_at"] and review["created_at"] >= cutoff
+    ]
+
+
+def within_days(stored, days):
+    """Keep only reviews posted in the last `days` days (Settings > Review time range)."""
+    if days is None:
+        return stored
+
+    recent = reviews_within(stored["reviews"], days)
+
+    if not recent:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"No stored reviews are from the last {days} "
+                f"{'day' if days == 1 else 'days'}. "
+                "Choose a longer review time range in Settings."
+            ),
+        )
+
+    return {**stored, "reviews": recent}
+
+
+def load_stored(app_id, days=None):
     try:
         stored = pipeline.load_game(app_id)
     except MySQLError as error:
@@ -121,7 +163,7 @@ def load_stored(app_id):
             detail=f"App ID {app_id} hasn't been analyzed yet.",
         )
 
-    return stored
+    return within_days(stored, days)
 
 
 # Basic in-memory rate limit for expensive analysis requests.
@@ -299,6 +341,7 @@ def analyze_game(
     app_id: int = Path(gt=0, le=MAX_APP_ID),
     refresh: bool = False,
     max_reviews: int = Query(500, ge=50, le=5000),
+    days: int | None = Query(None, ge=1, le=3650),
 ):
 
     client_ip = request.client.host if request.client else "unknown"
@@ -362,23 +405,117 @@ def analyze_game(
             detail="No reviews are currently available for this game.",
         )
 
-    return build_analysis(stored)
+    return build_analysis(within_days(stored, days))
 
 
 
 @app.get("/api/games/{app_id}/analysis")
-def get_analysis(app_id: int = Path(gt=0, le=MAX_APP_ID)):
-    return build_analysis(load_stored(app_id))
+def get_analysis(
+    app_id: int = Path(gt=0, le=MAX_APP_ID),
+    days: int | None = Query(None, ge=1, le=3650),
+):
+    return build_analysis(load_stored(app_id, days))
 
 
 @app.get("/api/games/{app_id}/issues")
-def get_issues(app_id: int = Path(gt=0, le=MAX_APP_ID)):
-    return build_issues(load_stored(app_id))
+def get_issues(
+    app_id: int = Path(gt=0, le=MAX_APP_ID),
+    min_mentions: int = Query(MIN_ISSUE_COMPLAINTS, ge=1, le=5000),
+    days: int | None = Query(None, ge=1, le=3650),
+):
+    stored = load_stored(app_id, days)
+    report = build_issues(stored, min_mentions)
+
+    try:
+        statuses = pipeline.load_issue_statuses(stored["game"]["game_id"])
+    except MySQLError as error:
+        raise database_error(error) from error
+
+    for issue in report["issues"]:
+        issue["status"] = statuses.get(issue["name"], "Detected")
+
+    return report
+
+
+class IssueStatusUpdate(BaseModel):
+    status: Literal["Detected", "Investigating", "In Progress", "Resolved"]
+
+
+@app.patch("/api/games/{app_id}/issues/{topic}/status")
+def update_issue_status(
+    update: IssueStatusUpdate,
+    app_id: int = Path(gt=0, le=MAX_APP_ID),
+    topic: str = Path(max_length=50),
+):
+    if topic not in TOPIC_PATTERNS:
+        raise HTTPException(status_code=404, detail="Unknown issue topic.")
+
+    try:
+        game_id = pipeline.find_game_id(app_id)
+        if game_id is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"App ID {app_id} hasn't been analyzed yet.",
+            )
+        pipeline.save_issue_status(game_id, topic, update.status)
+    except MySQLError as error:
+        raise database_error(error) from error
+
+    return {"topic": topic, "status": update.status}
+
+
+@app.get("/api/topics")
+def list_topics():
+    return list(TOPIC_PATTERNS)
+
+
+@app.get("/api/topics/{topic}/games")
+def search_topic(
+    topic: str = Path(max_length=50),
+    min_mentions: int = Query(5, ge=1, le=5000),
+    days: int | None = Query(None, ge=1, le=3650),
+):
+    """
+    Issue Search: how players talk about one topic in every analyzed game,
+    with each game's saved status for that issue.
+    """
+    if topic not in TOPIC_PATTERNS:
+        raise HTTPException(status_code=404, detail="Unknown issue topic.")
+
+    results = []
+    try:
+        for game in pipeline.list_games():
+            stored = pipeline.load_game(game["app_id"])
+            if stored is None:
+                continue
+
+            reviews = reviews_within(stored["reviews"], days)
+            if not reviews:
+                continue
+
+            standing = topic_standing({**stored, "reviews": reviews}, topic)
+            if standing["mentions"] < min_mentions:
+                continue
+
+            statuses = pipeline.load_issue_statuses(stored["game"]["game_id"])
+            results.append(
+                {
+                    "appId": str(game["app_id"]),
+                    "name": game["game_name"],
+                    "status": statuses.get(topic),
+                    **standing,
+                }
+            )
+    except MySQLError as error:
+        raise database_error(error) from error
+
+    return {"topic": topic, "minMentions": min_mentions, "games": results}
 
 
 @app.get("/api/games/{app_id}/reviews")
 def get_review_cards(
     app_id: int = Path(gt=0, le=MAX_APP_ID),
     limit: int = Query(300, ge=1, le=2000),
+    days: int | None = Query(None, ge=1, le=3650),
 ):
-    return build_review_cards(load_stored(app_id))[:limit]
+    return build_review_cards(load_stored(app_id, days))[:limit]

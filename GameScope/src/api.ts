@@ -6,7 +6,22 @@
  * (see vite.config.ts).
  */
 
+import { loadPreferences, timeRangeDays } from "./preferences";
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
+
+/*
+ * Settings > Review time range, added to every request that reads reviews.
+ */
+function daysParam(): string {
+  const days = timeRangeDays();
+  return days ? `days=${days}` : "";
+}
+
+function withParams(path: string, ...params: string[]): string {
+  const query = params.filter(Boolean).join("&");
+  return query ? `${path}?${query}` : path;
+}
 export interface GameSearchResult {
   name: string;
   appId: string;
@@ -134,8 +149,16 @@ export interface ReviewCard {
   detailed: boolean;
 }
 
+export type IssueStatus =
+  | "Detected"
+  | "Investigating"
+  | "In Progress"
+  | "Resolved";
+
 export interface IssuesReport {
   trendLabels: string[];
+  minComplaints: number;
+  totalReviews: number;
   issues: {
     name: string;
     mentions: number;
@@ -144,11 +167,35 @@ export interface IssuesReport {
     helpfulVotes: number;
     description: string;
     priority: "Critical" | "High" | "Medium" | "Low";
+    status: IssueStatus;
     examples: {
       type: "positive" | "negative";
       text: string;
     }[];
     trend: number[];
+  }[];
+}
+
+export interface TopicSearchResult {
+  topic: string;
+  minMentions: number;
+  games: {
+    appId: string;
+    name: string;
+    status: IssueStatus | null; // null when no one has set a status
+    totalReviews: number;
+    mentions: number;
+    praised: number;
+    complaints: number;
+    praiseRate: number;
+    complaintRate: number;
+    // Complaint rate in the older half of the reviews vs the newer half
+    trend: {
+      since: string;
+      earlierComplaintRate: number;
+      recentComplaintRate: number;
+      change: number;
+    } | null;
   }[];
 }
 
@@ -226,38 +273,104 @@ export function getGameDetails(
  * if it was analyzed before) and return its analysis.
  *
  * refresh = true collects fresh reviews from Steam.
+ * Settings > Review collection size sets how many are collected.
  */
 export function analyzeGame(
   appId: string,
   refresh = false
 ) {
   return request<GameAnalysis>(
-    `/api/analyze/${encodeURIComponent(appId)}` +
-      (refresh ? "?refresh=true" : ""),
+    withParams(
+      `/api/analyze/${encodeURIComponent(appId)}`,
+      refresh ? "refresh=true" : "",
+      `max_reviews=${loadPreferences().reviewLimit}`,
+      daysParam()
+    ),
     { method: "POST" }
+  );
+}
+
+/*
+ * The analysis of a game that is already stored, without collecting.
+ */
+export function getAnalysis(appId: string) {
+  return request<GameAnalysis>(
+    withParams(
+      `/api/games/${encodeURIComponent(appId)}/analysis`,
+      daysParam()
+    )
   );
 }
 
 export function getIssues(
   appId: string,
+  minMentions: number,
   signal?: AbortSignal
 ) {
   return request<IssuesReport>(
-    `/api/games/${encodeURIComponent(appId)}/issues`,
+    withParams(
+      `/api/games/${encodeURIComponent(appId)}/issues`,
+      `min_mentions=${minMentions}`,
+      daysParam()
+    ),
     { signal }
   );
 }
 
 /*
+ * The topics GameScope detects (Bugs, Story, ...), for Issue Search.
+ */
+export function getTopics(signal?: AbortSignal) {
+  return request<string[]>("/api/topics", { signal });
+}
+
+/*
+ * How players talk about one topic in every analyzed game.
+ */
+export function searchTopic(
+  topic: string,
+  minMentions: number,
+  signal?: AbortSignal
+) {
+  return request<TopicSearchResult>(
+    withParams(
+      `/api/topics/${encodeURIComponent(topic)}/games`,
+      `min_mentions=${minMentions}`,
+      daysParam()
+    ),
+    { signal }
+  );
+}
+
+export function updateIssueStatus(
+  appId: string,
+  topic: string,
+  status: IssueStatus
+) {
+  return request<{ topic: string; status: IssueStatus }>(
+    `/api/games/${encodeURIComponent(appId)}/issues/${encodeURIComponent(topic)}/status`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    }
+  );
+}
+
+/*
  * Reviews ranked by quality score, for the Reviews page.
- * One analysis collects up to 500 reviews.
+ * The API returns at most 2,000.
  */
 export function getReviewCards(
   appId: string,
   signal?: AbortSignal
 ) {
   return request<ReviewCard[]>(
-    `/api/games/${encodeURIComponent(appId)}/reviews?limit=500`,
+    withParams(
+      `/api/games/${encodeURIComponent(appId)}/reviews`,
+      "limit=2000",
+      daysParam()
+    ),
     { signal }
   );
 } 

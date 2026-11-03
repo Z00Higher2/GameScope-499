@@ -105,14 +105,14 @@ function Dashboard({
   // GAME SEARCH
   // ==================================================
 
+  // One box for both a game name and a Steam App ID
   const [gameSearch, setGameSearch] = useState("");
   const [selectedGame, setSelectedGame] =
     useState<GameSearchResult | null>(null);
-  const [appId, setAppId] = useState(analyzedAppId);
 
-  useEffect(() => {
-    setAppId(analyzedAppId);
-  }, [analyzedAppId]);
+  const typedAppId = /^\d+$/.test(gameSearch.trim())
+    ? gameSearch.trim()
+    : "";
 
   // ==================================================
   // LOADING / ERRORS
@@ -132,7 +132,7 @@ function Dashboard({
   useEffect(() => {
     const query = gameSearch.trim();
 
-    if (!query || selectedGame) {
+    if (!query || selectedGame || typedAppId) {
       setGameSearchResults([]);
       setSearchError("");
       return;
@@ -162,7 +162,7 @@ function Dashboard({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [gameSearch, selectedGame]);
+  }, [gameSearch, selectedGame, typedAppId]);
 
   // ==================================================
   // ANALYZED GAME
@@ -193,16 +193,14 @@ function Dashboard({
     gameToAnalyze?: GameSearchResult,
     refresh = false
   ) => {
-    const trimmedAppId = gameToAnalyze?.appId || appId.trim();
+    const trimmedAppId =
+      gameToAnalyze?.appId || selectedGame?.appId || typedAppId;
 
     if (!trimmedAppId) {
-      setError("Enter a Steam App ID or select a game.");
-      return;
-    }
-
-    if (!/^\d+$/.test(trimmedAppId)) {
       setError(
-        "Steam App IDs are numbers only, for example 620 for Portal 2."
+        gameSearch.trim()
+          ? "Pick a game from the list, or enter its Steam App ID (for example 620 for Portal 2)."
+          : "Search for a game or enter its Steam App ID."
       );
       return;
     }
@@ -219,7 +217,6 @@ function Dashboard({
 
       setSelectedGame(null);
       setGameSearch("");
-      setAppId(result.game.appId);
 
       window.scrollTo({
         top: 0,
@@ -259,8 +256,8 @@ function Dashboard({
 
   const handleSelectGame = (game: GameSearchResult) => {
     setSelectedGame(game);
-    setAppId(game.appId);
     setGameSearch(game.name);
+    setError("");
   };
 
   const showDeveloperResults =
@@ -314,12 +311,12 @@ function Dashboard({
             <div className="analyze-title">
               <h2>Analyze a Game</h2>
               <p>
-                Search for a Steam game by name or enter
-                its App ID.
+                Type a Steam game's name and pick it from the list,
+                or enter its App ID.
               </p>
             </div>
 
-            {/* GAME NAME SEARCH */}
+            {/* GAME NAME OR APP ID */}
 
             <div className="search-container">
               <input
@@ -328,11 +325,32 @@ function Dashboard({
                 onChange={(event) => {
                   setGameSearch(event.target.value);
                   setSelectedGame(null);
+                  setError("");
                 }}
-                placeholder="Search for a Steam game..."
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    void handleAnalyze();
+                  }
+                }}
+                placeholder="Game name or Steam App ID..."
+                aria-label="Game name or Steam App ID"
                 disabled={loading}
               />
+
+              <button
+                type="button"
+                onClick={() => void handleAnalyze()}
+                disabled={loading || !gameSearch.trim()}
+              >
+                {loading ? "Analyzing..." : "Analyze"}
+              </button>
             </div>
+
+            {typedAppId && (
+              <p className="app-id-help">
+                Press Analyze to use Steam App ID {typedAppId}.
+              </p>
+            )}
 
             {/* SEARCH ERRORS */}
 
@@ -392,50 +410,8 @@ function Dashboard({
                     </small>
                   </div>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => void handleAnalyze(selectedGame)}
-                  disabled={loading}
-                >
-                  {loading ? "Analyzing..." : "Analyze"}
-                </button>
               </div>
             )}
-
-            {/* DIVIDER */}
-
-            <div className="app-id-divider">
-              <span>OR</span>
-            </div>
-
-            {/* MANUAL APP ID */}
-
-            <div className="search-container">
-              <input
-                type="text"
-                value={appId}
-                onChange={(event) => {
-                  setAppId(event.target.value);
-                  setSelectedGame(null);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    void handleAnalyze();
-                  }
-                }}
-                placeholder="Enter Steam App ID..."
-                disabled={loading}
-              />
-
-              <button
-                type="button"
-                onClick={() => void handleAnalyze()}
-                disabled={loading || !appId.trim()}
-              >
-                {loading ? "Analyzing..." : "Analyze"}
-              </button>
-            </div>
           </div>
         </section>
 

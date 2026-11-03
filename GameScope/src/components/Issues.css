@@ -260,6 +260,142 @@
     color-mix(in srgb, var(--issues-amber) 50%, transparent);
 }
 
+.issues-header-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+
+  max-width: 260px;
+}
+
+.issues-header-actions .issues-primary-button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.issues-export-error {
+  color: var(--issues-red);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* =========================================================
+   TABS: THIS GAME / COMPARE ACROSS GAMES
+========================================================= */
+
+.issues-tabs {
+  display: inline-flex;
+  max-width: 100%;
+  gap: 4px;
+
+  margin-bottom: 20px;
+  padding: 4px;
+
+  border: 1px solid var(--issues-line);
+  border-radius: 12px;
+
+  background: var(--issues-card);
+}
+
+.issues-tab {
+  min-width: 0;
+  padding: 9px 16px;
+
+  overflow: hidden;
+  border: 0;
+  border-radius: 9px;
+
+  background: transparent;
+  color: var(--issues-muted);
+
+  font-size: 13px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  cursor: pointer;
+}
+
+.issues-tab:hover {
+  color: var(--issues-text);
+}
+
+.issues-tab.active {
+  background: var(--issues-purple-soft);
+  color: var(--issues-purple);
+}
+
+/* =========================================================
+   THIS GAME: ISSUE LIST + SELECTED ISSUE
+========================================================= */
+
+.issues-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: start;
+  gap: 20px;
+}
+
+/* Let the badges drop below the name instead of splitting the word */
+.issues-layout .issue-row-top {
+  flex-wrap: wrap;
+}
+
+.issues-layout .issue-row-title strong {
+  overflow-wrap: normal;
+}
+
+.issues-layout.single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.issues-sort {
+  min-width: 150px;
+}
+
+.issue-focus-heading {
+  margin: 22px 0 12px;
+
+  color: var(--issues-text);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.issues-trend-chart.compact {
+  height: 150px;
+}
+
+.issues-trend-chart.compact .trend-column {
+  grid-template-rows: minmax(0, 1fr) 24px;
+}
+
+.issues-compare-link {
+  margin-top: 20px;
+  padding: 0;
+
+  border: 0;
+  background: none;
+  color: var(--issues-purple);
+
+  font-size: 13px;
+  font-weight: 750;
+  text-align: left;
+
+  cursor: pointer;
+}
+
+.issues-compare-link:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 1000px) {
+  .issues-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* =========================================================
    SUMMARY STATISTICS
 ========================================================= */

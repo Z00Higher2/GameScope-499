@@ -1,7 +1,11 @@
+
 import { useEffect, useMemo, useState } from "react";
 import Navbar from "./Navbar";
-import { getIssues } from "../api";
-import type { IssuesReport } from "../api";
+import IssueSearch from "./IssueSearch";
+import { getIssues, updateIssueStatus } from "../api";
+import type { GameAnalysis, IssueStatus, IssuesReport } from "../api";
+import { exportIssuesReport } from "../exportReport";
+import { loadPreferences } from "../preferences";
 import "./Issues.css";
 import type { Page, Mode } from "../type";
 
@@ -9,58 +13,33 @@ interface IssuesProps {
   darkMode: boolean;
   setDarkMode: React.Dispatch<React.SetStateAction<boolean>>;
   currentPage: Page;
-  setCurrentPage: React.Dispatch<
-    React.SetStateAction<Page>
-  >;
+  setCurrentPage: React.Dispatch<React.SetStateAction<Page>>;
   onLogoClick: () => void;
   analyzed: boolean;
   analyzedAppId: string;
+  analysis: GameAnalysis | null;
   mode: Mode;
   setMode: React.Dispatch<React.SetStateAction<Mode>>;
   isLoggedIn?: boolean;
   accountEmail?: string;
   onLogout?: () => void;
+  onOpenGame: (appId: string) => Promise<void>;
 }
 
-type Priority = "Critical" | "High" | "Medium" | "Low";
-type IssueStatus =
-  | "Detected"
-  | "Investigating"
-  | "In Progress"
-  | "Resolved";
-type Sentiment = "positive" | "negative";
+type Issue = IssuesReport["issues"][number];
+type Tab = "game" | "compare";
 
-interface Issue {
-  name: string;
-  mentions: number;
-  negative: number;
-  positive: number;
-  helpfulVotes: number;
-  description: string;
-  priority: Priority;
-  examples: {
-    type: Sentiment;
-    text: string;
-  }[];
-  trend: number[];
-}
-
-/**
- * WORKFLOW STATE
- *
- * Statuses are stored in React state only.
- *
- * Proposed persistence endpoint:
- * PATCH /api/games/{appId}/issues/{issueId}/status
- */
-
-const priorities: Priority[] = [
+const priorities: Issue["priority"][] = [
   "Critical",
   "High",
   "Medium",
   "Low",
 ];
 
+/**
+ * Statuses are saved in MySQL through
+ * PATCH /api/games/{appId}/issues/{topic}/status
+ */
 const statusesList: IssueStatus[] = [
   "Detected",
   "Investigating",
@@ -68,37 +47,17 @@ const statusesList: IssueStatus[] = [
   "Resolved",
 ];
 
-function getNegativeRate(issue: Issue): number {
-  if (issue.mentions <= 0) return 0;
-  return Math.round((issue.negative / issue.mentions) * 100);
-}
-
-function getPositiveRate(issue: Issue): number {
-  if (issue.mentions <= 0) return 0;
-  return Math.round((issue.positive / issue.mentions) * 100);
-}
-
-function getPriorityRank(priority: Priority): number {
-  return priorities.indexOf(priority);
+function getSavedIssueThreshold(): number {
+  const threshold = loadPreferences().minimumIssueMentions;
+  return Number.isInteger(threshold) && threshold >= 1 ? threshold : 3;
 }
 
 function getStatusClass(status: IssueStatus): string {
   return status.toLowerCase().replace(/\s+/g, "-");
 }
 
-function getRecommendation(name: string): string {
-  switch (name) {
-    case "Performance":
-      return "Investigate frame-rate drops and compare player reports against recent game updates.";
-    case "Inventory":
-      return "Review inventory sorting, filtering, and item-management workflows.";
-    case "Bugs":
-      return "Group similar bug reports and investigate reproducible gameplay problems.";
-    case "Multiplayer":
-      return "Examine connection stability and matchmaking feedback across player reports.";
-    default:
-      return "Review representative player feedback and investigate the most frequently reported problems.";
-  }
+function plural(count: number, noun: string): string {
+  return `${count.toLocaleString()} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 function Issues({
@@ -109,30 +68,37 @@ function Issues({
   onLogoClick,
   analyzed,
   analyzedAppId,
+  analysis,
   mode,
   setMode,
   isLoggedIn = false,
   accountEmail = "",
   onLogout,
+  onOpenGame,
 }: IssuesProps) {
-  const [selectedIssueName, setSelectedIssueName] =
-    useState("");
+  const hasGame = analyzed && analyzedAppId !== "";
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [priorityFilter, setPriorityFilter] = useState("All");
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [categoryFilter, setCategoryFilter] = useState("All");
-  const [sortBy, setSortBy] = useState("mentions");
+  const [tab, setTab] = useState<Tab>(hasGame ? "game" : "compare");
+  const [compareTopic, setCompareTopic] = useState("Bugs");
 
-  // Changes currently disappear when the page is reloaded.
+  const [selectedIssueName, setSelectedIssueName] = useState("");
+  const [sortBy, setSortBy] = useState("priority");
+
   const [statuses, setStatuses] =
     useState<Record<string, IssueStatus>>({});
+  const [statusError, setStatusError] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
 
   const [report, setReport] = useState<IssuesReport | null>(null);
   const [loadError, setLoadError] = useState("");
 
+  // ------------------------------------------
+  // LOAD GAME ISSUES
+  // ------------------------------------------
+
   useEffect(() => {
-    if (!analyzed || !analyzedAppId) {
+    if (!hasGame) {
       setReport(null);
       return;
     }
@@ -141,10 +107,15 @@ function Issues({
 
     setLoadError("");
 
-    getIssues(analyzedAppId, controller.signal)
+    getIssues(analyzedAppId, getSavedIssueThreshold(), controller.signal)
       .then((result) => {
         setReport(result);
-        setStatuses({});
+        setStatuses(
+          Object.fromEntries(
+            result.issues.map((issue) => [issue.name, issue.status])
+          )
+        );
+        setStatusError("");
         setSelectedIssueName(result.issues[0]?.name ?? "");
       })
       .catch((loadFailure: Error) => {
@@ -157,146 +128,152 @@ function Issues({
     return () => {
       controller.abort();
     };
-  }, [analyzed, analyzedAppId]);
+  }, [hasGame, analyzedAppId]);
 
-  const live = report !== null;
-  const issues: Issue[] = report ? report.issues : [];
-  const periodLabels = report ? report.trendLabels : [];
-  const maxMentions = Math.max(
-    1,
-    ...issues.map((issue) => issue.mentions)
-  );
+  // ------------------------------------------
+  // SORT ISSUES
+  // ------------------------------------------
 
-  /**
-   * FILTER AND SORT
-   *
-   * Client-side filtering is appropriate for this small dataset.
-   * Larger datasets may benefit from backend filtering and pagination.
-   */
-  const filteredIssues = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
+  const issues = useMemo(() => {
+    const list = report ? [...report.issues] : [];
 
-    return issues
-      .filter((issue) => {
-        const matchesSearch =
-          !query ||
-          issue.name.toLowerCase().includes(query) ||
-          issue.description.toLowerCase().includes(query) ||
-          issue.examples.some((example) =>
-            example.text.toLowerCase().includes(query)
+    return list.sort((a, b) => {
+      switch (sortBy) {
+        case "complaints":
+          return b.negative - a.negative;
+
+        case "name":
+          return a.name.localeCompare(b.name);
+
+        case "priority":
+        default:
+          return (
+            priorities.indexOf(a.priority) -
+              priorities.indexOf(b.priority) ||
+            b.negative - a.negative
           );
+      }
+    });
+  }, [report, sortBy]);
 
-        const matchesPriority =
-          priorityFilter === "All" ||
-          issue.priority === priorityFilter;
-
-        const matchesStatus =
-          statusFilter === "All" ||
-          (statuses[issue.name] ?? "Detected") === statusFilter;
-
-        const matchesCategory =
-          categoryFilter === "All" ||
-          issue.name === categoryFilter;
-
-        return (
-          matchesSearch &&
-          matchesPriority &&
-          matchesStatus &&
-          matchesCategory
-        );
-      })
-      .sort((a, b) => {
-        switch (sortBy) {
-          case "negative":
-            return getNegativeRate(b) - getNegativeRate(a);
-          case "priority":
-            return (
-              getPriorityRank(a.priority) -
-              getPriorityRank(b.priority)
-            );
-          case "name":
-            return a.name.localeCompare(b.name);
-          case "mentions":
-          default:
-            return b.mentions - a.mentions;
-        }
-      });
-  }, [
-    issues,
-    searchQuery,
-    priorityFilter,
-    statusFilter,
-    categoryFilter,
-    sortBy,
-    statuses,
-  ]);
-
-  /**
-   * SELECTION FIX
-   *
-   * If a filter hides the currently selected issue, display the first
-   * matching issue instead. If nothing matches, show an empty state.
-   * This prevents details from displaying an issue absent from the list.
-   */
   const selectedIssue =
-    filteredIssues.find(
-      (issue) => issue.name === selectedIssueName
-    ) ?? filteredIssues[0] ?? null;
+    issues.find((issue) => issue.name === selectedIssueName) ??
+    issues[0] ??
+    null;
 
-  const totalMentions = issues.reduce(
-    (total, issue) => total + issue.mentions,
-    0
-  );
+  const gameName =
+    analysis?.game.name || (hasGame ? `App ${analyzedAppId}` : "");
 
-  const totalNegative = issues.reduce(
-    (total, issue) => total + issue.negative,
-    0
-  );
+  const worstIssue = report
+    ? [...report.issues].sort(
+        (a, b) =>
+          priorities.indexOf(a.priority) - priorities.indexOf(b.priority) ||
+          b.negative - a.negative
+      )[0]
+    : undefined;
 
-  const negativePercentage =
-    totalMentions > 0
-      ? Math.round((totalNegative / totalMentions) * 100)
-      : 0;
+  // ------------------------------------------
+  // ISSUE SUMMARY
+  // ------------------------------------------
 
-  const highPriorityCount = issues.filter(
-    (issue) =>
-      issue.priority === "Critical" ||
-      issue.priority === "High"
-  ).length;
+  let summary: string;
 
-  const resolvedCount = issues.filter(
-    (issue) => statuses[issue.name] === "Resolved"
-  ).length;
+  if (!hasGame) {
+    summary =
+      "Analyze a game on the Dashboard to see its recurring complaints, or compare a topic across every analyzed game.";
+  } else if (loadError) {
+    summary = loadError;
+  } else if (!report) {
+    summary = `Finding recurring complaints in ${gameName}...`;
+  } else if (!worstIssue) {
+    summary = `${gameName}: no topic was complained about in at least ${plural(report.minComplaints, "review")}.`;
+  } else {
+    summary = `${gameName}: ${plural(report.issues.length, "recurring complaint")} in ${plural(report.totalReviews, "review")}. Worst: ${worstIssue.name} (${worstIssue.priority}).`;
+  }
+
+  // ------------------------------------------
+  // UPDATE ISSUE STATUS
+  // ------------------------------------------
 
   const changeStatus = (
     name: string,
     status: IssueStatus
   ) => {
-    /**
-     * BACKEND TODO:
-     * Persist the status before treating it as saved.
-     * Handle failed API requests and restore the previous value if needed.
-     */
+    const previousStatus = statuses[name] ?? "Detected";
+
+    setStatusError("");
+
     setStatuses((previous) => ({
       ...previous,
       [name]: status,
     }));
+
+    updateIssueStatus(analyzedAppId, name, status).catch(
+      (saveFailure: Error) => {
+        setStatuses((previous) => ({
+          ...previous,
+          [name]: previousStatus,
+        }));
+
+        setStatusError(
+          `Couldn't save the status. ${saveFailure.message}`
+        );
+      }
+    );
   };
 
-  const clearFilters = () => {
-    setSearchQuery("");
-    setPriorityFilter("All");
-    setStatusFilter("All");
-    setCategoryFilter("All");
-    setSortBy("mentions");
+  // ------------------------------------------
+  // EXPORT ISSUE REPORT
+  // ------------------------------------------
+
+  const exportReport = async () => {
+    if (!report) return;
+
+    setExporting(true);
+    setExportError("");
+
+    try {
+      await exportIssuesReport(analyzedAppId, analysis, report, statuses);
+    } catch (exportFailure) {
+      setExportError(
+        exportFailure instanceof Error
+          ? exportFailure.message
+          : "The report couldn't be exported."
+      );
+    } finally {
+      setExporting(false);
+    }
   };
 
-  if (!analyzed || !analyzedAppId) {
-    return (
-      <div
-        className={`issues-page ${darkMode ? "issues-dark" : ""}`}
-      >
-        
+  // ------------------------------------------
+  // COMPARE ISSUES ACROSS GAMES
+  // ------------------------------------------
+
+  const compareIssue = (topic: string) => {
+    setCompareTopic(topic);
+    setTab("compare");
+  };
+
+  // ------------------------------------------
+  // OPEN GAME FROM COMPARISON
+  // ------------------------------------------
+
+  const openGame = async (appId: string) => {
+    await onOpenGame(appId);
+    setTab("game");
+  };
+
+  // Trend labels supplied by the backend report.
+  const periodLabels = report?.trendLabels ?? [];
+
+  // ------------------------------------------
+  // RENDER
+  // ------------------------------------------
+
+  return (
+    <div
+      className={`issues-page ${darkMode ? "issues-dark" : ""}`}
+    >
       <Navbar
         darkMode={darkMode}
         setDarkMode={setDarkMode}
@@ -310,13 +287,80 @@ function Issues({
         onLogout={onLogout}
       />
 
+      <main className="issues-main">
+        <section className="issues-header">
+          <span className="issues-label">
+            <span className="issues-live-dot" />
+            GAMESCOPE / ISSUES
+          </span>
 
-        <main className="issues-main">
+          <div className="issues-heading-row">
+            <div>
+              <h1>Issues</h1>
+              <p>{summary}</p>
+            </div>
+
+            {tab === "game" && report && (
+              <div className="issues-header-actions">
+                <button
+                  type="button"
+                  className="issues-primary-button"
+                  onClick={exportReport}
+                  disabled={exporting}
+                >
+                  {exporting ? "Exporting..." : "Export report (CSV)"}
+                </button>
+
+                {exportError && (
+                  <span className="issues-export-error" role="alert">
+                    {exportError}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* ISSUE TABS */}
+        <div className="issues-tabs" role="tablist" aria-label="Issues view">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "game"}
+            className={`issues-tab ${tab === "game" ? "active" : ""}`}
+            onClick={() => setTab("game")}
+          >
+            {gameName || "This game"}
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "compare"}
+            className={`issues-tab ${tab === "compare" ? "active" : ""}`}
+            onClick={() => setTab("compare")}
+          >
+            Compare across games
+          </button>
+        </div>
+
+        {/* COMPARE ACROSS GAMES */}
+        {tab === "compare" && (
+          <IssueSearch
+            topic={compareTopic}
+            setTopic={setCompareTopic}
+            onOpenGame={openGame}
+            onAnalyzeMore={() => setCurrentPage("dashboard")}
+          />
+        )}
+
+        {/* NO GAME SELECTED */}
+        {tab === "game" && !hasGame && (
           <section className="issues-card issues-detail-empty">
             <h2>No game analyzed yet</h2>
             <p>
-              Go back to the Dashboard and analyze a Steam game to see
-              its issues here.
+              Analyze a Steam game on the Dashboard to see its recurring
+              complaints here.
             </p>
             <button
               type="button"
@@ -326,327 +370,112 @@ function Issues({
               Go to Dashboard
             </button>
           </section>
-        </main>
-      </div>
-    );
-  }
+        )}
 
-  if (!live) {
-    return (
-      <div
-        className={`issues-page ${darkMode ? "issues-dark" : ""}`}
-      >
-        
-        <Navbar
-          darkMode={darkMode}
-          setDarkMode={setDarkMode}
-          currentPage={currentPage}
-          setCurrentPage={setCurrentPage}
-          onLogoClick={onLogoClick}
-          mode={mode}
-          setMode={setMode}
-          isLoggedIn={isLoggedIn}
-          accountEmail={accountEmail}
-          onLogout={onLogout}
-        />
-
-
-        <main className="issues-main">
+        {/* LOADING OR ERROR */}
+        {tab === "game" && hasGame && !report && (
           <section className="issues-card issues-detail-empty">
             <h2>
               {loadError ? "Couldn't load issues" : "Loading issues..."}
             </h2>
             <p>
               {loadError ||
-                "Finding recurring problems in the analyzed reviews."}
+                "Finding recurring complaints in the analyzed reviews."}
             </p>
           </section>
-        </main>
-      </div>
-    );
-  }
+        )}
 
-  return (
-    <div
-      className={`issues-page ${darkMode ? "issues-dark" : ""}`}
-    >
-      
-        <Navbar
-          darkMode={darkMode}
-          setDarkMode={setDarkMode}
-          currentPage={currentPage}
-          setCurrentPage={setCurrentPage}
-          onLogoClick={onLogoClick}
-          mode={mode}
-          setMode={setMode}
-          isLoggedIn={isLoggedIn}
-          accountEmail={accountEmail}
-          onLogout={onLogout}
-        />
+        {/* GAME ISSUE DETAILS */}
+        {tab === "game" && report && (
+          <div
+            className={`issues-layout ${selectedIssue ? "" : "single"}`}
+          >
+            {/* ISSUE LIST */}
+            <section className="issues-card">
+              <div className="issues-card-header">
+                <div>
+                  <span className="issues-card-label">
+                    RECURRING COMPLAINTS
+                  </span>
+                  <h2>{plural(issues.length, "issue")}</h2>
+                </div>
 
-
-      <main className="issues-main">
-        <section className="issues-header">
-          <span className="issues-label">
-            <span className="issues-live-dot" />
-            GAMESCOPE / ISSUE INTELLIGENCE
-          </span>
-
-          <div className="issues-heading-row">
-            <div>
-              <h1>Issue Intelligence</h1>
-              <p>
-                Turn player feedback into actionable insights.
-                Discover recurring problems, examine review evidence,
-                and track the issues that matter most.
-              </p>
-            </div>
-
-            <div className="issues-analysis-badge analysis-selected">
-              <span className="issues-badge-dot" />
-              ANALYSIS SELECTED
-              <small>App ID: {analyzedAppId}</small>
-            </div>
-          </div>
-        </section>
-
-        {/* SUMMARY */}
-        <section className="issues-stats" aria-label="Issue summary">
-          <div className="issues-stat-card stat-purple">
-            <span className="stat-icon" aria-hidden="true">◎</span>
-            <span className="stat-label">ISSUE CATEGORIES</span>
-            <strong>{issues.length}</strong>
-            <small>Categories in this view</small>
-          </div>
-
-          <div className="issues-stat-card stat-blue">
-            <span className="stat-icon" aria-hidden="true">▤</span>
-            <span className="stat-label">ISSUE MENTIONS</span>
-            <strong>{totalMentions.toLocaleString()}</strong>
-            <small>Mentions across categories</small>
-          </div>
-
-          <div className="issues-stat-card stat-red">
-            <span className="stat-icon" aria-hidden="true">↗</span>
-            <span className="stat-label">NEGATIVE ASSOCIATION</span>
-            <strong>{negativePercentage}%</strong>
-            <small>Negative mentions / all mentions</small>
-          </div>
-
-          <div className="issues-stat-card stat-amber">
-            <span className="stat-icon" aria-hidden="true">⚑</span>
-            <span className="stat-label">HIGH PRIORITY</span>
-            <strong>{highPriorityCount}</strong>
-            <small>Critical or high-priority categories</small>
-          </div>
-        </section>
-
-        {/* ISSUE BROWSER */}
-        <section className="issues-card issues-browser">
-          <div className="issues-card-header">
-            <div>
-              <span className="issues-card-label">
-                REVIEW ANALYSIS
-              </span>
-              <h2>Detected Issues</h2>
-              <p className="issues-section-subtitle">
-                Search, prioritize, and inspect recurring feedback.
-              </p>
-            </div>
-
-            <span className="issues-card-count">
-              {filteredIssues.length} of {issues.length}
-            </span>
-          </div>
-
-          <div className="issues-filters">
-            <label className="issues-search">
-              <span aria-hidden="true">⌕</span>
-              <input
-                type="search"
-                placeholder="Search issues or review text..."
-                value={searchQuery}
-                onChange={(event) =>
-                  setSearchQuery(event.target.value)
-                }
-                aria-label="Search issues or review text"
-              />
-            </label>
-
-            <label className="issues-filter-control">
-              <span>Priority</span>
-              <select
-                value={priorityFilter}
-                onChange={(event) =>
-                  setPriorityFilter(event.target.value)
-                }
-                aria-label="Filter by priority"
-              >
-                <option value="All">All priorities</option>
-                {priorities.map((priority) => (
-                  <option key={priority} value={priority}>
-                    {priority}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="issues-filter-control">
-              <span>Status</span>
-              <select
-                value={statusFilter}
-                onChange={(event) =>
-                  setStatusFilter(event.target.value)
-                }
-                aria-label="Filter by status"
-              >
-                <option value="All">All statuses</option>
-                {statusesList.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="issues-filter-control">
-              <span>Category</span>
-              <select
-                value={categoryFilter}
-                onChange={(event) =>
-                  setCategoryFilter(event.target.value)
-                }
-                aria-label="Filter by category"
-              >
-                <option value="All">All categories</option>
-                {issues.map((issue) => (
-                  <option key={issue.name} value={issue.name}>
-                    {issue.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="issues-filter-control">
-              <span>Sort by</span>
-              <select
-                value={sortBy}
-                onChange={(event) => setSortBy(event.target.value)}
-                aria-label="Sort issues"
-              >
-                <option value="mentions">Most mentions</option>
-                <option value="negative">Highest negative rate</option>
-                <option value="priority">Highest priority</option>
-                <option value="name">Name A–Z</option>
-              </select>
-            </label>
-
-            <button
-              type="button"
-              className="issues-clear-button"
-              onClick={clearFilters}
-            >
-              Reset filters
-            </button>
-          </div>
-
-          <div className="issues-list" aria-live="polite">
-            {filteredIssues.map((issue) => {
-              const negativeRate = getNegativeRate(issue);
-              const mentionRate = Math.min(
-                100,
-                Math.round(
-                  (issue.mentions / maxMentions) * 100
-                )
-              );
-              const status = statuses[issue.name] ?? "Detected";
-              const isSelected = selectedIssue?.name === issue.name;
-
-              return (
-                <button
-                  type="button"
-                  className={`issue-row ${
-                    isSelected ? "selected" : ""
-                  }`}
-                  key={issue.name}
-                  onClick={() => setSelectedIssueName(issue.name)}
-                  aria-pressed={isSelected}
-                >
-                  <div className="issue-row-top">
-                    <div className="issue-row-title">
-                      <strong>{issue.name}</strong>
-                      <span>
-                        {issue.mentions.toLocaleString()} mentions
-                      </span>
-                    </div>
-
-                    <div className="issue-row-badges">
-                      <span
-                        className={`priority-badge priority-${issue.priority.toLowerCase()}`}
-                      >
-                        {issue.priority}
-                      </span>
-
-                      <span
-                        className={`status-badge status-${getStatusClass(status)}`}
-                      >
-                        {status}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="issue-row-bottom">
-                    <div
-                      className="issue-progress"
-                      role="progressbar"
-                      aria-label={`${issue.name} mentions relative to the most-mentioned category`}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-valuenow={mentionRate}
+                {issues.length > 1 && (
+                  <label className="issues-filter-control issues-sort">
+                    <span>Sort by</span>
+                    <select
+                      value={sortBy}
+                      onChange={(event) => setSortBy(event.target.value)}
                     >
-                      <div
-                        className="issue-progress-fill"
-                        style={{ width: `${mentionRate}%` }}
-                      />
-                    </div>
-
-                    <div className="issue-row-metrics">
-                      <span>{negativeRate}% negative</span>
-                      <strong>{issue.mentions.toLocaleString()}</strong>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-
-            {filteredIssues.length === 0 && (
-              <div className="issues-empty-state">
-                <span aria-hidden="true">⌕</span>
-                <h3>No matching issues</h3>
-                <p>
-                  Try another search term or remove some filters.
-                </p>
-                <button
-                  type="button"
-                  className="issues-primary-button"
-                  onClick={clearFilters}
-                >
-                  Clear all filters
-                </button>
+                      <option value="priority">Priority</option>
+                      <option value="complaints">Most complaints</option>
+                      <option value="name">Name A–Z</option>
+                    </select>
+                  </label>
+                )}
               </div>
-            )}
-          </div>
-        </section>
 
-        {/* DETAILS: ONLY SHOW WHEN A MATCH EXISTS */}
-        {selectedIssue ? (
-          <>
-            <section className="issue-detail-grid">
-              <div className="issues-card issue-detail-card">
+              <div className="issues-list" aria-live="polite">
+                {issues.map((issue) => {
+                  const status = statuses[issue.name] ?? "Detected";
+                  const isSelected = selectedIssue?.name === issue.name;
+
+                  return (
+                    <button
+                      type="button"
+                      className={`issue-row ${isSelected ? "selected" : ""}`}
+                      key={issue.name}
+                      onClick={() => setSelectedIssueName(issue.name)}
+                      aria-pressed={isSelected}
+                    >
+                      <div className="issue-row-top">
+                        <div className="issue-row-title">
+                          <strong>{issue.name}</strong>
+                          <span>
+                            {plural(issue.negative, "complaint")}
+                          </span>
+                        </div>
+
+                        <div className="issue-row-badges">
+                          <span
+                            className={`priority-badge priority-${issue.priority.toLowerCase()}`}
+                          >
+                            {issue.priority}
+                          </span>
+
+                          <span
+                            className={`status-badge status-${getStatusClass(status)}`}
+                          >
+                            {status}
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+
+                {issues.length === 0 && (
+                  <div className="issues-empty-state">
+                    <span aria-hidden="true">✓</span>
+                    <h3>No recurring complaints</h3>
+                    <p>
+                      No topic was complained about in at least{" "}
+                      {plural(report.minComplaints, "review")}. Lower the
+                      issue mention threshold in Settings to see smaller
+                      issues.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* SELECTED ISSUE */}
+            {selectedIssue && (
+              <section className="issues-card issue-focus">
                 <div className="issues-card-header">
                   <div>
                     <span className="issues-card-label">
-                      ISSUE BREAKDOWN
+                      SELECTED ISSUE
                     </span>
                     <h2>{selectedIssue.name}</h2>
                   </div>
@@ -662,10 +491,9 @@ function Issues({
                   {selectedIssue.description}
                 </p>
 
+                {/* STATUS EDITOR */}
                 <div className="issue-status-editor">
-                  <label htmlFor="issue-status-select">
-                    Issue status
-                  </label>
+                  <label htmlFor="issue-status-select">Status</label>
 
                   <select
                     id="issue-status-select"
@@ -684,109 +512,13 @@ function Issues({
                     ))}
                   </select>
 
-                  <span className="issues-status-note">
-                    Changes are not saved after refresh
+                  <span className="issues-status-note" role="status">
+                    {statusError || "Saved automatically"}
                   </span>
                 </div>
 
-                <div className="issue-detail-stats">
-                  <div>
-                    <span>MENTIONS</span>
-                    <strong>
-                      {selectedIssue.mentions.toLocaleString()}
-                    </strong>
-                  </div>
-
-                  <div>
-                    <span>NEGATIVE</span>
-                    <strong>{getNegativeRate(selectedIssue)}%</strong>
-                  </div>
-
-                  <div>
-                    <span>POSITIVE</span>
-                    <strong>{getPositiveRate(selectedIssue)}%</strong>
-                  </div>
-
-                  <div>
-                    <span>AVG. HELPFUL VOTES</span>
-                    <strong>
-                      {selectedIssue.helpfulVotes.toFixed(1)}
-                    </strong>
-                  </div>
-                </div>
-
-                <div className="issue-sentiment">
-                  <div
-                    className="sentiment-bar"
-                    role="img"
-                    aria-label={`${getNegativeRate(selectedIssue)} percent negative and ${getPositiveRate(selectedIssue)} percent positive`}
-                  >
-                    <div
-                      className="sentiment-negative"
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          (selectedIssue.negative /
-                            Math.max(1, selectedIssue.mentions)) *
-                            100
-                        )}%`,
-                      }}
-                    />
-                    <div
-                      className="sentiment-positive"
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          (selectedIssue.positive /
-                            Math.max(1, selectedIssue.mentions)) *
-                            100
-                        )}%`,
-                      }}
-                    />
-                  </div>
-
-                  <div className="sentiment-legend">
-                    <span>
-                      <i className="legend-dot negative-dot" />
-                      Negative feedback
-                    </span>
-                    <span>
-                      <i className="legend-dot positive-dot" />
-                      Positive feedback
-                    </span>
-                  </div>
-                </div>
-
-                <div className="issues-recommendation">
-                  <span className="recommendation-icon" aria-hidden="true">
-                    ✦
-                  </span>
-                  <div>
-                    <strong>Suggested next step</strong>
-                    <p>{getRecommendation(selectedIssue.name)}</p>
-                    <small>
-                      Suggested action, not a verified root cause.
-                    </small>
-                  </div>
-                </div>
-              </div>
-
-              <div className="issues-card feedback-card">
-                <div className="issues-card-header">
-                  <div>
-                    <span className="issues-card-label">
-                      PLAYER FEEDBACK
-                    </span>
-                    <h2>Review Evidence</h2>
-                    <p className="issues-section-subtitle">
-                      Comments associated with this issue.
-                    </p>
-                  </div>
-
-                  <span className="issues-card-count">
-                    {selectedIssue.examples.length} examples
-                  </span>
-                </div>
+                {/* PLAYER REVIEW EXAMPLES */}
+                <h3 className="issue-focus-heading">What players said</h3>
 
                 <div className="issue-examples">
                   {selectedIssue.examples.map((example, index) => (
@@ -797,12 +529,8 @@ function Issues({
                             {example.type === "positive" ? "+" : "−"}
                           </span>
                           {example.type === "positive"
-                            ? "Positive"
-                            : "Negative"}
-                        </span>
-
-                        <span className="example-number">
-                          EXAMPLE {String(index + 1).padStart(2, "0")}
+                            ? "Praise or neutral"
+                            : "Complaint"}
                         </span>
                       </div>
 
@@ -811,134 +539,57 @@ function Issues({
                   ))}
                 </div>
 
-                <div className="issues-evidence-note">
-                  <span aria-hidden="true">ⓘ</span>
-                  <p>
-                    Real reviews from this game that mention this topic,
-                    highest quality first.
-                  </p>
-                </div>
-              </div>
-            </section>
+                {/* ISSUE TREND */}
+                {selectedIssue.trend.length > 0 && (
+                  <>
+                    <h3 className="issue-focus-heading">
+                      Complaints over time
+                    </h3>
 
-            <section className="issues-card issues-trend-card">
-              <div className="issues-card-header">
-                <div>
-                  <span className="issues-card-label">
-                    TREND MONITOR
-                  </span>
-                  <h2>{selectedIssue.name} activity</h2>
-                  <p className="issues-section-subtitle">
-                    Mentions per period, scaled so the busiest period is 100.
-                  </p>
-                </div>
-
-                <span className="issues-trend-tag">
-                  LIVE TREND
-                </span>
-              </div>
-
-              <div
-                className="issues-trend-chart"
-                role="img"
-                aria-label={`Activity trend for ${selectedIssue.name}: ${selectedIssue.trend.join(", ")}`}
-              >
-                {selectedIssue.trend.map((value, index) => (
-                  <div className="trend-column" key={index}>
-                    <span className="trend-value">{value}</span>
-                    <div className="trend-bar-track">
-                      <div
-                        className="trend-bar"
-                        style={{
-                          height: `${Math.max(3, Math.min(100, value))}%`,
-                        }}
-                      />
+                    <div
+                      className="issues-trend-chart compact"
+                      role="img"
+                      aria-label={`Complaints about ${selectedIssue.name} by review date, scaled so the busiest period is 100: ${selectedIssue.trend.join(", ")}`}
+                    >
+                      {selectedIssue.trend.map((value, index) => (
+                        <div className="trend-column" key={index}>
+                          <div className="trend-bar-track">
+                            <div
+                              className="trend-bar"
+                              style={{
+                                height: `${Math.max(3, Math.min(100, value))}%`,
+                              }}
+                            />
+                          </div>
+                          <span className="trend-label">
+                            {periodLabels[index] ?? `P${index + 1}`}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                    <span className="trend-label">
-                      {periodLabels[index] ?? `P${index + 1}`}
-                    </span>
-                  </div>
-                ))}
-              </div>
+                  </>
+                )}
 
-              <div className="issues-trend-footer">
-                <span>
-                  <i className="legend-dot trend-dot" />
-                  Relative activity index
-                </span>
-                <span>
-                  Based on review dates
-                </span>
-              </div>
-            </section>
-          </>
-        ) : (
-          <section className="issues-card issues-detail-empty">
-            <h2>No issue selected</h2>
-            <p>
-              Clear your filters to see issue details, review evidence,
-              and activity trends.
-            </p>
-            <button
-              type="button"
-              className="issues-primary-button"
-              onClick={clearFilters}
-            >
-              Show all issues
-            </button>
-          </section>
-        )}
-
-        {/* WORKFLOW SUMMARY */}
-        <section className="issues-card issues-tracking-card">
-          <div className="issues-card-header">
-            <div>
-              <span className="issues-card-label">
-                WORKFLOW OVERVIEW
-              </span>
-              <h2>Issue tracking</h2>
-              <p className="issues-section-subtitle">
-                Select a status to filter the issue list.
-              </p>
-            </div>
-
-            <span className="issues-card-count">
-              {resolvedCount} resolved
-            </span>
-          </div>
-
-          <div className="issues-workflow-grid">
-            {statusesList.map((status) => {
-              const count = issues.filter(
-                (issue) =>
-                  (statuses[issue.name] ?? "Detected") === status
-              ).length;
-
-              const isActive = statusFilter === status;
-
-              return (
+                {/* COMPARE THIS ISSUE */}
                 <button
                   type="button"
-                  className={`workflow-item workflow-${getStatusClass(status)} ${
-                    isActive ? "workflow-active" : ""
-                  }`}
-                  key={status}
-                  onClick={() => setStatusFilter(isActive ? "All" : status)}
-                  aria-pressed={isActive}
+                  className="issues-compare-link"
+                  onClick={() => compareIssue(selectedIssue.name)}
                 >
-                  <span>{status}</span>
-                  <strong>{count}</strong>
-                  <small>
-                    {isActive ? "Click to clear filter" : "Filter by status"}
-                  </small>
+                  How do other games do on {selectedIssue.name}? →
                 </button>
-              );
-            })}
+              </section>
+            )}
           </div>
-        </section>
+        )}
 
+        {/* DISCLAIMER */}
         <p className="issues-disclaimer">
-          Issues are detected by keyword matching on the analyzed reviews. Priorities come from how often each topic appears in negative reviews. Statuses are not saved yet.
+          Issues are found by keyword matching on the analyzed reviews. A
+          topic counts as a complaint when the part of the review mentioning
+          it is negative, or when it appears without praise in a Not
+          Recommended review. Priority comes from the share of all reviews
+          complaining about it.
         </p>
       </main>
     </div>

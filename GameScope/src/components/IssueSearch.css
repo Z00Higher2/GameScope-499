@@ -1,0 +1,184 @@
+/* =========================================================
+   GAMESCOPE — ISSUE SEARCH
+   Builds on Issues.css (same theme variables and cards)
+========================================================= */
+
+.search-filters {
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
+}
+
+.search-filters input {
+  width: 100%;
+  height: 42px;
+  padding: 0 11px;
+
+  border: 1px solid var(--issues-line);
+  border-radius: 9px;
+  outline: none;
+
+  background: var(--issues-card-solid);
+  color: var(--issues-text);
+  color-scheme: light;
+
+  font: inherit;
+  font-size: 12px;
+}
+
+.issues-dark .search-filters input {
+  color-scheme: dark;
+}
+
+.search-filters input:focus {
+  border-color: var(--issues-purple);
+  box-shadow: 0 0 0 3px var(--issues-purple-soft);
+}
+
+/* =========================================================
+   GAME ROWS
+========================================================= */
+
+.search-row {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+
+  padding: 17px 18px;
+
+  border: 1px solid var(--issues-line);
+  border-radius: 13px;
+
+  background: var(--issues-card-solid);
+}
+
+.search-row-top,
+.search-row-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.search-row-bars {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.search-bar {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 10px;
+
+  font-size: 12px;
+}
+
+.search-bar > span {
+  color: var(--issues-muted);
+  font-weight: 700;
+}
+
+.search-bar > strong {
+  text-align: right;
+}
+
+.search-bar-track {
+  height: 7px;
+  overflow: hidden;
+
+  border-radius: 999px;
+  background: var(--issues-soft);
+}
+
+.search-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+}
+
+.search-bar-fill.praise {
+  background: var(--issues-green);
+}
+
+.search-bar-fill.complaint {
+  background: var(--issues-red);
+}
+
+.search-row-footer > span {
+  color: var(--issues-muted);
+  font-size: 12px;
+}
+
+.search-row-footer .issues-primary-button {
+  flex: none;
+}
+
+.search-row-footer .issues-primary-button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+/* =========================================================
+   TREND BADGES
+========================================================= */
+
+.search-trend {
+  padding: 5px 9px;
+
+  border-radius: 999px;
+
+  font-size: 11px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.trend-improving {
+  background: color-mix(in srgb, var(--issues-green) 14%, transparent);
+  color: var(--issues-green);
+}
+
+.trend-worsening {
+  background: color-mix(in srgb, var(--issues-red) 14%, transparent);
+  color: var(--issues-red);
+}
+
+.trend-steady {
+  background: color-mix(in srgb, var(--issues-blue) 14%, transparent);
+  color: var(--issues-blue);
+}
+
+.trend-unknown {
+  background: var(--issues-soft);
+  color: var(--issues-muted);
+}
+
+.search-footnote {
+  margin: 18px 0 0;
+  color: var(--issues-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+
+@media (max-width: 768px) {
+  .search-filters,
+  .search-row-bars {
+    grid-template-columns: 1fr;
+  }
+
+  .search-row-top,
+  .search-row-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .issue-row-badges {
+    justify-content: flex-start;
+  }
+
+  .search-trend {
+    white-space: normal;
+  }
+}
