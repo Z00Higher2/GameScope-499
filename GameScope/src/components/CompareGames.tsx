@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from "react";
 import Navbar from "./Navbar";
 import "./CompareGames.css";
@@ -13,6 +12,10 @@ interface CompareGamesProps {
   onLogoClick: () => void;
   mode: Mode;
   setMode: React.Dispatch<React.SetStateAction<Mode>>;
+  isLoggedIn?: boolean;
+  steamConnected?: boolean;
+  accountEmail?: string;
+  onLogout?: () => void;
 }
 
 interface Game {
@@ -446,6 +449,10 @@ function CompareGames({
   onLogoClick,
   mode,
   setMode,
+  isLoggedIn = false,
+  steamConnected = false,
+  accountEmail = "",
+  onLogout,
 }: CompareGamesProps) {
   const [search, setSearch] = useState("");
   const [searchResults, setSearchResults] = useState<Game[]>([]);
@@ -459,7 +466,9 @@ function CompareGames({
   const [loadingComparison, setLoadingComparison] = useState(false);
   const [comparisonError, setComparisonError] = useState("");
   const [showResults, setShowResults] = useState(false);
+
   const searchRef = useRef<HTMLDivElement>(null);
+  const resultsRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (search.trim().length < 2) {
@@ -525,6 +534,16 @@ function CompareGames({
       document.removeEventListener("mousedown", handleOutsideClick);
     };
   }, []);
+
+  // Automatically scroll to comparison results when they appear.
+  useEffect(() => {
+    if (showResults && resultsRef.current) {
+      resultsRef.current.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }
+  }, [showResults]);
 
   const selectGame = (game: Game) => {
     if (searchTarget === "left") {
@@ -593,6 +612,10 @@ function CompareGames({
     onLogoClick,
     mode,
     setMode,
+    isLoggedIn,
+    steamConnected,
+    accountEmail,
+    onLogout,
   };
 
   return (
@@ -805,7 +828,7 @@ function CompareGames({
         </section>
 
         {showResults && leftData && rightData && (
-          <section className="compare-results">
+          <section className="compare-results" ref={resultsRef}>
             <div className="compare-results-heading">
               <div>
                 <span className="compare-section-kicker">

@@ -1091,3 +1091,659 @@
     padding-top: 20px;
   }
 }
+
+/* =========================================================
+   POLISH 1 — GAME SELECTION & SEARCH INTERACTIONS
+========================================================= */
+
+/* Game selection cards */
+.compare-game-slot {
+  border: 1px solid transparent;
+  transition:
+    transform 0.3s ease,
+    border-color 0.3s ease,
+    background 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.compare-game-slot:hover {
+  border-color: var(--compare-border);
+  box-shadow: 0 10px 28px rgba(27, 26, 71, 0.06);
+}
+
+/* Empty game selection */
+.compare-empty-slot {
+  position: relative;
+  overflow: hidden;
+}
+
+.compare-empty-slot::before {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    120deg,
+    transparent 30%,
+    rgba(112, 101, 238, 0.07),
+    transparent 70%
+  );
+  content: "";
+  transform: translateX(-100%);
+  transition: transform 0.6s ease;
+}
+
+.compare-empty-slot:hover::before {
+  transform: translateX(100%);
+}
+
+.compare-plus {
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.compare-empty-slot:hover .compare-plus {
+  transform: rotate(90deg) scale(1.08);
+  box-shadow: 0 6px 18px rgba(112, 101, 238, 0.3);
+}
+
+/* Selected game */
+.compare-selected-game {
+  animation: compare-selection-in 0.35s ease both;
+}
+
+.compare-selected-info > strong {
+  transition: color 0.2s ease;
+}
+
+.compare-game-slot:hover .compare-selected-info > strong {
+  color: var(--compare-accent);
+}
+
+/* Change and remove buttons */
+.compare-text-button,
+.compare-remove-button {
+  transition:
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+.compare-text-button:hover {
+  transform: translateX(3px);
+}
+
+.compare-remove-button:hover {
+  color: var(--compare-red);
+}
+
+/* Search field */
+.compare-search-box {
+  transition:
+    border-color 0.25s ease,
+    box-shadow 0.25s ease,
+    transform 0.25s ease;
+}
+
+.compare-search-box:focus-within {
+  transform: translateY(-1px);
+}
+
+/* Search results */
+.compare-search-result {
+  position: relative;
+  overflow: hidden;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.compare-search-result:hover {
+  transform: translateX(3px);
+}
+
+.compare-search-result .compare-artwork {
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+.compare-search-result:hover .compare-artwork {
+  transform: scale(1.04);
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.12);
+}
+
+.compare-result-add {
+  padding: 6px 11px;
+  border-radius: 8px;
+  background: var(--compare-accent-soft);
+  transition:
+    color 0.2s ease,
+    background 0.2s ease;
+}
+
+.compare-search-result:hover .compare-result-add {
+  color: white;
+  background: var(--compare-accent);
+}
+
+/* Search target buttons */
+.compare-search-targets button:hover {
+  border-color: var(--compare-accent);
+  color: var(--compare-accent);
+  transform: translateY(-1px);
+}
+
+/* Keyboard accessibility */
+.compare-page button:focus-visible,
+.compare-page input:focus-visible {
+  outline: 3px solid var(--compare-accent);
+  outline-offset: 3px;
+}
+
+/* Selection animation */
+@keyframes compare-selection-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* =========================================================
+   POLISH 2 — COMPARISON RESULTS CARDS
+========================================================= */
+
+/* Result card appearance */
+.compare-result-card {
+  position: relative;
+  isolation: isolate;
+  transition:
+    transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 0.3s ease,
+    box-shadow 0.35s ease;
+}
+
+.compare-result-card::before {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--compare-accent),
+    transparent
+  );
+  content: "";
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.compare-result-card:hover::before {
+  opacity: 1;
+}
+
+.compare-result-card:hover {
+  border-color: rgba(112, 101, 238, 0.35);
+  transform: translateY(-6px);
+  box-shadow: 0 25px 65px rgba(27, 26, 71, 0.12);
+}
+
+/* Game artwork */
+.compare-result-card > .compare-artwork {
+  position: relative;
+  overflow: hidden;
+}
+
+.compare-result-card > .compare-artwork img {
+  transition: transform 0.65s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.compare-result-card:hover > .compare-artwork img {
+  transform: scale(1.045);
+}
+
+/* Card title */
+.compare-result-card h3 {
+  transition: color 0.25s ease;
+}
+
+.compare-result-card:hover h3 {
+  color: var(--compare-accent);
+}
+
+/* Recommendation statistic */
+.compare-primary-stat {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(112, 101, 238, 0.1);
+  transition:
+    border-color 0.3s ease,
+    transform 0.3s ease;
+}
+
+.compare-primary-stat:hover {
+  border-color: rgba(112, 101, 238, 0.3);
+  transform: translateY(-2px);
+}
+
+.compare-primary-stat > strong {
+  font-variant-numeric: tabular-nums;
+  animation: compare-stat-appear 0.7s ease both;
+}
+
+/* Progress bar */
+.compare-progress {
+  position: relative;
+  height: 8px;
+  background: rgba(128, 128, 160, 0.15);
+}
+
+.compare-progress span {
+  position: relative;
+  overflow: hidden;
+}
+
+.compare-progress span::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.4),
+    transparent
+  );
+  content: "";
+  animation: compare-progress-shine 2.5s ease-in-out infinite;
+}
+
+/* Mini statistics */
+.compare-mini-stats > div {
+  border: 1px solid transparent;
+  transition:
+    transform 0.25s ease,
+    border-color 0.25s ease,
+    background 0.25s ease;
+}
+
+.compare-mini-stats > div:hover {
+  transform: translateY(-3px);
+  border-color: var(--compare-border);
+}
+
+.compare-mini-stats strong {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Details */
+.compare-detail-stat {
+  transition: padding 0.25s ease;
+}
+
+.compare-detail-stat:hover {
+  padding-right: 7px;
+  padding-left: 7px;
+}
+
+/* Complaint and strength lists */
+.compare-detail-list li {
+  border: 1px solid transparent;
+  transition:
+    transform 0.25s ease,
+    border-color 0.25s ease,
+    background 0.25s ease;
+}
+
+.compare-detail-list li:hover {
+  transform: translateX(4px);
+  border-color: var(--compare-border);
+}
+
+/* Results entrance animation */
+.compare-results-heading {
+  animation: compare-enter 0.5s ease both;
+}
+
+.compare-metrics-panel {
+  animation: compare-enter 0.7s ease both;
+  animation-delay: 0.15s;
+}
+
+.compare-disclaimer {
+  animation: compare-enter 0.8s ease both;
+}
+
+/* Keyframes */
+@keyframes compare-stat-appear {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes compare-progress-shine {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  65%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* =========================================================
+   POLISH 3 — QUICK COMPARISON PANEL
+========================================================= */
+
+.compare-metrics-panel {
+  position: relative;
+  overflow: hidden;
+  border-radius: 23px;
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease,
+    border-color 0.3s ease;
+}
+
+.compare-metrics-panel::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--compare-accent),
+    transparent 85%
+  );
+  content: "";
+}
+
+.compare-metrics-panel h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.compare-metrics-panel h3::before {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  background: var(--compare-accent);
+  box-shadow: 0 0 12px var(--compare-accent);
+  content: "";
+}
+
+.compare-metric {
+  position: relative;
+  transition:
+    background 0.25s ease,
+    padding 0.25s ease;
+}
+
+.compare-metric:hover {
+  padding-right: 10px;
+  padding-left: 10px;
+  border-radius: 10px;
+  background: var(--compare-accent-soft);
+}
+
+.compare-metric-value {
+  font-size: 1.08rem;
+  font-weight: 850;
+  font-variant-numeric: tabular-nums;
+  transition:
+    color 0.25s ease,
+    transform 0.25s ease;
+}
+
+.compare-metric:hover .compare-metric-value {
+  color: var(--compare-accent);
+}
+
+.compare-metric-label {
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+.compare-metric-value:first-child {
+  padding-left: 5px;
+}
+
+.compare-metric-value:last-child {
+  padding-right: 5px;
+}
+
+/* Disclaimer */
+.compare-disclaimer {
+  max-width: 760px;
+  padding: 15px 19px;
+  border: 1px solid var(--compare-border);
+  border-radius: 13px;
+  background: var(--compare-surface);
+  text-align: left;
+}
+
+/* Mobile adjustments */
+@media (max-width: 600px) {
+  .compare-metrics-panel {
+    padding: 19px 15px;
+  }
+
+  .compare-metric {
+    grid-template-columns: minmax(0, 1fr) minmax(85px, 1.1fr) minmax(0, 1fr);
+    gap: 5px;
+  }
+
+  .compare-metric-value {
+    font-size: 0.85rem;
+  }
+
+  .compare-metric-label {
+    font-size: 0.65rem;
+  }
+
+  .compare-disclaimer {
+    padding: 13px;
+    font-size: 0.72rem;
+  }
+}
+
+/* =========================================================
+   POLISH 4 — BUTTONS & LOADING EXPERIENCE
+========================================================= */
+
+/* Main comparison button */
+.compare-submit-button {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.compare-submit-button::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.2),
+    transparent 80%
+  );
+  content: "";
+  transform: translateX(-100%);
+  transition: transform 0.65s ease;
+}
+
+.compare-submit-button:hover:not(:disabled)::before {
+  transform: translateX(100%);
+}
+
+.compare-submit-button:disabled {
+  filter: saturate(0.65);
+}
+
+/* Loading state */
+.compare-submit-button:has(.compare-button-spinner) {
+  cursor: wait;
+  opacity: 0.85;
+}
+
+.compare-button-spinner {
+  width: 19px;
+  height: 19px;
+  border-width: 2.5px;
+  animation: compare-spin 0.65s linear infinite;
+}
+
+/* Search loading */
+.compare-search-spinner {
+  width: 19px;
+  height: 19px;
+  border-width: 2.5px;
+}
+
+/* Error message */
+.compare-inline-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(227, 91, 105, 0.18);
+  animation: compare-enter 0.3s ease both;
+}
+
+.compare-inline-error::before {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(227, 91, 105, 0.13);
+  content: "!";
+  font-weight: 850;
+}
+
+/* Search hint transitions */
+.compare-search-hint {
+  animation: compare-enter 0.25s ease both;
+}
+
+/* Button press feedback */
+.compare-text-button:active,
+.compare-remove-button:active,
+.compare-search-targets button:active {
+  transform: scale(0.96);
+}
+
+/* Reduced motion compatibility */
+@media (prefers-reduced-motion: reduce) {
+  .compare-submit-button::before,
+  .compare-progress span::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+
+/* =========================================================
+   POLISH 5 — EMPTY STATES & PAGE TRANSITIONS
+========================================================= */
+
+/* Empty game selection */
+.compare-empty-slot {
+  transition:
+    border-color 0.3s ease,
+    background 0.3s ease,
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.compare-empty-slot:hover {
+  transform: translateY(-3px);
+  border-color: var(--compare-accent);
+  box-shadow: 0 12px 30px rgba(112, 101, 238, 0.08);
+}
+
+/* Empty state icon */
+.compare-empty-slot .compare-plus {
+  transition:
+    transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+    background 0.3s ease,
+    color 0.3s ease;
+}
+
+.compare-empty-slot:hover .compare-plus {
+  transform: rotate(90deg) scale(1.1);
+  background: var(--compare-accent);
+  color: white;
+}
+
+/* Results entrance */
+.compare-result-card {
+  animation: compare-card-enter 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.compare-result-card:nth-child(2) {
+  animation-delay: 0.12s;
+}
+
+.compare-metrics-panel {
+  animation: compare-card-enter 0.65s ease both;
+  animation-delay: 0.2s;
+}
+
+/* Smooth page content appearance */
+.compare-page {
+  animation: compare-page-enter 0.4s ease both;
+}
+
+@keyframes compare-card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes compare-page-enter {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* Avoid excessive movement for reduced-motion users */
+@media (prefers-reduced-motion: reduce) {
+  .compare-page,
+  .compare-result-card,
+  .compare-metrics-panel {
+    animation: none !important;
+  }
+
+  .compare-empty-slot,
+  .compare-empty-slot .compare-plus {
+    transition: none !important;
+  }
+}
+
+.compare-results {
+  scroll-margin-top: 100px;
+}

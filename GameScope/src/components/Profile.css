@@ -643,3 +643,216 @@
     flex-wrap: wrap;
   }
 }
+
+/* =========================================================
+   RECENT ACTIVITY
+========================================================= */
+
+.profile-activity {
+  margin-bottom: 30px;
+}
+
+.profile-activity-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.profile-activity-heading h2 {
+  margin-bottom: 6px;
+}
+
+.profile-activity-heading p {
+  margin: 0;
+  color: var(--text-secondary, #888);
+}
+
+.profile-activity-count {
+  padding: 7px 13px;
+  border-radius: 20px;
+  background: var(--accent-soft);
+  color: var(--accent-color);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.profile-activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.profile-activity-item {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 15px;
+  border: 1px solid var(--border-color, rgba(128, 128, 128, 0.2));
+  border-radius: 14px;
+  background: var(--card-background, transparent);
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.profile-activity-item:hover {
+  border-color: var(--accent-color);
+  transform: translateY(-2px);
+}
+
+.profile-activity-image {
+  width: 150px;
+  aspect-ratio: 460 / 215;
+  object-fit: cover;
+  border-radius: 9px;
+  flex-shrink: 0;
+  background: var(--accent-soft);
+}
+
+.profile-activity-info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.profile-activity-info h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.profile-activity-date,
+.profile-activity-mode {
+  font-size: 12px;
+  color: var(--text-secondary, #888);
+}
+
+.profile-activity-mode {
+  color: var(--accent-color);
+  font-weight: 700;
+}
+
+.profile-activity-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 5px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.activity-positive {
+  color: #20a878;
+}
+
+.activity-negative {
+  color: #e06b75;
+}
+
+.profile-activity-empty {
+  padding: 35px 20px;
+  text-align: center;
+  border: 1px dashed var(--border-color, rgba(128, 128, 128, 0.3));
+  border-radius: 14px;
+}
+
+.profile-activity-empty h3 {
+  margin: 0 0 8px;
+}
+
+.profile-activity-empty p {
+  margin: 0;
+  color: var(--text-secondary, #888);
+  font-size: 13px;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .profile-activity-item {
+    align-items: flex-start;
+    gap: 12px;
+    padding: 11px;
+  }
+
+  .profile-activity-image {
+    width: 105px;
+  }
+
+  .profile-activity-stats {
+    gap: 8px;
+  }
+
+  .profile-activity-heading {
+    align-items: flex-start;
+  }
+}
+
+/* ==========================================
+   STEAM ACCOUNT
+========================================== */
+
+.steam-account-section {
+  gap: 16px;
+}
+
+.steam-account-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px;
+  border: 1px solid var(--border-color, rgba(128, 128, 128, 0.2));
+  border-radius: 14px;
+  background: var(--card-background, rgba(128, 128, 128, 0.04));
+}
+
+.steam-account-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.steam-account-logo {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: #171a21;
+}
+
+.steam-account-logo img {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+}
+
+.steam-account-info h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.steam-connection-status {
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.steam-connection-status.connected {
+  color: #20a878;
+}
+
+.steam-connection-status.disconnected {
+  color: #888;
+}
+
+@media (max-width: 600px) {
+  .steam-account-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

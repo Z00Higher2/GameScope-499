@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 
 import Dashboard from "./components/Dashboard";
@@ -7,6 +6,8 @@ import Reviews from "./components/Reviews";
 import Issues from "./components/Issues";
 import Intro from "./components/Intro";
 import Settings from "./components/Settings";
+import MyLibrary from "./components/MyLibrary";
+import MyGames from "./components/MyGames";
 import PlayerHome from "./components/PlayerHome";
 import Login from "./components/Login";
 import CompareGames from "./components/CompareGames";
@@ -38,6 +39,16 @@ const ACCENT_VALUES: Record<
 
 interface DemoAccount {
   email: string;
+}
+
+interface RecentActivity {
+  appId: string;
+  gameName: string;
+  analyzedAt: string;
+  mode: Mode;
+  positivePercentage: number;
+  negativePercentage: number;
+  totalReviews: number;
 }
 
 function getSavedAccentColor(): AccentColor {
@@ -78,6 +89,30 @@ function getSavedAccount(): DemoAccount | null {
   return null;
 }
 
+function getSavedActivityHistory(email: string): RecentActivity[] {
+  try {
+    const key = `gamescope-analysis-history-${email.toLowerCase()}`;
+    const saved = localStorage.getItem(key);
+
+    if (!saved) return [];
+
+    const history = JSON.parse(saved);
+
+    return Array.isArray(history) ? history : [];
+  } catch {
+    return [];
+  }
+}
+
+function getSavedSteamConnection(email: string): boolean {
+  try {
+    const key = `gamescope-steam-${email.toLowerCase()}`;
+    return localStorage.getItem(key) === "true";
+  } catch {
+    return false;
+  }
+}
+
 function App() {
   const [darkMode, setDarkMode] = useState(
     () => localStorage.getItem("gamescope-dark-mode") === "true"
@@ -98,7 +133,103 @@ function App() {
     getSavedAccount
   );
 
+  // ------------------------------------------
+  // STEAM CONNECTION STATE
+  // ------------------------------------------
+
+  const [steamConnected, setSteamConnected] = useState(() => {
+    const savedAccount = getSavedAccount();
+
+    return savedAccount
+      ? getSavedSteamConnection(savedAccount.email)
+      : false;
+  });
+
+  useEffect(() => {
+    if (!account?.email) {
+      setSteamConnected(false);
+      return;
+    }
+
+    setSteamConnected(
+      getSavedSteamConnection(account.email)
+    );
+  }, [account?.email]);
+
+  const handleSteamConnect = () => {
+    if (!account?.email) return;
+
+    localStorage.setItem(
+      `gamescope-steam-${account.email.toLowerCase()}`,
+      "true"
+    );
+
+    setSteamConnected(true);
+  };
+
+  const handleSteamDisconnect = () => {
+    if (!account?.email) return;
+
+    localStorage.removeItem(
+      `gamescope-steam-${account.email.toLowerCase()}`
+    );
+
+    setSteamConnected(false);
+  };
+
+  // ------------------------------------------
+  // ACTIVITY HISTORY
+  // ------------------------------------------
+
+  const [activityHistory, setActivityHistory] = useState<
+    RecentActivity[]
+  >(() => {
+    const savedAccount = getSavedAccount();
+
+    return savedAccount
+      ? getSavedActivityHistory(savedAccount.email)
+      : [];
+  });
+
+  const recordAnalysis = (
+    result: GameAnalysis,
+    analysisMode: Mode
+  ) => {
+    if (!account?.email) return;
+
+    const storageKey =
+      `gamescope-analysis-history-${account.email.toLowerCase()}`;
+
+    const newActivity: RecentActivity = {
+      appId: result.game.appId,
+      gameName: result.game.name,
+      analyzedAt: result.analyzedAt ?? new Date().toISOString(),
+      mode: analysisMode,
+      positivePercentage: result.summary.positivePercentage,
+      negativePercentage: result.summary.negativePercentage,
+      totalReviews: result.summary.totalReviews,
+    };
+
+    setActivityHistory((previousHistory) => {
+      const updatedHistory = [
+        newActivity,
+        ...previousHistory,
+      ].slice(0, 50);
+
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify(updatedHistory)
+      );
+
+      return updatedHistory;
+    });
+  };
+
   const isLoggedIn = account !== null;
+
+  // ------------------------------------------
+  // MODE
+  // ------------------------------------------
 
   const [mode, setMode] = useState<Mode>(
     () =>
@@ -111,9 +242,17 @@ function App() {
     localStorage.setItem("gamescope-mode", mode);
   }, [mode]);
 
+  // ------------------------------------------
+  // INTRO
+  // ------------------------------------------
+
   const [showIntro, setShowIntro] = useState(
     () => sessionStorage.getItem("gamescope-show-intro") !== "false"
   );
+
+  // ------------------------------------------
+  // CURRENT PAGE
+  // ------------------------------------------
 
   const [currentPage, setCurrentPage] = useState<Page>(() => {
     const savedAccount = getSavedAccount();
@@ -159,11 +298,9 @@ function App() {
   };
 
   // ------------------------------------------
-  // MODE SELECTION
+  // SETTINGS: REVIEW TIME RANGE
   // ------------------------------------------
 
-  // Settings > Review time range changes which reviews are analyzed,
-  // so reload the analyses after it changes.
   const [timeRange, setTimeRange] = useState(
     () => loadPreferences().reviewTimeRange
   );
@@ -190,7 +327,10 @@ function App() {
     }
   }, [currentPage, timeRange, developerAppId, playerAppId]);
 
-  // Change the selected mode without leaving the Intro screen.
+  // ------------------------------------------
+  // MODE SELECTION
+  // ------------------------------------------
+
   const handleModeChange: React.Dispatch<
     React.SetStateAction<Mode>
   > = (nextMode) => {
@@ -208,6 +348,7 @@ function App() {
     }
 
     setMode(resolvedMode);
+
     setCurrentPage(
       resolvedMode === "player" ? "player" : "dashboard"
     );
@@ -255,6 +396,7 @@ function App() {
     setPlayerAppId(appId);
     setPlayerAnalysis(result);
     setPlayerAnalyzed(true);
+    recordAnalysis(result, "player");
   };
 
   // ------------------------------------------
@@ -266,9 +408,6 @@ function App() {
     password: string,
     selectedMode: Mode
   ) => {
-    // Frontend demonstration only.
-    // Replace this with your group's login API later.
-
     if (!email.trim() || !password.trim()) {
       alert("Please enter your email and password.");
       return;
@@ -302,9 +441,6 @@ function App() {
     password: string,
     selectedMode: Mode
   ) => {
-    // Frontend demonstration only.
-    // No account is actually created on a server.
-
     if (!email.trim() || !password.trim()) {
       alert("Please enter your email and password.");
       return;
@@ -360,15 +496,35 @@ function App() {
   };
 
   // ------------------------------------------
-  // ISSUES: OPEN GAME ANALYSIS
+  // ISSUES / MY GAMES: OPEN GAME ANALYSIS
   // ------------------------------------------
 
   const openDeveloperGame = async (appId: string) => {
-    const result = await analyzeGame(appId);
+    try {
+      // Clear the previous result while the selected game loads.
+      setDeveloperAnalyzed(false);
+      setDeveloperAppId("");
+      setDeveloperAnalysis(null);
 
-    setDeveloperAppId(result.game.appId);
-    setDeveloperAnalysis(result);
-    setDeveloperAnalyzed(true);
+      const result = await analyzeGame(appId);
+
+      setDeveloperAppId(result.game.appId);
+      setDeveloperAnalysis(result);
+      setDeveloperAnalyzed(true);
+
+      recordAnalysis(result, "developer");
+
+      // Navigate only after the analysis succeeds.
+      setCurrentPage("dashboard");
+    } catch (error) {
+      console.error("Unable to analyze selected game:", error);
+
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to analyze this game. Please try again."
+      );
+    }
   };
 
   // ------------------------------------------
@@ -386,6 +542,9 @@ function App() {
     isLoggedIn,
     accountEmail: account?.email ?? "",
     onLogout: handleLogout,
+    steamConnected,
+    onSteamConnect: handleSteamConnect,
+    onSteamDisconnect: handleSteamDisconnect,
   };
 
   const accentValues = ACCENT_VALUES[accentColor];
@@ -441,6 +600,21 @@ function App() {
             />
           )}
 
+          {/* PLAYER-ONLY: MY LIBRARY */}
+          {currentPage === "library" &&
+            mode === "player" &&
+            isLoggedIn &&
+            steamConnected && (
+              <MyLibrary {...sharedProps} />
+            )}
+
+          {/* PLAYER-ONLY: COMPARE GAMES */}
+          {currentPage === "compare" &&
+            mode === "player" &&
+            isLoggedIn && (
+              <CompareGames {...sharedProps} />
+            )}
+
           {/* LOGIN */}
           {currentPage === "login" && (
             <Login
@@ -491,11 +665,14 @@ function App() {
             />
           )}
 
-          {/* PLAYER-ONLY: COMPARE GAMES (LOGIN REQUIRED) */}
-          {currentPage === "compare" &&
-            mode === "player" &&
+          {/* DEVELOPER: MY GAMES */}
+          {currentPage === "my-games" &&
+            mode === "developer" &&
             isLoggedIn && (
-              <CompareGames {...sharedProps} />
+              <MyGames
+                {...sharedProps}
+                onOpenGame={openDeveloperGame}
+              />
             )}
 
           {/* DEVELOPER DASHBOARD */}
@@ -508,6 +685,9 @@ function App() {
               setAnalyzedAppId={setDeveloperAppId}
               analysis={developerAnalysis}
               setAnalysis={setDeveloperAnalysis}
+              onAnalysisComplete={(result) =>
+                recordAnalysis(result, "developer")
+              }
             />
           )}
 
@@ -544,7 +724,10 @@ function App() {
 
           {/* PROFILE */}
           {currentPage === "profile" && isLoggedIn && (
-            <Profile {...sharedProps} />
+            <Profile
+              {...sharedProps}
+              activityHistory={activityHistory}
+            />
           )}
 
           {/* SETTINGS */}

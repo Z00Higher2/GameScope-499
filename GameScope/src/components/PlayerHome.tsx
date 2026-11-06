@@ -25,6 +25,7 @@ interface PlayerHomeProps {
   isLoggedIn: boolean;
   accountEmail: string;
   onLogout: () => void;
+  steamConnected: boolean;
 }
 
 interface SearchGame {
@@ -579,6 +580,7 @@ function PlayerHome({
   // Authentication
   setMode,
   isLoggedIn = false,
+  steamConnected = false,
   accountEmail = "",
   onLogout,
 }: PlayerHomeProps) {
@@ -834,6 +836,7 @@ function PlayerHome({
           mode={mode}
           setMode={setMode}
           isLoggedIn={isLoggedIn}
+          steamConnected={steamConnected}
           accountEmail={accountEmail}
           onLogout={onLogout}
         />

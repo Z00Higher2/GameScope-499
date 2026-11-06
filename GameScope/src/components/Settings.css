@@ -1039,183 +1039,100 @@
   }
 }
 
+/* ==========================================
+   STEAM ACCOUNT CONNECTION
+========================================== */
 
-/* =========================================================
-   STEAM ACCOUNT LINKING
-========================================================= */
-
-.steam-account-header {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 22px 24px;
-}
-
-.steam-logo {
-  display: grid;
-  width: 46px;
-  height: 46px;
-  flex: 0 0 46px;
-  place-items: center;
-
-  border: 1px solid var(--settings-border);
-  border-radius: 13px;
-
-  color: #ffffff;
-  background: linear-gradient(135deg, #263d59, #101b2b);
-
-  font-size: 23px;
-  font-weight: 900;
-}
-
-.steam-account-info {
-  min-width: 0;
-  flex: 1;
-}
-
-.steam-account-info h3 {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 750;
-}
-
-.steam-account-info p {
-  margin: 5px 0 0;
-  color: var(--settings-muted);
-  font-size: 11px;
-  line-height: 1.6;
-}
-
-.steam-status {
-  flex: 0 0 auto;
-  padding: 7px 10px;
-  border: 1px solid;
-  border-radius: 8px;
-  font-size: 10px;
-  font-weight: 800;
-}
-
-.steam-connected {
-  color: #20a878;
-  border-color: rgba(32, 168, 120, 0.25);
-  background: rgba(32, 168, 120, 0.1);
-}
-
-.steam-disconnected {
-  color: var(--settings-muted);
-  border-color: var(--settings-border);
-  background: var(--settings-hover);
-}
-
-.steam-linked-content {
+.steam-account-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
-  padding: 20px 24px;
+  gap: 20px;
+  padding: 20px;
+  border: 1px solid var(--border-color, rgba(128, 128, 128, 0.2));
+  border-radius: 14px;
+  background: var(--card-background, rgba(128, 128, 128, 0.04));
 }
 
-.steam-profile-details {
+.steam-account-info {
   display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 8px;
+  align-items: center;
+  gap: 14px;
 }
 
-.steam-profile-label {
-  color: var(--settings-muted);
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 1px;
+.steam-account-logo {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: #171a21;
 }
 
-.steam-profile-link {
+.steam-account-logo img {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+}
+
+.steam-account-info h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.steam-connection-status {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  max-width: 100%;
-
-  color: var(--settings-accent);
-  font-size: 11px;
-  font-weight: 700;
-  overflow-wrap: anywhere;
-  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
 }
 
-.steam-profile-link:hover {
-  text-decoration: underline;
+.steam-connection-status.connected {
+  color: #20a878;
 }
 
-.steam-profile-link span {
-  flex: 0 0 auto;
+.steam-connection-status.disconnected {
+  color: #888;
 }
 
-.steam-actions {
-  display: flex;
-  flex: 0 0 auto;
-  gap: 8px;
+.steam-connect-button,
+.steam-disconnect-button {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-.steam-connect-form {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 11px;
-  padding: 20px 24px;
+.steam-connect-button {
+  background: var(--accent-color);
+  color: white;
 }
 
-.steam-connect-form label {
-  color: var(--settings-text);
-  font-size: 11px;
-  font-weight: 750;
+.steam-disconnect-button {
+  background: rgba(220, 60, 60, 0.12);
+  color: #dc3c3c;
 }
 
-.steam-connect-form .settings-input {
-  width: 100%;
+.steam-connect-button:hover,
+.steam-disconnect-button:hover {
+  opacity: 0.85;
+  transform: translateY(-1px);
 }
 
-.steam-error {
-  margin: 0;
-  color: #e05252;
-  font-size: 10px;
-  line-height: 1.6;
+.steam-demo-note {
+  margin-top: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  opacity: 0.7;
 }
-
-.steam-connect-form .settings-note {
-  margin: 0;
-}
-
-/* Steam account accessibility */
-
-.steam-profile-link:focus-visible {
-  outline: 2px solid var(--settings-accent);
-  outline-offset: 4px;
-  border-radius: 3px;
-}
-
-/* Steam account responsive layout */
 
 @media (max-width: 600px) {
-  .steam-account-header {
-    flex-wrap: wrap;
-    padding: 18px 16px;
-  }
-
-  .steam-status {
-    margin-left: auto;
-  }
-
-  .steam-linked-content {
+  .steam-account-card {
     align-items: flex-start;
     flex-direction: column;
-    padding: 18px 16px;
-  }
-
-  .steam-connect-form {
-    padding: 18px 16px;
-  }
-
-  .steam-actions {
-    width: 100%;
   }
 }

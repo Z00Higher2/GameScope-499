@@ -1,7 +1,8 @@
-
 export type Page =
   | "player"
   | "dashboard"
+  | "my-games"
+  | "library"
   | "reviews"
   | "issues"
   | "analytics"

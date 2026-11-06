@@ -31,6 +31,8 @@ interface DashboardProps {
   isLoggedIn?: boolean;
   accountEmail?: string;
   onLogout?: () => void;
+
+  onAnalysisComplete?: (result: GameAnalysis) => void;
 }
 
 // ==================================================
@@ -99,6 +101,7 @@ function Dashboard({
   isLoggedIn = false,
   accountEmail = "",
   onLogout,
+  onAnalysisComplete,
   
 }: DashboardProps) {
   // ==================================================
@@ -214,6 +217,7 @@ function Dashboard({
       setAnalysis(result);
       setAnalyzed(true);
       setAnalyzedAppId(result.game.appId);
+      onAnalysisComplete?.(result);
 
       setSelectedGame(null);
       setGameSearch("");

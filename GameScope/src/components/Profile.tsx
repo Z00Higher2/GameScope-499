@@ -15,6 +15,19 @@ interface ProfileProps {
   isLoggedIn: boolean;
   accountEmail: string;
   onLogout: () => void;
+  steamConnected: boolean;
+  onSteamConnect: () => void;
+  onSteamDisconnect: () => void;
+
+  activityHistory: {
+  appId: string;
+  gameName: string;
+  analyzedAt: string;
+  mode: Mode;
+  positivePercentage: number;
+  negativePercentage: number;
+  totalReviews: number;
+}[];
 }
 
 interface DeveloperProfileData {
@@ -57,6 +70,10 @@ function Profile({
   isLoggedIn,
   accountEmail,
   onLogout,
+  activityHistory,
+  steamConnected,
+  onSteamConnect,
+  onSteamDisconnect,
 }: ProfileProps) {
   const isPlayer = mode === "player";
 
@@ -670,6 +687,139 @@ function Profile({
             </div>
           </section>
         )}
+
+        {/* Steam Account */}
+        <section className="profile-section steam-account-section">
+          <h2>Steam Account</h2>
+
+          <p>
+            Connect your Steam account to prepare for personalized
+            gaming features and account integration.
+          </p>
+
+          <div className="steam-account-card">
+            <div className="steam-account-info">
+              <div className="steam-account-logo">
+                <img
+                  src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg"
+                  alt="Steam logo"
+                />
+              </div>
+
+              <div>
+                <h3>Steam</h3>
+
+                <span
+                  className={`steam-connection-status ${
+                    steamConnected ? "connected" : "disconnected"
+                  }`}
+                >
+                  {steamConnected ? "Demo Connected" : "Not Connected"}
+                </span>
+              </div>
+            </div>
+
+            {steamConnected ? (
+              <button
+                type="button"
+                className="profile-remove-button"
+                onClick={() => {
+                  const confirmed = window.confirm(
+                    "Are you sure you want to disconnect your Steam account?"
+                  );
+
+                  if (confirmed) {
+                    onSteamDisconnect();
+                  }
+                }}
+              >
+                Disconnect Steam
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="profile-upload-button"
+                onClick={onSteamConnect}
+              >
+                Connect Steam (Demo)
+              </button>
+            )}
+          </div>
+
+          <span className="profile-upload-hint">
+            Demo only: this does not authenticate with Steam or access
+            your Steam profile. Real Steam sign-in will be added later.
+          </span>
+        </section>
+                {/* Recent Analysis Activity */}
+        <section className="profile-section profile-activity">
+          <div className="profile-activity-heading">
+            <div>
+              <h2>Recent Activity</h2>
+              <p>Your recently analyzed games and their review statistics.</p>
+            </div>
+
+            <span className="profile-activity-count">
+              {activityHistory.length} / 50
+            </span>
+          </div>
+
+          {activityHistory.length > 0 ? (
+            <div className="profile-activity-list">
+              {activityHistory.map((activity, index) => (
+                <article
+                  className="profile-activity-item"
+                  key={`${activity.appId}-${activity.analyzedAt}-${index}`}
+                >
+                  <img
+                    className="profile-activity-image"
+                    src={`https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${activity.appId}/header.jpg`}
+                    alt={`${activity.gameName} cover`}
+                    onError={(event) => {
+                      event.currentTarget.style.visibility = "hidden";
+                    }}
+                  />
+
+                  <div className="profile-activity-info">
+                    <h3>{activity.gameName}</h3>
+
+                    <span className="profile-activity-date">
+                      {new Date(activity.analyzedAt).toLocaleString()}
+                    </span>
+
+                    <span className="profile-activity-mode">
+                      {activity.mode === "player"
+                        ? "Player Analysis"
+                        : "Developer Analysis"}
+                    </span>
+
+                    <div className="profile-activity-stats">
+                      <span className="activity-positive">
+                        {activity.positivePercentage}% Positive
+                      </span>
+
+                      <span className="activity-negative">
+                        {activity.negativePercentage}% Negative
+                      </span>
+
+                      <span>
+                        {activity.totalReviews.toLocaleString()} Reviews
+                      </span>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="profile-activity-empty">
+              <h3>No activity yet</h3>
+              <p>
+                Analyze a game in Player or Developer mode.
+                Your analysis history will appear here.
+              </p>
+            </div>
+          )}
+        </section>
       </main>
     </div>
   );

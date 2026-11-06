@@ -15,6 +15,7 @@ interface NavbarProps {
 
   // Authentication
   isLoggedIn?: boolean;
+  steamConnected?: boolean;
   accountEmail?: string;
   onLogout?: () => void;
 }
@@ -28,6 +29,7 @@ function Navbar({
   mode,
   setMode,
   isLoggedIn = false,
+  steamConnected = false,
   accountEmail = "",
   onLogout,
 }: NavbarProps) {
@@ -68,8 +70,24 @@ function Navbar({
 
   // Navigation
   const navigateTo = (page: Page) => {
+    // My Library is available only to Steam-connected Players.
+    if (page === "library" && (!isLoggedIn || !isPlayer || !steamConnected)) {
+      setCurrentPage("player");
+      setMobileExpanded(false);
+      setAccountDropdownOpen(false);
+      return;
+    }
+
     // Compare is available only to logged-in Players.
     if (page === "compare" && (!isLoggedIn || !isPlayer)) {
+      setCurrentPage("login");
+      setMobileExpanded(false);
+      setAccountDropdownOpen(false);
+      return;
+    }
+
+    // My Games is available only to logged-in Developers.
+    if (page === "my-games" && (!isLoggedIn || !isDeveloper)) {
       setCurrentPage("login");
       setMobileExpanded(false);
       setAccountDropdownOpen(false);
@@ -194,6 +212,28 @@ function Navbar({
             </button>
           )}
 
+          {/* My Library - Steam-connected Players only */}
+          {isPlayer && isLoggedIn && steamConnected && (
+            <button
+              type="button"
+              className={`nav-item ${
+                currentPage === "library" ? "active" : ""
+              }`}
+              onClick={() => navigateTo("library")}
+              aria-label="Go to My Library"
+            >
+              <span className="nav-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 5h16v14H4z" />
+                  <path d="M8 5v14" />
+                  <path d="M12 9h5" />
+                  <path d="M12 13h5" />
+                </svg>
+              </span>
+              <span className="nav-text">My Library</span>
+            </button>
+          )}
+
           {/* Developer Dashboard */}
           {isDeveloper && (
             <button
@@ -212,6 +252,29 @@ function Navbar({
                 </svg>
               </span>
               <span className="nav-text">Dashboard</span>
+            </button>
+          )}
+
+          {/* My Games - Logged-in Developers only */}
+          {isDeveloper && isLoggedIn && (
+            <button
+              type="button"
+              className={`nav-item ${
+                currentPage === "my-games" ? "active" : ""
+              }`}
+              onClick={() => navigateTo("my-games")}
+              aria-label="Go to My Games"
+            >
+              <span className="nav-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="3" y="5" width="18" height="14" rx="2" />
+                  <path d="M8 10v4" />
+                  <path d="M6 12h4" />
+                  <circle cx="16" cy="10" r="1" />
+                  <circle cx="18" cy="14" r="1" />
+                </svg>
+              </span>
+              <span className="nav-text">My Games</span>
             </button>
           )}
 

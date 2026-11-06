@@ -45,6 +45,10 @@ interface SettingsProps {
   isLoggedIn?: boolean;
   accountEmail?: string;
   onLogout?: () => void;
+
+  steamConnected: boolean;
+  onSteamConnect: () => void;
+  onSteamDisconnect: () => void;
 }
 
 function Settings({
@@ -60,6 +64,9 @@ function Settings({
   isLoggedIn = false,
   accountEmail = "",
   onLogout,
+  steamConnected,
+  onSteamConnect,
+  onSteamDisconnect,
 }: SettingsProps) {
   const [preferences, setPreferences] =
     useState<Preferences>(loadPreferences);
@@ -68,12 +75,6 @@ function Settings({
   const [favoriteInput, setFavoriteInput] = useState("");
   const [savedMessage, setSavedMessage] = useState("");
 
-  const [steamProfile, setSteamProfile] = useState(() => {
-  return localStorage.getItem(STEAM_PROFILE_KEY) || "";
-});
-
-const [steamInput, setSteamInput] = useState(steamProfile);
-const [steamError, setSteamError] = useState("");
 
   useEffect(() => {
     localStorage.setItem(
@@ -126,51 +127,7 @@ const [steamError, setSteamError] = useState("");
     setSavedMessage("Game removed from your saved list.");
   };
 
-  const connectSteam = () => {
-  const profile = steamInput.trim();
 
-  try {
-    const url = new URL(profile);
-
-    const validHost =
-      url.hostname === "steamcommunity.com" ||
-      url.hostname === "www.steamcommunity.com";
-
-    const validPath =
-      /^\/(id|profiles)\/[A-Za-z0-9_-]+\/?$/.test(url.pathname);
-
-    if (
-      !validHost ||
-      url.protocol !== "https:" ||
-      !validPath
-    ) {
-      setSteamError(
-        "Enter a valid Steam profile URL, such as https://steamcommunity.com/id/username."
-      );
-      return;
-    }
-
-    const normalizedProfile = `https://steamcommunity.com${url.pathname}`;
-
-    localStorage.setItem(STEAM_PROFILE_KEY, normalizedProfile);
-
-    setSteamProfile(normalizedProfile);
-    setSteamInput(normalizedProfile);
-    setSteamError("");
-    setSavedMessage("Steam profile saved locally.");
-  } catch {
-    setSteamError("Please enter a valid Steam profile URL.");
-  }
-};
-
-const disconnectSteam = () => {
-  localStorage.removeItem(STEAM_PROFILE_KEY);
-
-  setSteamProfile("");
-  setSteamInput("");
-  setSteamError("");
-  setSavedMessage("Steam profile disconnected.");
-};
 
   const exportPreferences = () => {
     const exportData = {
@@ -691,121 +648,72 @@ const disconnectSteam = () => {
         </section>
 
 
-        {/* STEAM ACCOUNT */}
-
-        {mode === "player" && (
-          <section className="settings-section" id="steam-account">
-            <div className="settings-section-heading">
-              <div className="settings-section-icon">🎮</div>
-
+        {/* Steam Account */}
+          <section className="settings-section">
+            <div className="steam-account-header">
               <div>
                 <h2>Steam Account</h2>
-                <p>Connect your Steam gaming profile to GameScope.</p>
+                <p>
+                  Connect your Steam account to prepare for personalized
+                  gaming features and account integration.
+                </p>
               </div>
             </div>
 
-            <div className="settings-card">
-              <div className="steam-account-header">
-                <div className="steam-logo">S</div>
-
-                <div className="steam-account-info">
-                  <h3>Steam Profile</h3>
-                  <p>
-                    Link your Steam community profile to your GameScope account.
-                  </p>
+            <div className="steam-account-card">
+              <div className="steam-account-info">
+                <div className="steam-account-logo">
+                  <img
+                    src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg"
+                    alt="Steam logo"
+                  />
                 </div>
 
-                <span
-                  className={`steam-status ${
-                    steamProfile ? "steam-connected" : "steam-disconnected"
-                  }`}
-                >
-                  {steamProfile ? "Linked" : "Not linked"}
-                </span>
+                <div>
+                  <h3>Steam</h3>
+
+                  <span
+                    className={`steam-connection-status ${
+                      steamConnected ? "connected" : "disconnected"
+                    }`}
+                  >
+                    {steamConnected ? "Demo Connected" : "Not Connected"}
+                  </span>
+                </div>
               </div>
 
-              <div className="settings-divider" />
+              {steamConnected ? (
+                <button
+                  type="button"
+                  className="steam-disconnect-button"
+                  onClick={() => {
+                    const confirmed = window.confirm(
+                      "Are you sure you want to disconnect your Steam account?"
+                    );
 
-              {steamProfile ? (
-                <div className="steam-linked-content">
-                  <div className="steam-profile-details">
-                    <span className="steam-profile-label">
-                      SAVED STEAM PROFILE
-                    </span>
-
-                    <a
-                      href={steamProfile}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="steam-profile-link"
-                    >
-                      {steamProfile}
-                      <span>↗</span>
-                    </a>
-                  </div>
-
-                  <div className="steam-actions">
-                    <button
-                      type="button"
-                      className="settings-secondary-button"
-                      onClick={() => {
-                        setSteamProfile("");
-                        setSteamInput("");
-                        localStorage.removeItem(STEAM_PROFILE_KEY);
-                        setSteamError("");
-                        setSavedMessage("Steam profile disconnected.");
-                      }}
-                    >
-                      Disconnect
-                    </button>
-                  </div>
-                </div>
+                    if (confirmed) {
+                      onSteamDisconnect();
+                    }
+                  }}
+                >
+                  Disconnect Steam
+                </button>
               ) : (
-                <div className="steam-connect-form">
-                  <label htmlFor="steam-profile-url">
-                    Steam Community Profile URL
-                  </label>
-
-                  <input
-                    id="steam-profile-url"
-                    type="url"
-                    className="settings-input"
-                    placeholder="https://steamcommunity.com/id/username"
-                    value={steamInput}
-                    onChange={(event) => {
-                      setSteamInput(event.target.value);
-                      setSteamError("");
-                    }}
-                  />
-
-                  {steamError && (
-                    <p className="steam-error" role="alert">
-                      {steamError}
-                    </p>
-                  )}
-
-                  <button
-                    type="button"
-                    className="settings-primary-button"
-                    onClick={connectSteam}
-                  >
-                    Link Steam Profile
-                  </button>
-
-                  <p className="settings-note">
-                    You can find your profile URL in your Steam Community profile.
-                  </p>
-                </div>
+                <button
+                  type="button"
+                  className="steam-connect-button"
+                  onClick={onSteamConnect}
+                >
+                  Connect Steam (Demo)
+                </button>
               )}
             </div>
 
-            <p className="settings-note">
-              This frontend currently saves your Steam profile URL locally.
-              It does not authenticate your Steam account or retrieve your
-              Steam games yet.
+            <p className="steam-demo-note">
+              Demo only: this does not authenticate with Steam or access
+              your Steam profile. Real Steam sign-in will be added later.
             </p>
           </section>
-        )}
 
         {/* 7. PLAYER PREFERENCES */}
 

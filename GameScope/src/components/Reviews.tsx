@@ -19,6 +19,7 @@ interface ReviewsProps {
   mode: Mode;
   setMode: React.Dispatch<React.SetStateAction<Mode>>;
   isLoggedIn?: boolean;
+  steamConnected?: boolean;
   accountEmail?: string;
   onLogout?: () => void;
 }
@@ -111,6 +112,7 @@ function Reviews({
   mode,
   setMode,
   isLoggedIn = false,
+  steamConnected = false,
   accountEmail = "",
   onLogout,
 }: ReviewsProps) {
@@ -167,7 +169,6 @@ function Reviews({
     icon: signalIcons[signal.name] ?? "◆",
   }));
 
-  // Settings > hide low quality, minimum review length and minimum playtime
   const visibleReviews = useMemo(
     () =>
       reviewCards.filter(
@@ -240,7 +241,6 @@ function Reviews({
       const validA = Number.isFinite(dateA);
       const validB = Number.isFinite(dateB);
 
-      // Keep reviews without usable dates at the bottom.
       if (!validA && !validB) return 0;
       if (!validA) return 1;
       if (!validB) return -1;
@@ -337,20 +337,19 @@ function Reviews({
   if (isLoading) {
     return (
       <main className={`reviews-page ${darkMode ? "dark-mode" : ""}`}>
-        
-      <Navbar
-        darkMode={darkMode}
-        setDarkMode={setDarkMode}
-        currentPage={currentPage}
-        setCurrentPage={setCurrentPage}
-        onLogoClick={onLogoClick}
-        mode={mode}
-        setMode={setMode}
-        isLoggedIn={isLoggedIn}
-        accountEmail={accountEmail}
-        onLogout={onLogout}
-      />
-
+        <Navbar
+          darkMode={darkMode}
+          setDarkMode={setDarkMode}
+          currentPage={currentPage}
+          setCurrentPage={setCurrentPage}
+          onLogoClick={onLogoClick}
+          mode={mode}
+          setMode={setMode}
+          isLoggedIn={isLoggedIn}
+          steamConnected={steamConnected}
+          accountEmail={accountEmail}
+          onLogout={onLogout}
+        />
 
         <section className="reviews-loading" aria-live="polite">
           <div className="reviews-loading-content">
@@ -380,20 +379,19 @@ function Reviews({
 
   return (
     <main className={`reviews-page ${darkMode ? "dark-mode" : ""}`}>
-      
-        <Navbar
-          darkMode={darkMode}
-          setDarkMode={setDarkMode}
-          currentPage={currentPage}
-          setCurrentPage={setCurrentPage}
-          onLogoClick={onLogoClick}
-          mode={mode}
-          setMode={setMode}
-          isLoggedIn={isLoggedIn}
-          accountEmail={accountEmail}
-          onLogout={onLogout}
-        />
-
+      <Navbar
+        darkMode={darkMode}
+        setDarkMode={setDarkMode}
+        currentPage={currentPage}
+        setCurrentPage={setCurrentPage}
+        onLogoClick={onLogoClick}
+        mode={mode}
+        setMode={setMode}
+        isLoggedIn={isLoggedIn}
+        steamConnected={steamConnected}
+        accountEmail={accountEmail}
+        onLogout={onLogout}
+      />
 
       {!analyzed ? (
         <section className="reviews-empty reviews-animate reviews-animate-1">
