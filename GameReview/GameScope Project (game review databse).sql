@@ -190,8 +190,6 @@ create table if not exists organization_memberships(
         references users(user_id)
         on update cascade
         on delete cascade,
-    index idx_org_memberships_user_status
-        (user_id, affiliation_status)
 ) ENGINE = InnoDB;
 
 create table if not exists organization_games(
