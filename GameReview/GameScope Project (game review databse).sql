@@ -17,7 +17,7 @@ create table if not exists users(
     user_id int unsigned auto_increment not null,
     username varchar(255) not null,
     email varchar(255) not null,
-    password_hash varchar(255) not null,
+    password varchar(255) not null,
     created_at timestamp not null default current_timestamp,
     updated_at timestamp not null default current_timestamp
         on update current_timestamp,
@@ -132,7 +132,7 @@ create table if not exists steam_accounts(
         on delete cascade
 ) ENGINE = InnoDB;
 
-
+-- Records games found in the linked Steam library or added manually.
 create table if not exists player_games(
     user_id int unsigned not null,
     game_id int unsigned not null,
@@ -156,6 +156,9 @@ create table if not exists player_games(
 
 -- ============================================================
 -- ORGANIZATIONS
+-- Membership approval is a lightweight school-project verification flow.
+-- A verified membership means it was approved by a GameScope administrator;
+-- an organization email by itself does not prove employment.
 -- ============================================================
 
 create table if not exists organizations(
@@ -177,8 +180,14 @@ create table if not exists organization_memberships(
     organization_id int unsigned not null,
     user_id int unsigned not null,
     organization_email varchar(255) null,
-    joined_at timestamp not null default current_timestamp,
-    
+    membership_role enum('admin', 'member') not null default 'member',
+    affiliation_status enum('pending', 'verified', 'rejected')
+        not null default 'pending',
+    email_verified_at timestamp null,
+    requested_at timestamp not null default current_timestamp,
+    reviewed_at timestamp null,
+    reviewed_by_user_id int unsigned null,
+
     primary key (organization_id, user_id),
     constraint fk_org_memberships_organization_id
         foreign key (organization_id)
@@ -190,17 +199,26 @@ create table if not exists organization_memberships(
         references users(user_id)
         on update cascade
         on delete cascade,
+    constraint fk_org_memberships_reviewed_by
+        foreign key (reviewed_by_user_id)
+        references users(user_id)
+        on update cascade
+        on delete set null,
     index idx_org_memberships_user_status
         (user_id, affiliation_status)
 ) ENGINE = InnoDB;
 
--- Organization/game relationships are recorded directly without a verification workflow.
+-- Only verified organization/game relationships should be shown as confirmed.
 create table if not exists organization_games(
     organization_id int unsigned not null,
     game_id int unsigned not null,
     relationship enum('developed', 'published', 'owned') not null,
+    relationship_status enum('pending', 'verified', 'rejected')
+        not null default 'pending',
     added_by_user_id int unsigned null,
+    reviewed_by_user_id int unsigned null,
     added_at timestamp not null default current_timestamp,
+    reviewed_at timestamp null,
 
     primary key (organization_id, game_id, relationship),
     constraint fk_org_games_organization_id
@@ -218,7 +236,12 @@ create table if not exists organization_games(
         references users(user_id)
         on update cascade
         on delete set null,
-    index idx_org_games_game_id (game_id)
+    constraint fk_org_games_reviewed_by
+        foreign key (reviewed_by_user_id)
+        references users(user_id)
+        on update cascade
+        on delete set null,
+    index idx_org_games_game_status (game_id, relationship_status)
 ) ENGINE = InnoDB;
 
 
