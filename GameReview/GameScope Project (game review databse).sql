@@ -17,7 +17,7 @@ create table if not exists users(
     user_id int unsigned auto_increment not null,
     username varchar(255) not null,
     email varchar(255) not null,
-    password varchar(255) not null,
+    password_hash varchar(255) not null,
     created_at timestamp not null default current_timestamp,
     updated_at timestamp not null default current_timestamp
         on update current_timestamp,
@@ -132,7 +132,7 @@ create table if not exists steam_accounts(
         on delete cascade
 ) ENGINE = InnoDB;
 
--- Records games found in the linked Steam library or added manually.
+
 create table if not exists player_games(
     user_id int unsigned not null,
     game_id int unsigned not null,
@@ -156,9 +156,6 @@ create table if not exists player_games(
 
 -- ============================================================
 -- ORGANIZATIONS
--- Membership approval is a lightweight school-project verification flow.
--- A verified membership means it was approved by a GameScope administrator;
--- an organization email by itself does not prove employment.
 -- ============================================================
 
 create table if not exists organizations(
@@ -180,14 +177,8 @@ create table if not exists organization_memberships(
     organization_id int unsigned not null,
     user_id int unsigned not null,
     organization_email varchar(255) null,
-    membership_role enum('admin', 'member') not null default 'member',
-    affiliation_status enum('pending', 'verified', 'rejected')
-        not null default 'pending',
-    email_verified_at timestamp null,
-    requested_at timestamp not null default current_timestamp,
-    reviewed_at timestamp null,
-    reviewed_by_user_id int unsigned null,
-
+    joined_at timestamp not null default current_timestamp,
+    
     primary key (organization_id, user_id),
     constraint fk_org_memberships_organization_id
         foreign key (organization_id)
@@ -199,26 +190,16 @@ create table if not exists organization_memberships(
         references users(user_id)
         on update cascade
         on delete cascade,
-    constraint fk_org_memberships_reviewed_by
-        foreign key (reviewed_by_user_id)
-        references users(user_id)
-        on update cascade
-        on delete set null,
     index idx_org_memberships_user_status
         (user_id, affiliation_status)
 ) ENGINE = InnoDB;
 
--- Only verified organization/game relationships should be shown as confirmed.
 create table if not exists organization_games(
     organization_id int unsigned not null,
     game_id int unsigned not null,
     relationship enum('developed', 'published', 'owned') not null,
-    relationship_status enum('pending', 'verified', 'rejected')
-        not null default 'pending',
     added_by_user_id int unsigned null,
-    reviewed_by_user_id int unsigned null,
     added_at timestamp not null default current_timestamp,
-    reviewed_at timestamp null,
 
     primary key (organization_id, game_id, relationship),
     constraint fk_org_games_organization_id
@@ -236,12 +217,7 @@ create table if not exists organization_games(
         references users(user_id)
         on update cascade
         on delete set null,
-    constraint fk_org_games_reviewed_by
-        foreign key (reviewed_by_user_id)
-        references users(user_id)
-        on update cascade
-        on delete set null,
-    index idx_org_games_game_status (game_id, relationship_status)
+    index idx_org_games_game_id (game_id)
 ) ENGINE = InnoDB;
 
 
@@ -336,6 +312,56 @@ create table if not exists reviews_import(
 ) ENGINE = InnoDB;
 
 -- ============================================================
+-- REVIEW FILTER RUNS
+-- How many reviews the junk filter removed each time a game
+-- was analyzed, and why (written by pipeline.py)
+-- ============================================================
+
+create table if not exists review_filter_runs(
+    run_id int unsigned auto_increment not null,
+    game_id int unsigned not null,
+    reviews_collected int unsigned not null default 0,
+    reviews_kept int unsigned not null default 0,
+    removed_reasons text,
+    run_at timestamp not null default current_timestamp,
+
+    primary key (run_id),
+    foreign key (game_id)
+    references games(game_id)
+    on update cascade
+    on delete cascade,
+
+    index idx_filter_runs_game (game_id, run_at)
+) ENGINE = InnoDB;
+
+-- ============================================================
+-- ISSUE STATUSES
+-- The status a developer sets for each issue on the Issues page
+-- (written by pipeline.py)
+-- MIGRATION for an EXISTING database (run once; skip on a fresh install)
+-- ============================================================
+
+create table if not exists issue_statuses(
+    game_id int unsigned not null,
+    topic varchar(50) not null,
+
+    status enum (
+        'Detected',
+        'Investigating',
+        'In Progress',
+        'Resolved'
+    ) not null default 'Detected',
+
+    updated_at timestamp not null default current_timestamp
+        on update current_timestamp,
+
+    primary key (game_id, topic),
+    foreign key (game_id)
+    references games(game_id)
+    on update cascade
+    on delete cascade
+) ENGINE = InnoDB;
+-- ============================================================
 -- MIGRATION for an EXISTING database (run once; skip on a fresh install)
 -- ============================================================
 -- After running this updated schema against an existing database, copy
@@ -359,8 +385,30 @@ describe games;
 describe reviews;
 describe game_updates;
 describe reviews_import;
+describe review_filter_runs;
+describe issue_statuses;
+describe users;
+describe user_roles;
+describe user_priorities;
+describe developer_profiles;
+describe steam_accounts;
+describe player_games;
+describe organizations;
+describe organization_memberships;
+describe organization_games;
 
 select * from games;
 select * from reviews;
 select * from game_updates;
 select * from reviews_import;
+select * from review_filter_runs;
+select * from issue_statuses;
+select * from users;
+select * from user_roles;
+select * from user_priorities;
+select * from developer_profiles;
+select * from steam_accounts;
+select * from player_games;
+select * from organizations;
+select * from organization_memberships;
+select * from organization_games;
