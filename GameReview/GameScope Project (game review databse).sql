@@ -336,7 +336,6 @@ create table if not exists review_filter_runs(
 -- ISSUE STATUSES
 -- The status a developer sets for each issue on the Issues page
 -- (written by pipeline.py)
--- MIGRATION for an EXISTING database (run once; skip on a fresh install)
 -- ============================================================
 
 create table if not exists issue_statuses(

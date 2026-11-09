@@ -154,8 +154,16 @@ def parse_rows(rows, requested_app_id):
             helpful_votes = int((row.get("helpful_votes") or "0").strip() or "0")
             if helpful_votes < 0:
                 raise ValueError("helpful_votes cannot be negative.")
-            created_at = parse_datetime(row.get("created_at"), "created_at")
-            updated_at = parse_datetime(row.get("updated_at"), "updated_at")
+            # SteamGameReviewer_.py names these review_posted_at and
+            # review_updated_at; older CSV files use created_at/updated_at
+            created_at = parse_datetime(
+                row.get("review_posted_at") or row.get("created_at"),
+                "review_posted_at",
+            )
+            updated_at = parse_datetime(
+                row.get("review_updated_at") or row.get("updated_at"),
+                "review_updated_at",
+            )
         except (ValueError, InvalidOperation) as error:
             raise ValueError(f"Invalid CSV data on line {line_number}: {error}") from error
 
@@ -286,7 +294,11 @@ def import_reviews(connection, game_data, reviews, input_file):
                     helpful_votes, language, created_at, updated_at
                 )
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE review_id = VALUES(review_id)
+                ON DUPLICATE KEY UPDATE
+                    -- Fill in dates missing from earlier imports; an
+                    -- already-stored review is otherwise left unchanged
+                    created_at = COALESCE(created_at, VALUES(created_at)),
+                    updated_at = COALESCE(updated_at, VALUES(updated_at))
                 """,
                 (game_id, *review),
             )

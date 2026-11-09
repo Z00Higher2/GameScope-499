@@ -48,15 +48,18 @@ def ensure_schema():
     if not re.fullmatch(r"[A-Za-z0-9_]+", database):
         raise ValueError(f"Invalid MYSQL_DATABASE name: {database!r}")
 
-    create_tables = []
-    for statement in SCHEMA_FILE.read_text(encoding="utf-8-sig").split(";"):
-        sql = "\n".join(
-            line
-            for line in statement.splitlines()
-            if not line.strip().startswith("--")
-        ).strip()
-        if re.match(r"create\s+table", sql, re.IGNORECASE):
-            create_tables.append(sql)
+    # Drop comment lines before splitting on ";", so a semicolon inside a
+    # comment can't hide the CREATE TABLE that follows it
+    schema = "\n".join(
+        line
+        for line in SCHEMA_FILE.read_text(encoding="utf-8-sig").splitlines()
+        if not line.strip().startswith("--")
+    )
+    create_tables = [
+        sql
+        for sql in (statement.strip() for statement in schema.split(";"))
+        if re.match(r"create\s+table", sql, re.IGNORECASE)
+    ]
 
     connection = importer.connect_database(use_database=True)
     try:
