@@ -122,6 +122,12 @@ def get_game_details(app_id):
         "game_developer": ", ".join(data.get("developers") or []),
         "game_publisher": ", ".join(data.get("publishers") or []),
         "game_price": price,
+        # Not out yet (Steam shows "Coming soon" or "To be announced")
+        "game_coming_soon": bool(release_info.get("coming_soon")),
+        # Steam's genre id 70 is Early Access
+        "game_early_access": any(
+            str(genre.get("id")) == "70" for genre in data.get("genres") or []
+        ),
     }
 
 # ==========================================

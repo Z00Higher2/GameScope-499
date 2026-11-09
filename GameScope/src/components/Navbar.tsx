@@ -285,7 +285,7 @@ function Navbar({
               currentPage === "reviews" ? "active" : ""
             }`}
             onClick={() => navigateTo("reviews")}
-            aria-label="Go to Reviews"
+            aria-label={isPlayer ? "Go to Your Reviewed Games" : "Go to Reviews"}
           >
             <span className="nav-icon">
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -294,7 +294,9 @@ function Navbar({
                 <path d="M8 12.5h5" />
               </svg>
             </span>
-            <span className="nav-text">Reviews</span>
+            <span className="nav-text">
+              {isPlayer ? "Your Reviewed Games" : "Reviews"}
+            </span>
           </button>
 
           {/* Compare Games - Logged-in Players only */}

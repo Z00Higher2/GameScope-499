@@ -10,6 +10,7 @@ The website's dev server forwards every /api request here
 (see GameScope/vite.config.ts).
 """
 
+import json
 import time
 import logging
 from datetime import datetime, timedelta, timezone
@@ -55,6 +56,7 @@ STEAM_IMAGE_BASE = (
 DETAILS_CACHE_SECONDS = 3600
 DETAILS_CACHE_MAX = 256
 _details_cache = {}
+_standing_cache = {}
 
 
 app = FastAPI(title="GameScope API")
@@ -119,6 +121,54 @@ def fetch_store_details(app_id):
     return game
 
 
+def fetch_steam_standing(app_id):
+    """Steam's overall review rating for a game, cached for an hour."""
+    now = time.time()
+    cached = _standing_cache.get(app_id)
+
+    if cached and now - cached[0] < DETAILS_CACHE_SECONDS:
+        return cached[1]
+
+    response = requests.get(
+        collector.STEAM_REVIEWS_URL,
+        params={
+            "input_json": json.dumps(
+                {
+                    "appid": app_id,
+                    "filter": collector.REVIEWS_FILTER_RECENT,
+                    "languages": ["all"],
+                    "review_type": collector.REVIEWS_TYPE_ALL,
+                    "purchase_type": collector.REVIEWS_PURCHASE_TYPE_ALL,
+                    "num_per_page": 1,
+                    "cursor": "*",
+                }
+            )
+        },
+        timeout=10,
+    )
+    response.raise_for_status()
+    data = collector.parse_steam_json(response, "reviews")
+    summary = (data.get("response") or {}).get("query_summary") or {}
+
+    total = summary.get("total_reviews") or 0
+    positive = summary.get("total_positive") or 0
+
+    # review_score: 1-4 negative, 5 mixed, 6-9 positive, 0 too few reviews
+    standing = {
+        "appId": str(app_id),
+        "summary": summary.get("review_score_desc") or None,
+        "score": summary.get("review_score") or 0,
+        "totalReviews": total,
+        "positivePercent": round(100 * positive / total) if total else None,
+    }
+
+    if len(_standing_cache) >= DETAILS_CACHE_MAX:
+        _standing_cache.clear()
+
+    _standing_cache[app_id] = (now, standing)
+    return standing
+
+
 def reviews_within(reviews, days):
     if days is None:
         return reviews
@@ -149,6 +199,21 @@ def within_days(stored, days):
         )
 
     return {**stored, "reviews": recent}
+
+
+def waiting_for_reviews(app_id):
+    """
+    True when the game isn't released on Steam yet or has no Steam reviews,
+    so analyzing it would only waste a crawl. Early Access games are allowed.
+    """
+    if fetch_store_details(app_id).get("game_coming_soon"):
+        return True
+
+    try:
+        return fetch_steam_standing(app_id)["totalReviews"] == 0
+    except (requests.RequestException, ValueError):
+        # The review summary is only a shortcut; the pipeline still checks
+        return False
 
 
 def load_stored(app_id, days=None):
@@ -283,6 +348,63 @@ def search_games(q: str = Query(min_length=1, max_length=100)):
 
 
 
+@app.post("/api/games/{app_id}/searches")
+def record_game_search(app_id: int = Path(gt=0, le=MAX_APP_ID)):
+    """Count a search for a game (picked from search or analyzed by App ID)."""
+    # The name comes from Steam, never the browser, so the trending cards
+    # only ever show real game titles
+    try:
+        game_name = fetch_store_details(app_id)["game_name"] or None
+    except (requests.RequestException, ValueError):
+        game_name = None
+
+    try:
+        searches = pipeline.record_search(app_id, game_name)
+    except MySQLError as error:
+        raise database_error(error) from error
+
+    return {"appId": str(app_id), "searches": searches}
+
+
+@app.get("/api/trending")
+def trending_games(limit: int = Query(3, ge=1, le=20)):
+    """The most-searched games on the site, most first."""
+    try:
+        rows = pipeline.load_trending(limit)
+    except MySQLError as error:
+        raise database_error(error) from error
+
+    return [
+        {
+            "appId": str(row["app_id"]),
+            "name": row["game_name"],
+            "searches": row["searches"],
+        }
+        for row in rows
+    ]
+
+
+@app.get("/api/games/{app_id}/standing")
+def game_standing(app_id: int = Path(gt=0, le=MAX_APP_ID)):
+    """
+    Steam's overall review rating for a game, e.g. "Very Positive".
+    Works before the game has been analyzed.
+    """
+    try:
+        return fetch_steam_standing(app_id)
+
+    except (requests.RequestException, ValueError) as error:
+        logger.warning(
+            "Steam review summary failed for app_id=%s: %s",
+            app_id,
+            type(error).__name__,
+        )
+        raise HTTPException(
+            status_code=502,
+            detail="Steam's review summary is temporarily unavailable.",
+        ) from error
+
+
 @app.get("/api/games/{app_id}/details")
 def game_details(app_id: int = Path(gt=0, le=MAX_APP_ID)):
     """
@@ -332,6 +454,8 @@ def game_details(app_id: int = Path(gt=0, le=MAX_APP_ID)):
         "price": float(price) if price else None,
         "shortDescription": game["game_description"] or None,
         "headerImage": header_image,
+        "comingSoon": game.get("game_coming_soon", False),
+        "earlyAccess": game.get("game_early_access", False),
     }
 
 
@@ -360,6 +484,12 @@ def analyze_game(
         stored = pipeline.load_game(app_id)
 
         if refresh or stored is None or not stored["reviews"]:
+            # Don't crawl Steam for a game that has nothing to review yet
+            if waiting_for_reviews(app_id):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Waiting for this game to be reviewed...",
+                )
             pipeline.run_pipeline(app_id, max_reviews)
             stored = pipeline.load_game(app_id)
 

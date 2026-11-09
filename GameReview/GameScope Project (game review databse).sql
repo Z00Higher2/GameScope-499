@@ -377,6 +377,23 @@ create table if not exists issue_statuses(
 -- alter table reviews
 --     add column written_during_early_access boolean not null default false after language;
 
+-- ============================================================
+-- GAME SEARCHES
+-- How many times each game was searched on the site (any Steam
+-- game, analyzed or not), for the trending cards
+-- ============================================================
+
+create table if not exists game_searches(
+    app_id int unsigned not null,
+    game_name varchar(255),
+    searches int unsigned not null default 0,
+    last_searched_at timestamp not null default current_timestamp
+        on update current_timestamp,
+
+    primary key (app_id),
+    index idx_searches_count (searches)
+) ENGINE = InnoDB;
+
 show tables;
 
 describe games;
@@ -385,6 +402,7 @@ describe game_updates;
 describe reviews_import;
 describe review_filter_runs;
 describe issue_statuses;
+describe game_searches;
 describe users;
 describe user_roles;
 describe user_priorities;
@@ -401,6 +419,7 @@ select * from game_updates;
 select * from reviews_import;
 select * from review_filter_runs;
 select * from issue_statuses;
+select * from game_searches;
 select * from users;
 select * from user_roles;
 select * from user_priorities;

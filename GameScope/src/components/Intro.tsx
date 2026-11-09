@@ -14,147 +14,9 @@ interface IntroProps {
 
 }
 
-function Reveal({
-  children,
-  delay = 0,
-  className = "",
-}: {
-  children: React.ReactNode;
-  delay?: number;
-  className?: string;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const element = ref.current;
-
-    if (!element) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setVisible(entry.isIntersecting);
-      },
-      {
-        threshold: 0.15,
-        rootMargin: "0px 0px -40px 0px",
-      }
-    );
-
-    observer.observe(element);
-
-    return () => observer.disconnect();
-  }, []);
-
-  return (
-    <div
-      ref={ref}
-      className={`scroll-reveal ${
-        visible ? "scroll-reveal-visible" : ""
-      } ${className}`}
-      style={{
-        transitionDelay: visible ? `${delay}ms` : "0ms",
-      }}
-    >
-      {children}
-    </div>
-  );
-}
-
-const featureCards: Record<
-  Mode,
-  { title: string; text: string; icon: React.ReactNode }[]
-> = {
-  developer: [
-    {
-      title: "Review Analysis",
-      text: "Analyze large volumes of Steam reviews and identify meaningful patterns in player feedback.",
-      icon: (
-        <>
-          <path d="M4 19V5" />
-          <path d="M4 19h16" />
-          <path d="M8 16v-5" />
-          <path d="M12 16V7" />
-          <path d="M16 16v-8" />
-        </>
-      ),
-    },
-    {
-      title: "Issue Detection",
-      text: "Discover recurring problems that players mention most often across thousands of reviews.",
-      icon: (
-        <>
-          <path d="M12 3v18" />
-          <path d="M3 12h18" />
-          <path d="m5 5 14 14" />
-          <path d="M19 5 5 19" />
-        </>
-      ),
-    },
-    {
-      title: "Feedback Quality",
-      text: "Separate useful player feedback from vague, repetitive, or low-value reviews.",
-      icon: (
-        <>
-          <path d="M12 3 5 6v5c0 4.5 3 7.5 7 10 4-2.5 7-5.5 7-10V6l-7-3Z" />
-          <path d="m9 12 2 2 4-4" />
-        </>
-      ),
-    },
-  ],
-  player: [
-    {
-      title: "Discover Games",
-      text: "Explore Steam games and see how players really feel about them before you spend any money.",
-      icon: (
-        <>
-          <circle cx="11" cy="11" r="7" />
-          <path d="m21 21-4.3-4.3" />
-        </>
-      ),
-    },
-    {
-      title: "Know the Downsides",
-      text: "See the problems players mention most, so there are no surprises after you buy.",
-      icon: (
-        <>
-          <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
-          <path d="M12 9v4" />
-          <path d="M12 17h.01" />
-        </>
-      ),
-    },
-    {
-      title: "Trust Honest Reviews",
-      text: "Focus on detailed, helpful reviews instead of vague or low-value ones.",
-      icon: (
-        <>
-          <path d="M12 3 5 6v5c0 4.5 3 7.5 7 10 4-2.5 7-5.5 7-10V6l-7-3Z" />
-          <path d="m9 12 2 2 4-4" />
-        </>
-      ),
-    },
-  ],
-};
-
-const playerPlaytimeBars = [
-  { range: "0–10h", value: 61 },
-  { range: "10–50h", value: 69 },
-  { range: "50–100h", value: 74 },
-  { range: "100–250h", value: 81 },
-  { range: "250h+", value: 86 },
-];
-
-const playerLoves = [
-  { topic: "Combat", mentions: 842 },
-  { topic: "Graphics", mentions: 734 },
-  { topic: "Story", mentions: 621 },
-];
-
-const playerWatchOuts = [
-  { topic: "Performance", mentions: 932 },
-  { topic: "Inventory", mentions: 821 },
-];
+// Clicking CREDIT adds one; reaching this spins the reel for a jackpot
+const JACKPOT_CREDITS = 10;
+const JACKPOT_POINTS = 1000;
 
 function Intro({
   darkMode,
@@ -164,632 +26,271 @@ function Intro({
   onGetStarted,
   onLoginClick,
 }: IntroProps) {
+  // Arcade controls: ← / → pick a player, Enter presses start
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "ArrowLeft") setMode("player");
+      if (event.key === "ArrowRight") setMode("developer");
+
+      const target = event.target as HTMLElement;
+      if (
+        event.key === "Enter" &&
+        !target.closest("button, a, input, select, textarea")
+      ) {
+        onGetStarted();
+      }
+    };
+
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [setMode, onGetStarted]);
+
+  const [credits, setCredits] = useState(1);
+  const [hiScore, setHiScore] = useState(500);
+  const [reel, setReel] = useState<string | null>(null);
+  const [jackpot, setJackpot] = useState(false);
+  const timers = useRef<number[]>([]);
+
+  useEffect(() => {
+    const pending = timers.current;
+    return () => {
+      pending.forEach((id) => {
+        window.clearTimeout(id);
+        window.clearInterval(id);
+      });
+    };
+  }, []);
+
+  const insertCredit = () => {
+    if (reel !== null || jackpot) return;
+
+    const next = credits + 1;
+    if (next < JACKPOT_CREDITS) {
+      setCredits(next);
+      return;
+    }
+
+    setCredits(JACKPOT_CREDITS);
+
+    const showJackpot = () => {
+      setReel(null);
+      setJackpot(true);
+      setHiScore((score) => score + JACKPOT_POINTS);
+      timers.current.push(
+        window.setTimeout(() => {
+          setJackpot(false);
+          setCredits(1);
+        }, 1400)
+      );
+    };
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      showJackpot();
+      return;
+    }
+
+    const spin = window.setInterval(() => {
+      setReel(String(Math.floor(Math.random() * 100)).padStart(2, "0"));
+    }, 70);
+
+    timers.current.push(
+      spin,
+      window.setTimeout(() => {
+        window.clearInterval(spin);
+        showJackpot();
+      }, 900)
+    );
+  };
+
+  const isPlayer = mode === "player";
+
   return (
-    <div className={`intro-page ${darkMode ? "intro-dark" : ""}`}>
-      {/* Background */}
-      <div className="intro-grid"></div>
-      <div className="intro-orb intro-orb-one"></div>
-      <div className="intro-orb intro-orb-two"></div>
-      <div className="intro-orb intro-orb-three"></div>
-
-      {/* Navigation */}
-      <nav className="intro-nav">
-        <div className="intro-brand">
-          <div className="intro-logo">
-            <img src={logo} alt="GameScope logo" />
-          </div>
-          <span>GameScope</span>
-        </div>
-
-        {/* Login (same look as the app Navbar) */}
-        <button
-          type="button"
-          className="intro-login-nav"
-          onClick={onLoginClick}
-          aria-label="Go to Login"
-        >
-          <span className="intro-login-icon">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="8" r="4" />
-              <path d="M4 21a8 8 0 0 1 16 0" />
-            </svg>
-          </span>
-          <span className="intro-login-text">Login</span>
-        </button>
-
-        <button
-          type="button"
-          className="intro-theme-button"
-          onClick={() => setDarkMode((current) => !current)}
-          aria-label="Toggle dark mode"
-        >
-          {darkMode ? (
-            <svg
-              width="19"
-              height="19"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="12" cy="12" r="4" />
-              <path d="M12 2v2" />
-              <path d="M12 20v2" />
-              <path d="m4.93 4.93 1.41 1.41" />
-              <path d="m17.66 17.66 1.41 1.41" />
-              <path d="M2 12h2" />
-              <path d="M20 12h2" />
-              <path d="m6.34 17.66-1.41 1.41" />
-              <path d="m19.07 4.93-1.41-1.41" />
-            </svg>
-          ) : (
-            <svg
-              width="19"
-              height="19"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-            </svg>
-          )}
-        </button>
-      </nav>
-
+    <div className={`intro-page arcade-page ${darkMode ? "intro-dark" : ""}`}>
       <main className="intro-main">
-        {/* Hero */}
-        <Reveal>
-          <section className="intro-hero">
-            <div className="intro-badge">
-              <span className="badge-dot"></span>
-              Steam Feedback Intelligence
-            </div>
+        {/* Arcade start screen */}
+        <section
+          className={`arcade-cabinet ${isPlayer ? "arcade-p1" : "arcade-p2"} ${
+            jackpot ? "arcade-jackpot" : ""
+          }`}
+          aria-label="GameScope start screen"
+        >
+          <div className="arcade-screen">
+            <header className="arcade-top">
+              <div className="arcade-brand">
+                <img src={logo} alt="" />
+                GAMESCOPE
+              </div>
 
-    <div key={mode} className="intro-hero-copy">
-      <h1>
-        {mode === "player" ? (
-          <>
-            Find your next
-            <span> favorite game.</span>
-          </>
-        ) : (
-          <>
-            Understand what your
-            <span> players really think.</span>
-          </>
-        )}
-      </h1>
-
-      <p>
-        {mode === "player"
-          ? "Explore Steam games, discover what players really think, and use detailed reviews to decide which games are worth your time and money."
-          : "GameScope transforms Steam reviews into meaningful insights, recurring issues, and actionable feedback to help developers understand their players."}
-      </p>
-    </div>
-
-            {/* Player / Developer mode selector */}
-            <div className="intro-mode-selector">
-              <span className="intro-mode-label">
-                CHOOSE YOUR EXPERIENCE
+              <span className="arcade-hiscore">
+                HI-SCORE {String(hiScore).padStart(6, "0")}
               </span>
 
-              <div
-                className="intro-mode-options"
-                role="group"
-                aria-label="Choose GameScope mode"
-              >
+              <div className="arcade-top-actions">
                 <button
                   type="button"
-                  className={`intro-mode-option ${
-                    mode === "player" ? "active" : ""
-                  }`}
-                  onClick={() => setMode("player")}
-                  aria-pressed={mode === "player"}
+                  className="arcade-login"
+                  onClick={onLoginClick}
+                  aria-label="Go to Login"
                 >
-                  <span className="intro-mode-icon">
-                    <svg
-                      width="23"
-                      height="23"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M6 9h12a4 4 0 0 1 3.8 5.3l-1 3a2 2 0 0 1-3.2 1l-3-2.3h-5.2l-3 2.3a2 2 0 0 1-3.2-1l-1-3A4 4 0 0 1 6 9Z" />
-                      <path d="M8 12v4" />
-                      <path d="M6 14h4" />
-                      <path d="M16 13h.01" />
-                      <path d="M18 15h.01" />
-                    </svg>
-                  </span>
-
-                  <span className="intro-mode-copy">
-                    <strong>Player</strong>
-                    <small>
-                      Discover games and explore reviews
-                    </small>
-                  </span>
-
-                  <span className="intro-mode-check">
-                    {mode === "player" ? "✓" : ""}
-                  </span>
+                  LOGIN
                 </button>
 
                 <button
                   type="button"
-                  className={`intro-mode-option ${
-                    mode === "developer" ? "active" : ""
-                  }`}
-                  onClick={() => setMode("developer")}
-                  aria-pressed={mode === "developer"}
+                  className="arcade-theme"
+                  onClick={() => setDarkMode((current) => !current)}
+                  aria-label="Toggle dark mode"
                 >
-                  <span className="intro-mode-icon">
-                    <svg
-                      width="23"
-                      height="23"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M3 3v18h18" />
-                      <path d="m8 14 4-4 4 3 5-7" />
+                  {darkMode ? (
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <circle cx="12" cy="12" r="4" />
+                      <path d="M12 2v2" />
+                      <path d="M12 20v2" />
+                      <path d="m4.93 4.93 1.41 1.41" />
+                      <path d="m17.66 17.66 1.41 1.41" />
+                      <path d="M2 12h2" />
+                      <path d="M20 12h2" />
+                      <path d="m6.34 17.66-1.41 1.41" />
+                      <path d="m19.07 4.93-1.41-1.41" />
                     </svg>
-                  </span>
-
-                  <span className="intro-mode-copy">
-                    <strong>Developer</strong>
-                    <small>
-                      Analyze sentiment and player issues
-                    </small>
-                  </span>
-
-                  <span className="intro-mode-check">
-                    {mode === "developer" ? "✓" : ""}
-                  </span>
+                  ) : (
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                    </svg>
+                  )}
                 </button>
               </div>
-            </div>
+            </header>
 
-            <button
-              type="button"
-              className="get-started-button"
-              onClick={onGetStarted}
-            >
-              <span>
-                {mode === "player"
-                  ? "Explore Games"
-                  : "Get Started"}
+            <div key={mode} className="arcade-hero">
+              <span className="arcade-badge">
+                STEAM FEEDBACK INTELLIGENCE
               </span>
 
-              <svg
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M5 12h14" />
-                <path d="m13 6 6 6-6 6" />
-              </svg>
-            </button>
-          </section>
-        </Reveal>
-
-        {/* Features */}
-        <Reveal>
-          <section
-            key={mode}
-            className="intro-features"
-          >
-            {featureCards[mode].map((card) => (
-              <div className="intro-feature" key={card.title}>
-                <div className="feature-icon">
-                  <svg
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    {card.icon}
-                  </svg>
-                </div>
-
-                <h3>{card.title}</h3>
-
-                <p>{card.text}</p>
-
-                <span className="feature-arrow">→</span>
-              </div>
-            ))}
-          </section>
-        </Reveal>
-
-        {/* Review Quality */}
-        <Reveal>
-          <section className="review-quality-section">
-            <div className="review-quality-heading">
-              <div className="intro-badge">
-                <span className="badge-dot"></span>
-                Review Intelligence
-              </div>
-
-              <h2>
-                Not every review is
-                <span> equally useful.</span>
-              </h2>
-
-              <p>
-                GameScope looks beyond simple positive and negative
-                sentiment to identify how useful each review actually is.
-              </p>
-            </div>
-
-            <div className="review-showcase">
-              <div className="review-card">
-                <div className="review-card-top">
-                  <div className="review-label">
-                    <span className="review-status-dot"></span>
-                    Low Reliability
-                  </div>
-                  <div className="review-score">
-                    18<span>%</span>
-                  </div>
-                </div>
-
-                <div className="reliability-bar">
-                  <div
-                    className="reliability-fill"
-                    style={{ width: "18%" }}
-                  ></div>
-                </div>
-
-                <blockquote>
-                  "Great update, looking forward to the next one."
-                </blockquote>
-
-                <div className="review-reasons">
-                  <div className="review-reason">
-                    <span className="reason-check">✓</span>
-                    Very little detail
-                  </div>
-                  <div className="review-reason">
-                    <span className="reason-check">✓</span>
-                    No specific issue
-                  </div>
-                </div>
-              </div>
-
-              <div className="review-card">
-                <div className="review-card-top">
-                  <div className="review-label">
-                    <span className="review-status-dot"></span>
-                    Moderate Reliability
-                  </div>
-                  <div className="review-score">
-                    41<span>%</span>
-                  </div>
-                </div>
-
-                <div className="reliability-bar">
-                  <div
-                    className="reliability-fill"
-                    style={{ width: "41%" }}
-                  ></div>
-                </div>
-
-                <blockquote>
-                  "The new update is fun, but the inventory feels harder
-                  to manage."
-                </blockquote>
-
-                <div className="review-reasons">
-                  <div className="review-reason">
-                    <span className="reason-check">✓</span>
-                    Specific complaint
-                  </div>
-                  <div className="review-reason">
-                    <span className="reason-check">✓</span>
-                    Some useful context
-                  </div>
-                </div>
-              </div>
-
-              <div className="review-card">
-                <div className="review-card-top">
-                  <div className="review-label">
-                    <span className="review-status-dot"></span>
-                    High Reliability
-                  </div>
-                  <div className="review-score">
-                    94<span>%</span>
-                  </div>
-                </div>
-
-                <div className="reliability-bar">
-                  <div
-                    className="reliability-fill"
-                    style={{ width: "94%" }}
-                  ></div>
-                </div>
-
-                <blockquote>
-                  "Performance drops during large multiplayer fights,
-                  especially when several effects appear at once."
-                </blockquote>
-
-                <div className="review-reasons">
-                  <div className="review-reason">
-                    <span className="reason-check">✓</span>
-                    Specific problem
-                  </div>
-                  <div className="review-reason">
-                    <span className="reason-check">✓</span>
-                    Reproducible context
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="quality-note">
-              <div className="quality-note-icon">i</div>
-              <p>
-                <strong>Why this matters:</strong> a review can be
-                positive or negative while still providing little useful
-                information. GameScope evaluates the quality of the
-                feedback itself.
-              </p>
-            </div>
-          </section>
-        </Reveal>
-
-        {/* Preview (changes with the selected mode) */}
-        <Reveal>
-          <section className="intro-preview">
-            <div className="preview-window">
-              <div key={mode} className="preview-swap">
-                {mode === "player" ? (
-                <>
-                  <div className="preview-top">
-                    <div className="preview-dots">
-                      <span></span>
-                      <span></span>
-                      <span></span>
-                    </div>
-
-                    <div className="preview-title">
-                      GameScope Explorer
-                    </div>
-
-                    <div className="preview-live">
-                      <span></span>
-                      Player Insights
-                    </div>
-                  </div>
-
-                  <div className="preview-content player-preview">
-                    <div className="preview-header">
-                      <div>
-                        <span className="preview-small-label">
-                          Game Overview
-                        </span>
-                        <h3>Path of Exile 2</h3>
-                      </div>
-
-                      <div className="preview-score">
-                        <span>Players Recommend</span>
-                        <strong>72%</strong>
-                      </div>
-                    </div>
-
-                    <div className="preview-stats">
-                      <div className="preview-stat">
-                        <span>Avg. Playtime</span>
-                        <strong>184h</strong>
-                      </div>
-                      <div className="preview-stat">
-                        <span>Recommended</span>
-                        <strong>925</strong>
-                      </div>
-                      <div className="preview-stat">
-                        <span>Review Quality</span>
-                        <strong>78%</strong>
-                      </div>
-                    </div>
-
-                    <div className="preview-bottom">
-                      <div className="preview-chart">
-                        <div className="chart-label">
-                          Recommended by Playtime
-                        </div>
-
-                        <div className="player-bars">
-                          {playerPlaytimeBars.map((bar) => (
-                            <div
-                              className="player-bar-col"
-                              key={bar.range}
-                            >
-                              <strong>{bar.value}%</strong>
-                              <div className="player-bar-track">
-                                <div
-                                  className="player-bar"
-                                  style={{ height: `${bar.value}%` }}
-                                ></div>
-                              </div>
-                              <small>{bar.range}</small>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="preview-issues">
-                        <div className="chart-label">
-                          What Players Say
-                        </div>
-
-                        <div className="topic-group">
-                          <span className="topic-label positive">
-                            Players love
-                          </span>
-                          <div className="topic-chips">
-                            {playerLoves.map((item) => (
-                              <span
-                                className="topic-chip positive"
-                                key={item.topic}
-                              >
-                                {item.topic}
-                                <small>{item.mentions}</small>
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="topic-group">
-                          <span className="topic-label negative">
-                            Watch out for
-                          </span>
-                          <div className="topic-chips">
-                            {playerWatchOuts.map((item) => (
-                              <span
-                                className="topic-chip negative"
-                                key={item.topic}
-                              >
-                                {item.topic}
-                                <small>{item.mentions}</small>
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </>
+              <h1>
+                {isPlayer ? (
+                  <>
+                    <span>REAL GAME REVIEWS</span>
+                    <span className="arcade-highlight">FROM REAL PEOPLE.</span>
+                  </>
                 ) : (
                   <>
-                    <div className="preview-top">
-                      <div className="preview-dots">
-                        <span></span>
-                        <span></span>
-                        <span></span>
-                      </div>
-
-                      <div className="preview-title">
-                        GameScope Dashboard
-                      </div>
-
-                      <div className="preview-live">
-                        <span></span>
-                        Live Analysis
-                      </div>
-                    </div>
-
-                    <div className="preview-content">
-                      <div className="preview-header">
-                        <div>
-                          <span className="preview-small-label">
-                            Game Analysis
-                          </span>
-                          <h3>Path of Exile 2</h3>
-                        </div>
-
-                        <div className="preview-score">
-                          <span>Review Quality</span>
-                          <strong>78%</strong>
-                        </div>
-                      </div>
-
-                      <div className="preview-stats">
-                        <div className="preview-stat">
-                          <span>Total Reviews</span>
-                          <strong>1,284</strong>
-                        </div>
-                        <div className="preview-stat">
-                          <span>Positive</span>
-                          <strong>72%</strong>
-                        </div>
-                        <div className="preview-stat">
-                          <span>Negative</span>
-                          <strong>28%</strong>
-                        </div>
-                      </div>
-
-                      <div className="preview-bottom">
-                        <div className="preview-chart">
-                          <div className="chart-label">
-                            Review Sentiment
-                          </div>
-
-                          <div className="chart-bars">
-                            <span style={{ height: "45%" }}></span>
-                            <span style={{ height: "65%" }}></span>
-                            <span style={{ height: "55%" }}></span>
-                            <span style={{ height: "80%" }}></span>
-                            <span style={{ height: "70%" }}></span>
-                            <span style={{ height: "92%" }}></span>
-                            <span style={{ height: "76%" }}></span>
-                          </div>
-                        </div>
-
-                        <div className="preview-issues">
-                          <div className="chart-label">Top Issues</div>
-
-                          <div className="issue-line">
-                            <span>Inventory</span>
-                            <div><i style={{ width: "100%" }}></i></div>
-                          </div>
-
-                          <div className="issue-line">
-                            <span>Performance</span>
-                            <div><i style={{ width: "73%" }}></i></div>
-                          </div>
-
-                          <div className="issue-line">
-                            <span>Multiplayer</span>
-                            <div><i style={{ width: "50%" }}></i></div>
-                          </div>
-
-                          <div className="issue-line">
-                            <span>Bugs</span>
-                            <div><i style={{ width: "41%" }}></i></div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    <span>UNDERSTAND WHAT YOUR</span>
+                    <span className="arcade-highlight">
+                      PLAYERS REALLY THINK.
+                    </span>
                   </>
                 )}
-              </div>
+              </h1>
+
+              <p>
+                {isPlayer
+                  ? "We filter out the slop and spam for you, so you can figure out what's actually worth your time."
+                  : "Steam reviews and feedback that you can actually use."}
+              </p>
             </div>
-          </section>
-        </Reveal>
-      </main>
 
-      {/* Footer */}
-      <Reveal>
-        <footer className="intro-footer">
-          <div className="footer-brand">
-            <div className="footer-logo">G</div>
-            GameScope
+            <p className="arcade-select-label">- SELECT PLAYER -</p>
+
+            <div
+              className="arcade-slots"
+              role="group"
+              aria-label="Choose GameScope mode"
+            >
+              <button
+                type="button"
+                className={`arcade-slot arcade-slot-p1 ${
+                  isPlayer ? "active" : ""
+                }`}
+                onClick={() => setMode("player")}
+                aria-pressed={isPlayer}
+              >
+                <span className="arcade-slot-head">
+                  <span className="arcade-slot-number">PLAYER 1</span>
+                  <span className="arcade-cursor" aria-hidden="true">
+                    ◀
+                  </span>
+                </span>
+
+                <span className="arcade-slot-role">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M6 9h12a4 4 0 0 1 3.8 5.3l-1 3a2 2 0 0 1-3.2 1l-3-2.3h-5.2l-3 2.3a2 2 0 0 1-3.2-1l-1-3A4 4 0 0 1 6 9Z" />
+                    <path d="M8 12v4" />
+                    <path d="M6 14h4" />
+                    <path d="M16 13h.01" />
+                    <path d="M18 15h.01" />
+                  </svg>
+                  PLAYER
+                </span>
+
+                <span className="arcade-slot-text">
+                  Discover games and see what players really say.
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className={`arcade-slot arcade-slot-p2 ${
+                  !isPlayer ? "active" : ""
+                }`}
+                onClick={() => setMode("developer")}
+                aria-pressed={!isPlayer}
+              >
+                <span className="arcade-slot-head">
+                  <span className="arcade-cursor" aria-hidden="true">
+                    ▶
+                  </span>
+                  <span className="arcade-slot-number">PLAYER 2</span>
+                </span>
+
+                <span className="arcade-slot-role">
+                  DEVELOPER
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M3 3v18h18" />
+                    <path d="m8 14 4-4 4 3 5-7" />
+                  </svg>
+                </span>
+
+                <span className="arcade-slot-text">
+                  Find recurring issues and track your fixes.
+                </span>
+              </button>
+            </div>
+
+            <div className="arcade-start-row">
+              <button
+                type="button"
+                className="arcade-start"
+                onClick={onGetStarted}
+              >
+                PRESS START ▶
+              </button>
+
+              <p className="arcade-mode">
+                {isPlayer ? "1P MODE · PLAYER" : "2P MODE · DEVELOPER"}
+              </p>
+            </div>
+
+            <footer className="arcade-bottom">
+              <span>© 2026 GAMESCOPE</span>
+              <button
+                type="button"
+                className={`arcade-credit ${reel !== null ? "spinning" : ""} ${
+                  jackpot ? "jackpot" : ""
+                }`}
+                onClick={insertCredit}
+                aria-label={`Insert credit, ${credits} of ${JACKPOT_CREDITS}`}
+              >
+                <span aria-live="polite">
+                  {jackpot
+                    ? "JACKPOT!"
+                    : `CREDIT ${reel ?? String(credits).padStart(2, "0")}`}
+                </span>
+              </button>
+            </footer>
           </div>
-
-          <p>
-            Turning player feedback into meaningful insight.
-          </p>
-        </footer>
-      </Reveal>
+        </section>
+      </main>
     </div>
   );
 }

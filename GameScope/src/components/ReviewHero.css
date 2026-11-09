@@ -1,0 +1,606 @@
+/* =========================================================
+   GAMESCOPE HERO (Player Home and developer Dashboard)
+   Dark poster layout with trending game cards.
+   Green for players, purple for developers.
+========================================================= */
+
+.ph-hero {
+  --ph-accent: #5dcaa5;
+  --ph-accent-strong: #1d9e75;
+  --ph-accent-soft: #9fe1cb;
+  --ph-accent-ink: #04342c;
+  --ph-bg: #121214;
+  --ph-panel: #1b1b20;
+  --ph-line: #2e2e36;
+  --ph-text: #f1efe8;
+  --ph-muted: #a7a5ad;
+  --ph-paper: #ebe7dc;
+  --ph-slab: "Alfa Slab One", Georgia, serif;
+  --ph-heavy: "Archivo Black", "Arial Black", sans-serif;
+  --ph-hand: "Caveat", cursive;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  z-index: 2;
+  min-height: calc(100vh - 76px);
+  padding: clamp(28px, 7vh, 96px) clamp(24px, 5vw, 96px) clamp(28px, 6vh, 64px) clamp(24px, 10vw, 200px);
+
+  background:
+    radial-gradient(
+      ellipse at 78% 45%,
+      color-mix(in srgb, var(--ph-accent) 10%, transparent),
+      transparent 55%
+    ),
+    var(--ph-bg);
+  color: var(--ph-text);
+}
+
+/* Full width under the navbar on desktop; the page itself is padded */
+@media (min-width: 769px) {
+  .player-home:has(.ph-hero) {
+    overflow-x: clip;
+  }
+
+  .player-home .ph-hero {
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+  }
+}
+
+.ph-hero.ph-hero-dev {
+  --ph-accent: #afa9ec;
+  --ph-accent-strong: #7f77dd;
+  --ph-accent-soft: #cecbf6;
+  --ph-accent-ink: #26215c;
+}
+
+.ph-hero .ph-filters {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+.ph-hero .ph-hero-inner {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 60.6fr) minmax(0, 39.4fr);
+  align-items: center;
+  gap: 0;
+  width: 100%;
+}
+
+.ph-hero .ph-hero-copy {
+  container-type: inline-size;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* Announcement strip */
+
+.ph-hero .ph-announce {
+  display: flex;
+  align-items: center;
+  gap: 2cqi;
+  width: 100%;
+  margin: 0 0 6cqi;
+  padding: 1.6cqi 2.4cqi;
+  border-left: 4px solid var(--ph-accent);
+  background: #1d1d22;
+  color: var(--ph-text);
+  font-size: clamp(13px, 2cqi, 20px);
+  font-weight: 700;
+  clip-path: polygon(0 0, 100% 6%, 99% 100%, 0 94%);
+}
+
+.ph-hero .ph-announce-tag {
+  color: var(--ph-accent);
+  font-family: var(--ph-heavy);
+  font-size: clamp(12px, 1.7cqi, 17px);
+  letter-spacing: 1px;
+}
+
+/* Title */
+
+.ph-hero .ph-title {
+  margin: 0;
+  color: var(--ph-accent);
+  font-family: var(--ph-slab);
+  font-size: min(150px, 11.1cqi);
+  font-weight: 400;
+  line-height: 0.95;
+  letter-spacing: 1px;
+  text-shadow: 0 6px 0 rgba(0, 0, 0, 0.45);
+  filter: url(#ph-rough);
+}
+
+.ph-hero .ph-subtitle {
+  margin: 2.6cqi 0 0;
+  color: var(--ph-text);
+  font-family: var(--ph-heavy);
+  font-size: min(80px, 6.25cqi);
+  line-height: 1;
+  letter-spacing: 2px;
+}
+
+/* Search */
+
+.ph-hero .ph-search {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  margin-top: 4.6cqi;
+  padding: 0.8cqi;
+  border: 2px solid var(--ph-accent-strong);
+  background: #18181d;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.ph-hero .ph-search:focus-within {
+  border-color: var(--ph-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ph-accent) 25%, transparent);
+}
+
+.ph-hero .ph-search-field {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 1.8cqi;
+  min-width: 0;
+  padding: 0 2.4cqi;
+}
+
+.ph-hero .ph-search-icon {
+  flex: none;
+  width: clamp(18px, 2.4cqi, 26px);
+  height: clamp(18px, 2.4cqi, 26px);
+  fill: none;
+  stroke: var(--ph-accent);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+
+.ph-hero .ph-search-field input {
+  flex: 1;
+  min-width: 0;
+  height: clamp(54px, 8.6cqi, 96px);
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ph-text);
+  font-family: var(--ph-heavy);
+  font-size: clamp(15px, 2.1cqi, 24px);
+  letter-spacing: 1.5px;
+}
+
+.ph-hero .ph-search-field input::placeholder {
+  color: #6f6d78;
+}
+
+.ph-hero .ph-spinner {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border: 3px solid color-mix(in srgb, var(--ph-accent) 25%, transparent);
+  border-top-color: var(--ph-accent);
+  border-radius: 50%;
+  animation: ph-spin 0.7s linear infinite;
+}
+
+.ph-hero .ph-search-button {
+  flex: none;
+  padding: 0 4cqi;
+  border: 0;
+  background: var(--ph-accent);
+  color: var(--ph-accent-ink);
+  font-family: var(--ph-heavy);
+  font-size: clamp(14px, 2cqi, 22px);
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.ph-hero .ph-search-button:hover:not(:disabled) {
+  background: var(--ph-accent-soft);
+}
+
+.ph-hero .ph-search-button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+/* Search results */
+
+.ph-hero .ph-results {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: -2px;
+  right: -2px;
+  z-index: 20;
+  max-height: 380px;
+  padding: 6px;
+  overflow-y: auto;
+  border: 2px solid var(--ph-line);
+  background: #17171c;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5);
+  text-align: left;
+}
+
+.ph-hero .ph-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--ph-text);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.ph-hero .ph-result:hover,
+.ph-hero .ph-result.active {
+  background: color-mix(in srgb, var(--ph-accent) 14%, transparent);
+  box-shadow: inset 3px 0 0 var(--ph-accent);
+}
+
+.ph-hero .ph-result-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ph-hero .ph-result-thumb {
+  flex: none;
+  width: 96px;
+  height: 45px;
+  object-fit: cover;
+  background: #222228;
+}
+
+.ph-hero .ph-result-thumb-fallback {
+  display: grid;
+  place-items: center;
+  color: var(--ph-accent);
+  font-family: var(--ph-heavy);
+  font-size: 18px;
+}
+
+.ph-hero .ph-result-name {
+  overflow: hidden;
+  color: var(--ph-text);
+  font-family: var(--ph-heavy);
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ph-hero .ph-result-details {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.ph-hero .ph-result-appid {
+  color: var(--ph-muted);
+  font-size: 12px;
+}
+
+/* Steam's rating, colored like Steam: blue positive, gold mixed, red negative */
+.ph-hero .ph-result-standing {
+  font-family: var(--ph-heavy);
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.ph-hero .standing-positive {
+  color: #66c0f4;
+}
+
+.ph-hero .standing-mixed {
+  color: #d9b25f;
+}
+
+.ph-hero .standing-negative {
+  color: #f0997b;
+}
+
+.ph-hero .standing-unknown {
+  color: var(--ph-muted);
+}
+
+.ph-hero .standing-cta {
+  color: var(--ph-accent);
+}
+
+.ph-hero .ph-status {
+  min-height: 20px;
+  margin: 1.6cqi 0 0;
+  color: var(--ph-muted);
+  font-size: clamp(13px, 1.6cqi, 17px);
+}
+
+.ph-hero .ph-status-error {
+  color: #f09595;
+}
+
+/* Quick links */
+
+.ph-hero .ph-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.2cqi;
+  margin-top: 2.6cqi;
+}
+
+.ph-hero .ph-links button {
+  padding: 1.6cqi 2.8cqi;
+  border: 0;
+  background: #1d1d22;
+  color: var(--ph-text);
+  font-family: var(--ph-heavy);
+  font-size: clamp(12px, 1.7cqi, 18px);
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  transform: rotate(-0.6deg);
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.ph-hero .ph-links button:nth-child(2) {
+  transform: rotate(0.5deg);
+}
+
+.ph-hero .ph-links button:hover {
+  background: #26262d;
+  color: var(--ph-accent);
+}
+
+/* Trending cards: a fanned trio like a tier list. The middle card sits
+   in front and lower; positions are percentages of the trio's box. */
+
+/* Fills its column and bleeds past the right edge of the screen */
+.ph-hero .ph-trending {
+  container-type: inline-size;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 724 / 609;
+  perspective: 1000px;
+}
+
+/* Each card bobs gently, out of step with the others */
+.ph-hero .ph-card-slot {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 35%;
+  animation: ph-float 5s ease-in-out infinite alternate;
+}
+
+.ph-hero .ph-card-slot:nth-child(1) {
+  top: 11%;
+  left: 6.6%;
+  transform: rotate(-3deg);
+  animation-delay: -1.8s;
+}
+
+.ph-hero .ph-card-slot:nth-child(2) {
+  top: 21%;
+  left: 34.8%;
+  z-index: 2;
+}
+
+.ph-hero .ph-card-slot:nth-child(3) {
+  top: 8%;
+  left: 61.9%;
+  transform: rotate(4deg);
+  animation-delay: -3.4s;
+}
+
+@keyframes ph-float {
+  from {
+    translate: 0 0;
+  }
+
+  to {
+    translate: 0 -1.6cqi;
+  }
+}
+
+.ph-hero .ph-card-slot:hover,
+.ph-hero .ph-card-slot:focus-within {
+  z-index: 3;
+}
+
+.ph-hero .ph-card {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 3.2%;
+  border: 0;
+  background: var(--ph-paper);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+  transform: rotateX(var(--tilt-y, 0deg)) rotateY(var(--tilt-x, 0deg));
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+.ph-hero .ph-card:hover,
+.ph-hero .ph-card:focus-visible {
+  box-shadow: 0 28px 50px rgba(0, 0, 0, 0.6);
+  transform: translateY(-10px) rotateX(var(--tilt-y, 0deg))
+    rotateY(var(--tilt-x, 0deg)) scale(1.03);
+}
+
+.ph-hero .ph-card:focus-visible {
+  outline: 3px solid var(--ph-accent);
+  outline-offset: 4px;
+}
+
+.ph-hero .ph-card-frame {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  background: #222228;
+}
+
+.ph-hero .ph-card-frame img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+
+.ph-hero .ph-card:hover .ph-card-frame img {
+  transform: scale(1.06);
+}
+
+.ph-hero .ph-card-fallback {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  color: var(--ph-accent);
+  font-family: var(--ph-slab);
+  font-size: 64px;
+}
+
+.ph-hero .ph-card-name {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding: 18% 6% 6%;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.88));
+  color: #ffffff;
+  font-family: var(--ph-heavy);
+  font-size: clamp(9px, 3.6cqi, 22px);
+  line-height: 1.05;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.ph-hero .ph-card-ribbon {
+  position: absolute;
+  top: -3.5%;
+  left: -9%;
+  z-index: 2;
+  padding: 2.5% 5%;
+  background: #f1efe8;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.35);
+  color: #17171c;
+  font-family: var(--ph-heavy);
+  font-size: clamp(8px, 2.6cqi, 15px);
+  letter-spacing: 1px;
+  white-space: nowrap;
+  transform: rotate(-3deg);
+}
+
+/* Positive Steam reviews under each card, nudged toward the middle */
+
+.ph-hero .ph-card-stat {
+  margin-top: 6%;
+  min-height: 1.2em;
+  color: var(--ph-muted);
+  font-family: var(--ph-heavy);
+  font-size: clamp(10px, 2.6cqi, 19px);
+  letter-spacing: 1px;
+}
+
+.ph-hero .ph-card-slot:nth-child(1) .ph-card-stat {
+  transform: translateX(18%);
+}
+
+.ph-hero .ph-card-slot:nth-child(3) .ph-card-stat {
+  transform: translateX(-12%);
+}
+
+.ph-hero .ph-card-slot-featured .ph-card-stat {
+  margin-top: 7%;
+  color: var(--ph-accent);
+  font-size: clamp(12px, 3.7cqi, 27px);
+}
+
+@keyframes ph-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 1000px) {
+  .ph-hero .ph-hero-inner {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+
+  .ph-hero .ph-trending {
+    width: 100%;
+    max-width: 560px;
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 560px) {
+  .ph-hero {
+    padding: 24px 12px;
+  }
+
+  .ph-hero .ph-announce {
+    font-size: 13px;
+  }
+
+  .ph-hero .ph-search {
+    flex-direction: column;
+  }
+
+  .ph-hero .ph-search-button {
+    height: 52px;
+  }
+
+  .ph-hero .ph-card-name {
+    padding: 16px 4px 4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ph-hero .ph-card,
+  .ph-hero .ph-card:hover,
+  .ph-hero .ph-card:focus-visible {
+    transform: none;
+    transition: none;
+  }
+
+  .ph-hero .ph-card-slot {
+    animation: none;
+  }
+
+  .ph-hero .ph-card-frame img,
+  .ph-hero .ph-card:hover .ph-card-frame img {
+    transform: none;
+    transition: none;
+  }
+
+  .ph-hero .ph-spinner {
+    animation-duration: 1.6s;
+  }
+}

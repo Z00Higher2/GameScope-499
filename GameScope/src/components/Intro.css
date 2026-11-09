@@ -2074,3 +2074,463 @@
   color: var(--accent-color);
   background: var(--accent-soft);
 }
+
+/* =========================================================
+   ARCADE START SCREEN
+   The screen stays dark in light and dark mode, like an
+   arcade monitor. Player 1 is green, Player 2 is purple.
+========================================================= */
+
+.arcade-cabinet {
+  --arcade-bg: #0b0c14;
+  --arcade-panel: #12131f;
+  --arcade-line: #2c2f45;
+  --arcade-text: #f1efe8;
+  --arcade-muted: #b4b2a9;
+  --arcade-dim: #888780;
+  --arcade-faint: #5f5e5a;
+  --arcade-gold: #ef9f27;
+
+  --arcade-p1: #5dcaa5;
+  --arcade-p1-strong: #1d9e75;
+  --arcade-p1-soft: #9fe1cb;
+  --arcade-p1-panel: #0f1d1a;
+
+  --arcade-p2: #afa9ec;
+  --arcade-p2-strong: #7f77dd;
+  --arcade-p2-soft: #cecbf6;
+  --arcade-p2-panel: #15142a;
+
+  --arcade-pixel: "Press Start 2P", "Courier New", monospace;
+  --arcade-mono: "VT323", "Courier New", monospace;
+
+  /* Solid layers like a cabinet front: cabinet body, black bezel,
+     then the screen */
+  margin: 0 0 38px;
+  padding: 28px;
+  border: 12px solid #1c1e2c;
+  background: #050508;
+}
+
+/* Solid backdrop behind the cabinet instead of the grid and glow */
+.intro-page.arcade-page {
+  background: #dcdae6;
+}
+
+.intro-page.arcade-page.intro-dark {
+  background: #08080d;
+}
+
+.arcade-p1 {
+  --arcade-accent: var(--arcade-p1);
+  --arcade-accent-strong: var(--arcade-p1-strong);
+  --arcade-accent-soft: var(--arcade-p1-soft);
+}
+
+.arcade-p2 {
+  --arcade-accent: var(--arcade-p2);
+  --arcade-accent-strong: var(--arcade-p2-strong);
+  --arcade-accent-soft: var(--arcade-p2-soft);
+}
+
+.arcade-screen {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 164px);
+  padding: 22px 32px 24px;
+
+  border: 4px solid var(--arcade-line);
+  background: var(--arcade-bg);
+
+  color: var(--arcade-text);
+  font-family: var(--arcade-mono);
+}
+
+.arcade-cabinet button {
+  cursor: pointer;
+}
+
+.arcade-cabinet button:focus-visible {
+  outline: 3px solid var(--arcade-gold);
+  outline-offset: 3px;
+}
+
+/* Top bar */
+
+.arcade-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 14px;
+  border-bottom: 3px dashed var(--arcade-line);
+}
+
+.arcade-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--arcade-p2);
+  font-family: var(--arcade-pixel);
+  font-size: 14px;
+}
+
+.arcade-brand img {
+  width: 30px;
+  height: 30px;
+  object-fit: contain;
+}
+
+.arcade-hiscore {
+  color: var(--arcade-gold);
+  font-family: var(--arcade-pixel);
+  font-size: 12px;
+}
+
+.arcade-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.arcade-cabinet .arcade-login {
+  padding: 9px 12px;
+  border: 2px solid var(--arcade-accent-strong);
+  background: transparent;
+  color: var(--arcade-accent-soft);
+  font-family: var(--arcade-pixel);
+  font-size: 12px;
+}
+
+.arcade-login:hover {
+  background: var(--arcade-accent-strong);
+  color: var(--arcade-bg);
+}
+
+.arcade-theme {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 2px solid var(--arcade-line);
+  background: transparent;
+  color: var(--arcade-muted);
+}
+
+.arcade-theme:hover {
+  border-color: var(--arcade-dim);
+  color: var(--arcade-text);
+}
+
+.arcade-theme svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Title */
+
+.arcade-hero {
+  padding: 40px 0 8px;
+  text-align: center;
+  animation: arcade-in 0.4s steps(4) both;
+}
+
+.arcade-badge {
+  display: inline-block;
+  padding: 7px 12px;
+  border: 2px solid var(--arcade-accent-strong);
+  color: var(--arcade-accent);
+  font-family: var(--arcade-pixel);
+  font-size: 11px;
+}
+
+.arcade-hero h1 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 28px 0 0;
+  color: var(--arcade-text);
+  font-family: var(--arcade-pixel);
+  font-size: clamp(15px, 3.4vw, 42px);
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.arcade-highlight {
+  color: var(--arcade-accent);
+}
+
+.arcade-hero p {
+  max-width: 640px;
+  margin: 22px auto 0;
+  color: var(--arcade-muted);
+  font-size: 26px;
+  line-height: 1.2;
+}
+
+/* Player select */
+
+.arcade-select-label {
+  margin: 34px 0 16px;
+  color: var(--arcade-dim);
+  font-family: var(--arcade-pixel);
+  font-size: 12px;
+  text-align: center;
+}
+
+.arcade-slots {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+.arcade-cabinet .arcade-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+
+  border: 3px solid var(--arcade-line);
+  background: var(--arcade-panel);
+  color: var(--arcade-text);
+  font-family: var(--arcade-mono);
+  text-align: left;
+}
+
+.arcade-slot:hover {
+  border-color: var(--arcade-dim);
+}
+
+.arcade-cabinet .arcade-slot-p2 {
+  text-align: right;
+}
+
+.arcade-slot-p1.active {
+  border-color: var(--arcade-p1-strong);
+  background: var(--arcade-p1-panel);
+}
+
+.arcade-slot-p2.active {
+  border-color: var(--arcade-p2-strong);
+  background: var(--arcade-p2-panel);
+}
+
+.arcade-slot-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: var(--arcade-pixel);
+  font-size: 15px;
+}
+
+.arcade-slot-p1 .arcade-slot-head {
+  color: var(--arcade-p1);
+}
+
+.arcade-slot-p2 .arcade-slot-head {
+  color: var(--arcade-p2);
+}
+
+.arcade-cursor {
+  visibility: hidden;
+  animation: arcade-blink 1s steps(1) infinite;
+}
+
+.arcade-slot.active .arcade-cursor {
+  visibility: visible;
+}
+
+.arcade-slot-role {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--arcade-text);
+  font-family: var(--arcade-pixel);
+  font-size: 12px;
+}
+
+.arcade-slot-p2 .arcade-slot-role {
+  justify-content: flex-end;
+}
+
+.arcade-slot-role svg {
+  width: 26px;
+  height: 26px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.arcade-slot-p1 .arcade-slot-role svg {
+  color: var(--arcade-p1-soft);
+}
+
+.arcade-slot-p2 .arcade-slot-role svg {
+  color: var(--arcade-p2-soft);
+}
+
+.arcade-slot-text {
+  color: var(--arcade-muted);
+  font-size: 23px;
+  line-height: 1.1;
+}
+
+/* Start */
+
+.arcade-start-row {
+  margin: 34px 0 28px;
+  text-align: center;
+}
+
+.arcade-cabinet .arcade-start {
+  padding: 16px 24px;
+  border: 3px solid var(--arcade-accent-soft);
+  background: var(--arcade-accent);
+  color: var(--arcade-bg);
+  font-family: var(--arcade-pixel);
+  font-size: 15px;
+}
+
+.arcade-cabinet .arcade-start:hover,
+.arcade-cabinet .arcade-start:focus-visible {
+  background: var(--arcade-accent-soft);
+}
+
+.arcade-mode {
+  margin: 14px 0 0;
+  color: var(--arcade-dim);
+  font-size: 22px;
+}
+
+/* Footer */
+
+.arcade-bottom {
+  display: flex;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 3px dashed var(--arcade-line);
+  color: var(--arcade-faint);
+  font-family: var(--arcade-pixel);
+  font-size: 11px;
+}
+
+/* CREDIT mini-game */
+
+.arcade-cabinet .arcade-credit {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--arcade-gold);
+  font-family: var(--arcade-pixel);
+  font-size: 11px;
+  animation: arcade-blink 1s steps(1) infinite;
+}
+
+.arcade-cabinet .arcade-credit:hover {
+  animation: none;
+}
+
+.arcade-cabinet .arcade-credit.spinning {
+  animation: arcade-reel 0.14s steps(2) infinite;
+}
+
+.arcade-cabinet .arcade-credit.jackpot {
+  color: #fac775;
+  text-shadow: 0 0 8px rgba(239, 159, 39, 0.55);
+  animation: arcade-pulse 0.35s steps(1) 4;
+}
+
+.arcade-jackpot .arcade-screen {
+  border-color: var(--arcade-gold);
+  transition: border-color 0.2s steps(2);
+}
+
+@keyframes arcade-reel {
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes arcade-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes arcade-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@keyframes arcade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 760px) {
+  .arcade-cabinet {
+    padding: 10px;
+    border-width: 6px;
+  }
+
+  .arcade-screen {
+    min-height: calc(100vh - 110px);
+  }
+
+  .arcade-screen {
+    padding: 16px;
+  }
+
+  .arcade-top {
+    flex-wrap: wrap;
+  }
+
+  .arcade-hiscore {
+    display: none;
+  }
+
+  .arcade-slots {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .arcade-cabinet .arcade-slot-p2 {
+    text-align: left;
+  }
+
+  .arcade-slot-p2 .arcade-slot-role {
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+  }
+
+  .arcade-hero p {
+    font-size: 22px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arcade-hero,
+  .arcade-cursor,
+  .arcade-cabinet .arcade-credit,
+  .arcade-cabinet .arcade-credit.spinning,
+  .arcade-cabinet .arcade-credit.jackpot {
+    animation: none;
+  }
+}
