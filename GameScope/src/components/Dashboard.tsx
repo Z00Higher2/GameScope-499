@@ -1,8 +1,9 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import Navbar from "./Navbar";
-import { analyzeGame, searchGames } from "../api";
+import ReviewHero from "./ReviewHero";
+import { analyzeGame, recordSearch, searchGames } from "../api";
 import type { GameAnalysis, GameSearchResult } from "../api";
 import type { Page, Mode } from "../type";
 
@@ -131,6 +132,8 @@ function Dashboard({
   const [gameSearchResults, setGameSearchResults] =
     useState<GameSearchResult[]>([]);
   const [searchError, setSearchError] = useState("");
+  const [searching, setSearching] = useState(false);
+  const resultsRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const query = gameSearch.trim();
@@ -138,12 +141,14 @@ function Dashboard({
     if (!query || selectedGame || typedAppId) {
       setGameSearchResults([]);
       setSearchError("");
+      setSearching(false);
       return;
     }
 
     const controller = new AbortController();
 
     const timer = window.setTimeout(() => {
+      setSearching(true);
       searchGames(query, controller.signal)
         .then((results) => {
           setGameSearchResults(results);
@@ -157,6 +162,11 @@ function Dashboard({
           if (searchFailure.name !== "AbortError") {
             setGameSearchResults([]);
             setSearchError(searchFailure.message);
+          }
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) {
+            setSearching(false);
           }
         });
     }, 300);
@@ -211,6 +221,11 @@ function Dashboard({
     setError("");
     setLoading(true);
 
+    // Picks from the hero count themselves; a typed App ID counts here
+    if (!gameToAnalyze && !selectedGame) {
+      recordSearch(trimmedAppId).catch(() => undefined);
+    }
+
     try {
       const result = await analyzeGame(trimmedAppId, refresh);
 
@@ -222,11 +237,7 @@ function Dashboard({
       setSelectedGame(null);
       setGameSearch("");
 
-      window.scrollTo({
-        top: 0,
-        left: 0,
-        behavior: "smooth",
-      });
+      resultsRef.current?.scrollIntoView({ behavior: "smooth" });
     } catch (analyzeFailure) {
       setError(
         analyzeFailure instanceof Error
@@ -294,140 +305,42 @@ function Dashboard({
       />
 
 
-      <main className="dashboard-main">
-        {/* HEADER */}
+      <ReviewHero
+        mode={mode}
+        announcement="New frontend layout! Enjoy and find little secrets scattered across pages."
+        searchValue={gameSearch}
+        onSearchChange={(value) => {
+          setGameSearch(value);
+          setSelectedGame(null);
+          setError("");
+        }}
+        results={selectedGame ? [] : gameSearchResults}
+        searching={searching}
+        onSelect={handleSelectGame}
+        onSubmit={() => void handleAnalyze()}
+        status={
+          error ||
+          searchError ||
+          (loading
+            ? "Analyzing reviews... a game analyzed for the first time takes about 15 seconds."
+            : searching
+              ? "Searching Steam..."
+              : selectedGame
+                ? `${selectedGame.name} selected. Press ANALYZE GAME.`
+                : typedAppId
+                  ? `Press ANALYZE GAME to use Steam App ID ${typedAppId}.`
+                  : "Type a game's name and pick it from the list, or enter its App ID.")
+        }
+        statusIsError={error !== "" || searchError !== ""}
+        buttonLabel={loading ? "ANALYZING..." : "ANALYZE GAME"}
+        buttonDisabled={loading || !gameSearch.trim()}
+        links={[
+          { label: "VIEW ISSUES", onClick: () => setCurrentPage("issues") },
+          { label: "REVIEW SETTINGS", onClick: () => setCurrentPage("settings") },
+        ]}
+      />
 
-        <section className="dashboard-header">
-          <div>
-            <span className="dashboard-label">GAMESCOPE</span>
-            <h1>Game Review Dashboard</h1>
-            <p>
-              Analyze Steam player reviews and discover
-              meaningful feedback about a game.
-            </p>
-          </div>
-        </section>
-
-        {/* ANALYZE CARD */}
-
-        <section className="analyze-card">
-          <div className="analyze-content">
-            <div className="analyze-title">
-              <h2>Analyze a Game</h2>
-              <p>
-                Type a Steam game's name and pick it from the list,
-                or enter its App ID.
-              </p>
-            </div>
-
-            {/* GAME NAME OR APP ID */}
-
-            <div className="search-container">
-              <input
-                type="text"
-                value={gameSearch}
-                onChange={(event) => {
-                  setGameSearch(event.target.value);
-                  setSelectedGame(null);
-                  setError("");
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    void handleAnalyze();
-                  }
-                }}
-                placeholder="Game name or Steam App ID..."
-                aria-label="Game name or Steam App ID"
-                disabled={loading}
-              />
-
-              <button
-                type="button"
-                onClick={() => void handleAnalyze()}
-                disabled={loading || !gameSearch.trim()}
-              >
-                {loading ? "Analyzing..." : "Analyze"}
-              </button>
-            </div>
-
-            {typedAppId && (
-              <p className="app-id-help">
-                Press Analyze to use Steam App ID {typedAppId}.
-              </p>
-            )}
-
-            {/* SEARCH ERRORS */}
-
-            {searchError && !selectedGame && (
-              <p className="app-id-help">{searchError}</p>
-            )}
-
-            {/* SEARCH RESULTS */}
-
-            {gameSearchResults.length > 0 && !selectedGame && (
-              <div className="game-search-results">
-                {gameSearchResults.map((game) => (
-                  <button
-                    type="button"
-                    className="game-search-result"
-                    key={game.appId}
-                    onClick={() => handleSelectGame(game)}
-                    disabled={loading}
-                  >
-                    <span className="dashboard-search-game">
-                      <DashboardGameThumb
-                        appId={game.appId}
-                        name={game.name}
-                        image={game.image}
-                      />
-
-                      <span className="dashboard-search-game-info">
-                        <strong>{game.name}</strong>
-                        <small>Steam App ID: {game.appId}</small>
-                      </span>
-                    </span>
-
-                    <span className="game-select-label">Select</span>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* SELECTED GAME */}
-
-            {selectedGame && (
-              <div className="selected-game">
-                <div className="dashboard-selected-game-info">
-                  <DashboardGameThumb
-                    appId={selectedGame.appId}
-                    name={selectedGame.name}
-                    image={selectedGame.image}
-                  />
-
-                  <div>
-                    <span className="selected-game-label">
-                      SELECTED GAME
-                    </span>
-                    <strong>{selectedGame.name}</strong>
-                    <small>
-                      Steam App ID: {selectedGame.appId}
-                    </small>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* ERROR */}
-
-        {error && !loading && (
-          <section className="analyze-error" role="alert">
-            <strong>Couldn't analyze that game</strong>
-            <p>{error}</p>
-          </section>
-        )}
-
+      <main ref={resultsRef} className="dashboard-main">
         {/* LOADING */}
 
         {loading && (

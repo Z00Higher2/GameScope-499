@@ -4,9 +4,13 @@ import {
   searchGames,
   getGameDetails,
   analyzeGame,
+  recordSearch,
 } from "../api";
 import type { GameDetails, GameAnalysis } from "../api";
+import { getSteamImageSources } from "../steamImages";
 import Navbar from "./Navbar";
+import ReviewHero from "./ReviewHero";
+import type { SearchGame } from "./ReviewHero";
 import type { Page, Mode } from "../type";
 import "./PlayerHome.css";
 import RightGameForPlayer from "./RightGameForPlayer";
@@ -26,12 +30,6 @@ interface PlayerHomeProps {
   accountEmail: string;
   onLogout: () => void;
   steamConnected: boolean;
-}
-
-interface SearchGame {
-  name: string;
-  appId: string;
-  image?: string | null;
 }
 
 // ==================================================
@@ -133,32 +131,6 @@ function formatNumber(value: number): string {
 }
 
 // ==================================================
-// STEAM IMAGE FALLBACKS
-// ==================================================
-
-function getSteamImageSources(
-  appId: string,
-  preferredImage?: string | null
-): string[] {
-  const sources = [
-    preferredImage,
-    `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/header.jpg`,
-    `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/header.jpg`,
-    `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appId}/capsule_616x353.jpg`,
-    `https://cdn.akamai.steamstatic.com/steam/apps/${appId}/capsule_616x353.jpg`,
-  ];
-
-  return [
-    ...new Set(
-      sources.filter(
-        (source): source is string =>
-          typeof source === "string" && source.trim().length > 0
-      )
-    ),
-  ];
-}
-
-// ==================================================
 // GAME COVER
 // ==================================================
 
@@ -197,107 +169,6 @@ function GameCover({
       loading="lazy"
       onError={() => setSourceIndex((index) => index + 1)}
     />
-  );
-}
-
-// ==================================================
-// SEARCH THUMBNAIL
-// ==================================================
-
-function SearchThumb({
-  appId,
-  name,
-  image,
-}: {
-  appId: string;
-  name: string;
-  image?: string | null;
-}) {
-  const sources = getSteamImageSources(appId, image);
-  const [sourceIndex, setSourceIndex] = useState(0);
-
-  useEffect(() => {
-    setSourceIndex(0);
-  }, [appId, image]);
-
-  if (sourceIndex >= sources.length) {
-    return (
-      <span
-        className="player-search-thumb player-search-thumb-fallback"
-        aria-label={`${name} image unavailable`}
-      >
-        {(name || "G").charAt(0).toUpperCase()}
-      </span>
-    );
-  }
-
-  return (
-    <img
-      className="player-search-thumb"
-      src={sources[sourceIndex]}
-      alt=""
-      loading="lazy"
-      onError={() => setSourceIndex((index) => index + 1)}
-    />
-  );
-}
-
-// ==================================================
-// SEARCH RESULT WITH PRICE
-// ==================================================
-
-function SearchResultItem({
-  game,
-  onSelect,
-}: {
-  game: SearchGame;
-  onSelect: (game: SearchGame) => void;
-}) {
-  const [price, setPrice] = useState("Loading price...");
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    getGameDetails(game.appId, controller.signal)
-      .then((details) => {
-        if (!controller.signal.aborted) {
-          setPrice(formatPrice(details));
-        }
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          setPrice("Price unavailable");
-        }
-      });
-
-    return () => controller.abort();
-  }, [game.appId]);
-
-  return (
-    <button
-      type="button"
-      className="player-search-result"
-      role="option"
-      onClick={() => onSelect(game)}
-    >
-      <span className="player-search-main">
-        <SearchThumb
-          appId={game.appId}
-          name={game.name}
-          image={game.image}
-        />
-
-        <span className="player-search-name">{game.name}</span>
-      </span>
-
-      <span className="player-search-result-details">
-        <span className="player-search-appid">
-          App ID: {game.appId}
-        </span>
-
-        <strong className="player-search-price">{price}</strong>
-      </span>
-    </button>
   );
 }
 
@@ -747,6 +618,17 @@ function PlayerHome({
     }
   };
 
+  // An unreleased game has nothing to review, so it is never analyzed
+  const notReleased =
+    details !== null &&
+    details.appId === detailsAppId &&
+    details.comingSoon;
+
+  const earlyAccess =
+    details !== null &&
+    details.appId === detailsAppId &&
+    details.earlyAccess;
+
   // Form submission is what starts the analysis.
   const handleSearch = () => {
     const value = searchValue.trim();
@@ -756,12 +638,18 @@ function PlayerHome({
       return;
     }
 
+    if (notReleased) {
+      setSearchError("Waiting for this game to be reviewed...");
+      return;
+    }
+
     if (selectedGame && selectedGame.name === value) {
       void runAnalysis(selectedGame.appId);
       return;
     }
 
     if (/^\d+$/.test(value)) {
+      recordSearch(value).catch(() => undefined);
       void runAnalysis(value);
       return;
     }
@@ -841,79 +729,45 @@ function PlayerHome({
           onLogout={onLogout}
         />
 
-      <section className="player-hero scroll-reveal">
-        <span className="player-eyebrow">YOUR NEXT GAME STARTS HERE</span>
-
-        <h1>
-          Find your next game.
-          <br />
-          <span>Know before you buy.</span>
-        </h1>
-
-        <p className="player-hero-description">
-          Explore real Steam player feedback, discover common complaints,
-          and decide which games are right for you.
-        </p>
-
-        <form
-          className="player-search"
-          onSubmit={(event) => {
-            event.preventDefault();
-            handleSearch();
-          }}
-        >
-          <input
-            value={searchValue}
-            onChange={(event) => handleSearchChange(event.target.value)}
-            placeholder="Search a game or enter its Steam App ID..."
-            aria-label="Search a Steam game or enter its App ID"
-            autoComplete="off"
-          />
-
-          <button
-            type="submit"
-            disabled={analysisLoading || refreshing || searchLoading}
-          >
-            {analysisLoading
-              ? "Analyzing..."
+      <ReviewHero
+        mode={mode}
+        announcement="New frontend layout! Enjoy and find little secrets scattered across pages."
+        searchValue={searchValue}
+        onSearchChange={handleSearchChange}
+        results={selectedGame ? [] : searchResults}
+        searching={searchLoading}
+        onSelect={handleSelectGame}
+        onSubmit={handleSearch}
+        status={
+          searchError ||
+          (searchLoading
+            ? "Searching Steam..."
+            : notReleased
+              ? "Waiting for this game to be reviewed... It isn't out on Steam yet."
+              : earlyAccess
+                ? "This game is in Early Access, so its reviews can change a lot between updates."
+                : "Type a game's name and pick it from the list, or enter its App ID.")
+        }
+        statusIsError={searchError !== ""}
+        buttonLabel={
+          notReleased
+            ? "NOT OUT YET"
+            : analysisLoading
+              ? "ANALYZING..."
               : refreshing
-                ? "Refreshing..."
-                : searchLoading
-                  ? "Searching..."
-                  : "Analyze Game"}
-          </button>
-        </form>
-
-        {searchLoading && (
-          <p className="player-search-hint">Searching Steam games...</p>
-        )}
-
-        {searchError && (
-          <p className="player-search-error" role="alert">
-            {searchError}
-          </p>
-        )}
-
-        {searchResults.length > 0 && !selectedGame && (
-          <div
-            className="player-search-results"
-            role="listbox"
-            aria-label="Matching Steam games"
-          >
-            {searchResults.map((game) => (
-              <SearchResultItem
-                key={game.appId}
-                game={game}
-                onSelect={handleSelectGame}
-              />
-            ))}
-          </div>
-        )}
-
-        <p className="player-search-hint">
-          Search by game name or enter an App ID.
-        </p>
-      </section>
+                ? "REFRESHING..."
+                : "ANALYZE GAME"
+        }
+        buttonDisabled={analysisLoading || refreshing || notReleased}
+        links={[
+          {
+            label: "COMPARE GAMES",
+            // Compare is for logged-in players, like the navbar link
+            onClick: () => setCurrentPage(isLoggedIn ? "compare" : "login"),
+          },
+          { label: "REVIEW SETTINGS", onClick: () => setCurrentPage("settings") },
+        ]}
+      />
 
       {/* SELECTED GAME DETAILS */}
       <section className="player-overview scroll-reveal">

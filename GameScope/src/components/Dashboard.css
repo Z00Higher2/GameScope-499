@@ -3314,3 +3314,32 @@ body {
     transition: none;
   }
 }
+
+/* =========================================================
+   GAMESCOPE HERO ON THE DASHBOARD
+   Below the fixed navbar on desktop, beside the side navbar
+   on tablets and phones (sizes match .dashboard-main)
+========================================================= */
+
+.dashboard-page > .ph-hero {
+  margin-top: 76px;
+}
+
+.dashboard-page > .ph-hero + .dashboard-main {
+  padding-top: 40px;
+}
+
+@media (max-width: 768px) {
+  .dashboard-page > .ph-hero {
+    width: calc(100% - 76px);
+    margin-top: 0;
+    margin-left: 76px;
+  }
+}
+
+@media (max-width: 600px) {
+  .dashboard-page > .ph-hero {
+    width: calc(100% - 64px);
+    margin-left: 64px;
+  }
+}

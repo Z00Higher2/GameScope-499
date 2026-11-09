@@ -37,6 +37,16 @@ export interface GameDetails {
   price: number | null; // current price in USD, 0 when free
   shortDescription: string | null;
   headerImage?: string | null; // Steam header image URL
+  comingSoon: boolean; // not released on Steam yet
+  earlyAccess: boolean;
+}
+
+export interface SteamStanding {
+  appId: string;
+  summary: string | null; // Steam's rating, e.g. "Very Positive"
+  score: number; // 1-4 negative, 5 mixed, 6-9 positive, 0 too few reviews
+  totalReviews: number;
+  positivePercent: number | null;
 }
 
 export interface GameAnalysis {
@@ -264,6 +274,43 @@ export function getGameDetails(
 ) {
   return request<GameDetails>(
     `/api/games/${encodeURIComponent(appId)}/details`,
+    { signal }
+  );
+}
+
+/*
+ * Count a search for a game. Returns its new total.
+ */
+export function recordSearch(appId: string) {
+  return request<{ appId: string; searches: number }>(
+    `/api/games/${encodeURIComponent(appId)}/searches`,
+    { method: "POST" }
+  );
+}
+
+export interface TrendingGame {
+  appId: string;
+  name: string;
+  searches: number;
+}
+
+/*
+ * The most-searched games on the site, most first.
+ */
+export function getTrending(limit: number, signal?: AbortSignal) {
+  return request<TrendingGame[]>(`/api/trending?limit=${limit}`, { signal });
+}
+
+/*
+ * Steam's overall review rating for a game ("Very Positive", ...).
+ * Works before the game has been analyzed.
+ */
+export function getSteamStanding(
+  appId: string,
+  signal?: AbortSignal
+) {
+  return request<SteamStanding>(
+    `/api/games/${encodeURIComponent(appId)}/standing`,
     { signal }
   );
 }

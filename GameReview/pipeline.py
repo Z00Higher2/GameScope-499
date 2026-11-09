@@ -277,6 +277,60 @@ def list_games():
     return games
 
 
+def record_search(app_id, game_name=None):
+    """Count one search for a game and return its new total."""
+    ensure_schema()
+
+    connection = importer.connect_database()
+    try:
+        cursor = connection.cursor()
+        cursor.execute(
+            """
+            INSERT INTO game_searches (app_id, game_name, searches)
+            VALUES (%s, %s, 1)
+            ON DUPLICATE KEY UPDATE
+                searches = searches + 1,
+                game_name = COALESCE(VALUES(game_name), game_name)
+            """,
+            (app_id, game_name),
+        )
+        connection.commit()
+        cursor.execute(
+            "SELECT searches FROM game_searches WHERE app_id = %s", (app_id,)
+        )
+        searches = cursor.fetchone()[0]
+        cursor.close()
+    finally:
+        connection.close()
+
+    return searches
+
+
+def load_trending(limit):
+    """The most-searched games, most first (only games Steam named)."""
+    ensure_schema()
+
+    connection = importer.connect_database()
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT app_id, game_name, searches
+            FROM game_searches
+            WHERE searches > 0 AND game_name IS NOT NULL
+            ORDER BY searches DESC, last_searched_at DESC
+            LIMIT %s
+            """,
+            (limit,),
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+    finally:
+        connection.close()
+
+    return rows
+
+
 def find_game_id(app_id):
     ensure_schema()
 
