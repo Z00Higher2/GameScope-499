@@ -30,8 +30,11 @@ import pipeline
 from analysis import (
     MIN_ISSUE_COMPLAINTS,
     TOPIC_PATTERNS,
+    MIN_PATCH_REVIEWS,
+    PATCH_WINDOW_DAYS,
     build_analysis,
     build_issues,
+    build_patch_impact,
     build_review_cards,
     topic_standing,
 )
@@ -57,6 +60,10 @@ DETAILS_CACHE_SECONDS = 3600
 DETAILS_CACHE_MAX = 256
 _details_cache = {}
 _standing_cache = {}
+
+# Games whose Steam announcements were already looked up since the API
+# started, so a game with no announcements isn't re-fetched on every visit
+_updates_checked = set()
 
 
 app = FastAPI(title="GameScope API")
@@ -592,6 +599,52 @@ def update_issue_status(
         raise database_error(error) from error
 
     return {"topic": topic, "status": update.status}
+
+
+@app.get("/api/games/{app_id}/patches")
+def get_patch_impact(
+    app_id: int = Path(gt=0, le=MAX_APP_ID),
+    window_days: int = Query(PATCH_WINDOW_DAYS, ge=1, le=90),
+    min_reviews: int = Query(MIN_PATCH_REVIEWS, ge=3, le=1000),
+    include_announcements: bool = False,
+    refresh: bool = False,
+    days: int | None = Query(None, ge=1, le=3650),
+):
+    """
+    Patch Impact: sentiment and complaints in the reviews written just
+    before each developer update compared with just after it.
+    """
+    stored = load_stored(app_id, days)
+    game_id = stored["game"]["game_id"]
+
+    try:
+        updates = pipeline.load_updates(game_id)
+
+        # Games analyzed before Patch Impact existed have no stored updates
+        if refresh or (not updates and app_id not in _updates_checked):
+            _updates_checked.add(app_id)
+            try:
+                pipeline.refresh_updates(app_id, game_id)
+            except requests.RequestException as error:
+                logger.warning(
+                    "Steam news request failed for app_id=%s: %s",
+                    app_id,
+                    type(error).__name__,
+                )
+            updates = pipeline.load_updates(game_id)
+
+        statuses = pipeline.load_issue_statuses(game_id)
+    except MySQLError as error:
+        raise database_error(error) from error
+
+    return build_patch_impact(
+        stored,
+        updates,
+        window_days=window_days,
+        min_reviews=min_reviews,
+        include_announcements=include_announcements,
+        statuses=statuses,
+    )
 
 
 @app.get("/api/topics")

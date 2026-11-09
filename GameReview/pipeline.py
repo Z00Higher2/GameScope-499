@@ -13,6 +13,7 @@ from pathlib import Path
 
 import SteamGameReviewer_ as collector
 import csv_to_mysql_ as importer
+import steam_updates
 from filter_reviews import filter_reviews
 
 SCHEMA_FILE = Path(__file__).with_name(
@@ -135,6 +136,13 @@ def run_pipeline(app_id, max_reviews=500, language="english"):
         save_filter_run(connection, game_id, len(reviews), len(kept), removed)
     finally:
         connection.close()
+
+    # Patch Impact compares reviews before and after each announcement.
+    # Steam's news feed failing shouldn't fail the analysis itself.
+    try:
+        refresh_updates(app_id, game_id)
+    except Exception as error:  # noqa: BLE001 - best effort
+        print(f"Couldn't collect announcements for {app_id}: {error}")
 
     return {
         "collected": len(reviews),
@@ -381,3 +389,77 @@ def save_issue_status(game_id, topic, status):
         cursor.close()
     finally:
         connection.close()
+
+
+# ==========================================
+# Developer Announcements (Patch Impact)
+# Collected by steam_updates.py, stored in game_updates
+# ==========================================
+
+MAX_UPDATES = 100
+
+
+def refresh_updates(app_id, game_id):
+    """Collect the game's latest Steam announcements and store them."""
+    updates = steam_updates.get_updates(app_id, max_posts=MAX_UPDATES)
+    save_updates(game_id, updates)
+    return len(updates)
+
+
+def save_updates(game_id, updates):
+    if not updates:
+        return
+
+    connection = importer.connect_database()
+    try:
+        cursor = connection.cursor()
+        cursor.executemany(
+            """
+            INSERT INTO game_updates (
+                update_id, game_id, title, url, posted_at, is_patch_notes
+            )
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                title = VALUES(title),
+                url = VALUES(url),
+                posted_at = VALUES(posted_at),
+                is_patch_notes = VALUES(is_patch_notes)
+            """,
+            [
+                (
+                    str(update["update_id"])[:32],
+                    game_id,
+                    (update["title"] or "Untitled announcement")[:255],
+                    (update["url"] or None) and update["url"][:512],
+                    update["posted_at"],
+                    bool(update["is_patch_notes"]),
+                )
+                for update in updates
+            ],
+        )
+        connection.commit()
+        cursor.close()
+    finally:
+        connection.close()
+
+
+def load_updates(game_id):
+    """Stored announcements for a game, oldest first."""
+    connection = importer.connect_database()
+    try:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT update_id, title, url, posted_at, is_patch_notes
+            FROM game_updates
+            WHERE game_id = %s
+            ORDER BY posted_at
+            """,
+            (game_id,),
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+    finally:
+        connection.close()
+
+    return rows

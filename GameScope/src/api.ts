@@ -421,3 +421,79 @@ export function getReviewCards(
     { signal }
   );
 } 
+export interface PatchWindow {
+  reviews: number;
+  positive: number;
+  positivePct: number;
+  from: string | null;
+  to: string | null;
+}
+
+export type PatchChange = "improved" | "worsened" | "steady";
+
+export interface PatchTopicChange {
+  topic: string;
+  beforeComplaints: number;
+  afterComplaints: number;
+  beforeRate: number; // % of all reviews in the window
+  afterRate: number;
+  change: number; // percentage points, after minus before
+  direction: PatchChange; // "steady" unless the change is statistically real
+  issueStatus: IssueStatus | null; // status set on the Issues page
+}
+
+export interface PatchImpactEntry {
+  id: string;
+  title: string;
+  url: string | null;
+  postedAt: string;
+  isPatchNotes: boolean;
+  // measured: enough reviews on both sides
+  // too_few_reviews: some reviews, but fewer than minReviews on a side
+  // outside_reviews: posted before or after the stored reviews
+  state: "measured" | "too_few_reviews" | "outside_reviews";
+  verdict: PatchChange | "unknown";
+  before: PatchWindow;
+  after: PatchWindow;
+  sentimentChange?: number;
+  topics?: PatchTopicChange[];
+  summary?: string;
+}
+
+export interface PatchImpactReport {
+  windowDays: number;
+  minReviews: number;
+  includeAnnouncements: boolean;
+  reviewsFrom: string | null;
+  reviewsTo: string | null;
+  totalReviews: number;
+  totalUpdates: number;
+  patchNotes: number;
+  measured: number;
+  patches: PatchImpactEntry[];
+}
+
+/*
+ * Patch Impact: reviews just before each developer update vs just after.
+ * refresh = true collects the latest announcements from Steam first.
+ */
+export function getPatchImpact(
+  appId: string,
+  options: {
+    windowDays: number;
+    includeAnnouncements: boolean;
+    refresh?: boolean;
+  },
+  signal?: AbortSignal
+) {
+  return request<PatchImpactReport>(
+    withParams(
+      `/api/games/${encodeURIComponent(appId)}/patches`,
+      `window_days=${options.windowDays}`,
+      options.includeAnnouncements ? "include_announcements=true" : "",
+      options.refresh ? "refresh=true" : "",
+      daysParam()
+    ),
+    { signal }
+  );
+}
