@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 
 import Dashboard from "./components/Dashboard";
@@ -13,10 +14,21 @@ import Login from "./components/Login";
 import CompareGames from "./components/CompareGames";
 import SignUp from "./components/SignUp";
 import ForgotPassword from "./components/ForgotPassword";
+import ResetPassword from "./components/ResetPassword";
 import Profile from "./components/Profile";
 
-import { analyzeGame, getAnalysis } from "./api";
-import type { GameAnalysis } from "./api";
+import {
+  analyzeGame,
+  getAnalysis,
+  getCurrentUser,
+  logout,
+} from "./api";
+
+import type {
+  GameAnalysis,
+  AccountMode,
+} from "./api";
+
 import { loadPreferences } from "./preferences";
 
 import "./App.css";
@@ -39,6 +51,9 @@ const ACCENT_VALUES: Record<
 
 interface DemoAccount {
   email: string;
+  username: string;
+  userId: number;
+  roles: AccountMode[];
 }
 
 interface RecentActivity {
@@ -58,7 +73,11 @@ function getSavedAccentColor(): AccentColor {
     if (saved) {
       const settings = JSON.parse(saved);
 
-      if (["purple", "blue", "green"].includes(settings.accentColor)) {
+      if (
+        ["purple", "blue", "green"].includes(
+          settings.accentColor
+        )
+      ) {
         return settings.accentColor as AccentColor;
       }
     }
@@ -69,29 +88,13 @@ function getSavedAccentColor(): AccentColor {
   return "purple";
 }
 
-function getSavedAccount(): DemoAccount | null {
+function getSavedActivityHistory(
+  email: string
+): RecentActivity[] {
   try {
-    const saved = localStorage.getItem(AUTH_KEY);
+    const key =
+      `gamescope-analysis-history-${email.toLowerCase()}`;
 
-    if (!saved) return null;
-
-    const account = JSON.parse(saved);
-
-    if (typeof account.email === "string") {
-      // Older demo accounts may still contain a mode field.
-      // Ignore it because mode is now selected independently.
-      return { email: account.email };
-    }
-  } catch {
-    // Ignore invalid saved session data.
-  }
-
-  return null;
-}
-
-function getSavedActivityHistory(email: string): RecentActivity[] {
-  try {
-    const key = `gamescope-analysis-history-${email.toLowerCase()}`;
     const saved = localStorage.getItem(key);
 
     if (!saved) return [];
@@ -107,6 +110,7 @@ function getSavedActivityHistory(email: string): RecentActivity[] {
 function getSavedSteamConnection(email: string): boolean {
   try {
     const key = `gamescope-steam-${email.toLowerCase()}`;
+
     return localStorage.getItem(key) === "true";
   } catch {
     return false;
@@ -114,36 +118,80 @@ function getSavedSteamConnection(email: string): boolean {
 }
 
 function App() {
+  const [resetToken, setResetToken] = useState(
+    () =>
+      new URLSearchParams(window.location.search).get("token") ??
+      ""
+  );
+
   const [darkMode, setDarkMode] = useState(
     () => localStorage.getItem("gamescope-dark-mode") === "true"
   );
 
   useEffect(() => {
-    localStorage.setItem("gamescope-dark-mode", String(darkMode));
+    localStorage.setItem(
+      "gamescope-dark-mode",
+      String(darkMode)
+    );
   }, [darkMode]);
 
   const [accentColor, setAccentColor] =
     useState<AccentColor>(getSavedAccentColor);
 
   // ------------------------------------------
-  // DEMO LOGIN SESSION
+  // AUTHENTICATION / SERVER SESSION
   // ------------------------------------------
 
-  const [account, setAccount] = useState<DemoAccount | null>(
-    getSavedAccount
-  );
+  const [account, setAccount] =
+    useState<DemoAccount | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getCurrentUser()
+      .then(({ user }) => {
+        if (cancelled) return;
+
+        const restoredAccount: DemoAccount = {
+          email: user.email,
+          username: user.username,
+          userId: user.user_id,
+          roles: user.roles,
+        };
+
+        localStorage.setItem(
+          AUTH_KEY,
+          JSON.stringify(restoredAccount)
+        );
+
+        setAccount(restoredAccount);
+      })
+      .catch(() => {
+        if (cancelled) return;
+
+        localStorage.removeItem(AUTH_KEY);
+        setAccount(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const isLoggedIn = account !== null;
+
+  const isPlayer =
+    account?.roles.includes("player") ?? false;
+
+  const isDeveloper =
+    account?.roles.includes("developer") ?? false;
 
   // ------------------------------------------
   // STEAM CONNECTION STATE
   // ------------------------------------------
 
-  const [steamConnected, setSteamConnected] = useState(() => {
-    const savedAccount = getSavedAccount();
-
-    return savedAccount
-      ? getSavedSteamConnection(savedAccount.email)
-      : false;
-  });
+  const [steamConnected, setSteamConnected] =
+    useState(false);
 
   useEffect(() => {
     if (!account?.email) {
@@ -157,7 +205,7 @@ function App() {
   }, [account?.email]);
 
   const handleSteamConnect = () => {
-    if (!account?.email) return;
+    if (!account?.email || !isPlayer) return;
 
     localStorage.setItem(
       `gamescope-steam-${account.email.toLowerCase()}`,
@@ -168,7 +216,7 @@ function App() {
   };
 
   const handleSteamDisconnect = () => {
-    if (!account?.email) return;
+    if (!account?.email || !isPlayer) return;
 
     localStorage.removeItem(
       `gamescope-steam-${account.email.toLowerCase()}`
@@ -181,15 +229,19 @@ function App() {
   // ACTIVITY HISTORY
   // ------------------------------------------
 
-  const [activityHistory, setActivityHistory] = useState<
-    RecentActivity[]
-  >(() => {
-    const savedAccount = getSavedAccount();
+  const [activityHistory, setActivityHistory] =
+    useState<RecentActivity[]>([]);
 
-    return savedAccount
-      ? getSavedActivityHistory(savedAccount.email)
-      : [];
-  });
+  useEffect(() => {
+    if (!account?.email) {
+      setActivityHistory([]);
+      return;
+    }
+
+    setActivityHistory(
+      getSavedActivityHistory(account.email)
+    );
+  }, [account?.email]);
 
   const recordAnalysis = (
     result: GameAnalysis,
@@ -203,10 +255,13 @@ function App() {
     const newActivity: RecentActivity = {
       appId: result.game.appId,
       gameName: result.game.name,
-      analyzedAt: result.analyzedAt ?? new Date().toISOString(),
+      analyzedAt:
+        result.analyzedAt ?? new Date().toISOString(),
       mode: analysisMode,
-      positivePercentage: result.summary.positivePercentage,
-      negativePercentage: result.summary.negativePercentage,
+      positivePercentage:
+        result.summary.positivePercentage,
+      negativePercentage:
+        result.summary.negativePercentage,
       totalReviews: result.summary.totalReviews,
     };
 
@@ -224,8 +279,6 @@ function App() {
       return updatedHistory;
     });
   };
-
-  const isLoggedIn = account !== null;
 
   // ------------------------------------------
   // MODE
@@ -247,32 +300,45 @@ function App() {
   // ------------------------------------------
 
   const [showIntro, setShowIntro] = useState(
-    () => sessionStorage.getItem("gamescope-show-intro") !== "false"
+    () =>
+      sessionStorage.getItem("gamescope-show-intro") !==
+      "false"
   );
 
   // ------------------------------------------
   // CURRENT PAGE
   // ------------------------------------------
 
-  const [currentPage, setCurrentPage] = useState<Page>(() => {
-    const savedAccount = getSavedAccount();
-    const savedMode = localStorage.getItem("gamescope-mode");
+  const [currentPage, setCurrentPage] = useState<Page>(
+    () => {
+      if (
+        window.location.pathname === "/reset-password"
+      ) {
+        return "reset-password";
+      }
 
-    if (savedAccount) {
-      return savedMode === "player" ? "player" : "dashboard";
+      const savedMode =
+        localStorage.getItem("gamescope-mode");
+
+      return savedMode === "player"
+        ? "player"
+        : "dashboard";
     }
+  );
 
-    return savedMode === "player" ? "player" : "dashboard";
-  });
-
-  const [loginFromIntro, setLoginFromIntro] = useState(false);
+  const [loginFromIntro, setLoginFromIntro] =
+    useState(false);
 
   // ------------------------------------------
   // DEVELOPER ANALYSIS STATE
   // ------------------------------------------
 
-  const [developerAnalyzed, setDeveloperAnalyzed] = useState(false);
-  const [developerAppId, setDeveloperAppId] = useState("");
+  const [developerAnalyzed, setDeveloperAnalyzed] =
+    useState(false);
+
+  const [developerAppId, setDeveloperAppId] =
+    useState("");
+
   const [developerAnalysis, setDeveloperAnalysis] =
     useState<GameAnalysis | null>(null);
 
@@ -286,8 +352,12 @@ function App() {
   // PLAYER ANALYSIS STATE
   // ------------------------------------------
 
-  const [playerAnalyzed, setPlayerAnalyzed] = useState(false);
-  const [playerAppId, setPlayerAppId] = useState("");
+  const [playerAnalyzed, setPlayerAnalyzed] =
+    useState(false);
+
+  const [playerAppId, setPlayerAppId] =
+    useState("");
+
   const [playerAnalysis, setPlayerAnalysis] =
     useState<GameAnalysis | null>(null);
 
@@ -308,7 +378,8 @@ function App() {
   useEffect(() => {
     if (currentPage === "settings") return;
 
-    const latest = loadPreferences().reviewTimeRange;
+    const latest =
+      loadPreferences().reviewTimeRange;
 
     if (latest === timeRange) return;
 
@@ -325,7 +396,12 @@ function App() {
         .then(setPlayerAnalysis)
         .catch(() => undefined);
     }
-  }, [currentPage, timeRange, developerAppId, playerAppId]);
+  }, [
+    currentPage,
+    timeRange,
+    developerAppId,
+    playerAppId,
+  ]);
 
   // ------------------------------------------
   // MODE SELECTION
@@ -341,6 +417,22 @@ function App() {
 
     if (resolvedMode === mode) return;
 
+    if (isLoggedIn) {
+      if (
+        resolvedMode === "developer" &&
+        !isDeveloper
+      ) {
+        return;
+      }
+
+      if (
+        resolvedMode === "player" &&
+        !isPlayer
+      ) {
+        return;
+      }
+    }
+
     if (mode === "developer") {
       clearDeveloperAnalysis();
     } else {
@@ -350,7 +442,9 @@ function App() {
     setMode(resolvedMode);
 
     setCurrentPage(
-      resolvedMode === "player" ? "player" : "dashboard"
+      resolvedMode === "player"
+        ? "player"
+        : "dashboard"
     );
   };
 
@@ -360,9 +454,21 @@ function App() {
 
   const handleGetStarted = () => {
     setShowIntro(false);
-    sessionStorage.setItem("gamescope-show-intro", "false");
 
-    setCurrentPage(mode === "player" ? "player" : "dashboard");
+    sessionStorage.setItem(
+      "gamescope-show-intro",
+      "false"
+    );
+
+    if (isLoggedIn) {
+      setCurrentPage(
+        mode === "developer" && isDeveloper
+          ? "dashboard"
+          : "player"
+      );
+    } else {
+      setCurrentPage("login");
+    }
 
     window.scrollTo({
       top: 0,
@@ -376,7 +482,11 @@ function App() {
     clearPlayerAnalysis();
 
     setShowIntro(true);
-    sessionStorage.setItem("gamescope-show-intro", "true");
+
+    sessionStorage.setItem(
+      "gamescope-show-intro",
+      "true"
+    );
 
     window.scrollTo({
       top: 0,
@@ -393,9 +503,12 @@ function App() {
     appId: string,
     result: GameAnalysis
   ) => {
+    if (!isPlayer) return;
+
     setPlayerAppId(appId);
     setPlayerAnalysis(result);
     setPlayerAnalyzed(true);
+
     recordAnalysis(result, "player");
   };
 
@@ -403,7 +516,7 @@ function App() {
   // LOGIN
   // ------------------------------------------
 
-  const handleLogin = (
+  const handleLogin = async (
     email: string,
     password: string,
     selectedMode: Mode
@@ -413,23 +526,55 @@ function App() {
       return;
     }
 
-    const newAccount: DemoAccount = {
-      email: email.trim(),
-    };
+    try {
+      const { user } = await getCurrentUser();
 
-    localStorage.setItem(AUTH_KEY, JSON.stringify(newAccount));
+      const authenticatedAccount: DemoAccount = {
+        email: user.email,
+        username: user.username,
+        userId: user.user_id,
+        roles: user.roles,
+      };
 
-    setAccount(newAccount);
-    setMode(selectedMode);
+      localStorage.setItem(
+        AUTH_KEY,
+        JSON.stringify(authenticatedAccount)
+      );
 
-    setShowIntro(false);
-    sessionStorage.setItem("gamescope-show-intro", "false");
+      setAccount(authenticatedAccount);
 
-    setCurrentPage(
-      selectedMode === "player" ? "player" : "dashboard"
-    );
+      const permittedMode: Mode =
+        selectedMode === "developer" &&
+        user.roles.includes("developer")
+          ? "developer"
+          : "player";
 
-    setLoginFromIntro(false);
+      setMode(permittedMode);
+
+      setShowIntro(false);
+
+      sessionStorage.setItem(
+        "gamescope-show-intro",
+        "false"
+      );
+
+      setCurrentPage(
+        permittedMode === "player"
+          ? "player"
+          : "dashboard"
+      );
+
+      setLoginFromIntro(false);
+    } catch (error) {
+      console.error(
+        "Unable to retrieve authenticated user:",
+        error
+      );
+
+      alert(
+        "Your login could not be verified. Please try again."
+      );
+    }
   };
 
   // ------------------------------------------
@@ -441,25 +586,18 @@ function App() {
     password: string,
     selectedMode: Mode
   ) => {
-    if (!email.trim() || !password.trim()) {
-      alert("Please enter your email and password.");
-      return;
-    }
+    void email;
+    void password;
 
-    const newAccount: DemoAccount = {
-      email: email.trim(),
-    };
-
-    localStorage.setItem(AUTH_KEY, JSON.stringify(newAccount));
-
-    setAccount(newAccount);
     setMode(selectedMode);
 
-    setShowIntro(false);
-    sessionStorage.setItem("gamescope-show-intro", "false");
+    setCurrentPage("login");
 
-    setCurrentPage(
-      selectedMode === "player" ? "player" : "dashboard"
+    setShowIntro(false);
+
+    sessionStorage.setItem(
+      "gamescope-show-intro",
+      "false"
     );
   };
 
@@ -467,18 +605,33 @@ function App() {
   // LOGOUT
   // ------------------------------------------
 
-  const handleLogout = () => {
-    localStorage.removeItem(AUTH_KEY);
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error(
+        "Unable to revoke the server session:",
+        error
+      );
+    } finally {
+      localStorage.removeItem(AUTH_KEY);
 
-    setAccount(null);
+      setAccount(null);
 
-    clearPlayerAnalysis();
-    clearDeveloperAnalysis();
+      clearPlayerAnalysis();
+      clearDeveloperAnalysis();
 
-    setShowIntro(true);
-    sessionStorage.setItem("gamescope-show-intro", "true");
+      setSteamConnected(false);
 
-    setCurrentPage("player");
+      setShowIntro(true);
+
+      sessionStorage.setItem(
+        "gamescope-show-intro",
+        "true"
+      );
+
+      setCurrentPage("player");
+    }
   };
 
   // ------------------------------------------
@@ -486,7 +639,7 @@ function App() {
   // ------------------------------------------
 
   const handleCompareClick = () => {
-    if (!isLoggedIn) {
+    if (!isLoggedIn || !isPlayer) {
       setLoginFromIntro(false);
       setCurrentPage("login");
       return;
@@ -500,8 +653,15 @@ function App() {
   // ------------------------------------------
 
   const openDeveloperGame = async (appId: string) => {
+    if (!isLoggedIn || !isDeveloper) {
+      alert(
+        "You need a developer account to access this feature."
+      );
+
+      return;
+    }
+
     try {
-      // Clear the previous result while the selected game loads.
       setDeveloperAnalyzed(false);
       setDeveloperAppId("");
       setDeveloperAnalysis(null);
@@ -514,10 +674,12 @@ function App() {
 
       recordAnalysis(result, "developer");
 
-      // Navigate only after the analysis succeeds.
       setCurrentPage("dashboard");
     } catch (error) {
-      console.error("Unable to analyze selected game:", error);
+      console.error(
+        "Unable to analyze selected game:",
+        error
+      );
 
       alert(
         error instanceof Error
@@ -550,13 +712,19 @@ function App() {
   const accentValues = ACCENT_VALUES[accentColor];
 
   const activeAnalyzed =
-    mode === "player" ? playerAnalyzed : developerAnalyzed;
+    mode === "player"
+      ? playerAnalyzed
+      : developerAnalyzed;
 
   const activeAppId =
-    mode === "player" ? playerAppId : developerAppId;
+    mode === "player"
+      ? playerAppId
+      : developerAppId;
 
   const activeAnalysis =
-    mode === "player" ? playerAnalysis : developerAnalysis;
+    mode === "player"
+      ? playerAnalysis
+      : developerAnalysis;
 
   // ------------------------------------------
   // RENDER
@@ -566,7 +734,11 @@ function App() {
     <div
       className={`app-container ${
         darkMode ? "dark-mode" : ""
-      } ${mode === "player" ? "player-mode" : "developer-mode"}`}
+      } ${
+        mode === "player"
+          ? "player-mode"
+          : "developer-mode"
+      }`}
       data-accent={accentColor}
       style={
         {
@@ -578,7 +750,8 @@ function App() {
       {showIntro &&
       currentPage !== "login" &&
       currentPage !== "signup" &&
-      currentPage !== "forgot-password" ? (
+      currentPage !== "forgot-password" &&
+      currentPage !== "reset-password" ? (
         <Intro
           darkMode={darkMode}
           setDarkMode={setDarkMode}
@@ -593,25 +766,30 @@ function App() {
       ) : (
         <>
           {/* PLAYER HOMEPAGE */}
-          {currentPage === "player" && mode === "player" && (
-            <PlayerHome
-              {...sharedProps}
-              onAnalyzeGame={handlePlayerAnalysis}
-            />
-          )}
+          {currentPage === "player" &&
+            isLoggedIn &&
+            isPlayer &&
+            mode === "player" && (
+              <PlayerHome
+                {...sharedProps}
+                onAnalyzeGame={handlePlayerAnalysis}
+              />
+            )}
 
           {/* PLAYER-ONLY: MY LIBRARY */}
           {currentPage === "library" &&
-            mode === "player" &&
             isLoggedIn &&
+            isPlayer &&
+            mode === "player" &&
             steamConnected && (
               <MyLibrary {...sharedProps} />
             )}
 
           {/* PLAYER-ONLY: COMPARE GAMES */}
           {currentPage === "compare" &&
-            mode === "player" &&
-            isLoggedIn && (
+            isLoggedIn &&
+            isPlayer &&
+            mode === "player" && (
               <CompareGames {...sharedProps} />
             )}
 
@@ -621,21 +799,28 @@ function App() {
               darkMode={darkMode}
               mode={mode}
               onLogin={handleLogin}
-              onSignUpClick={() => setCurrentPage("signup")}
+              onSignUpClick={() =>
+                setCurrentPage("signup")
+              }
               onBack={() => {
                 if (loginFromIntro) {
                   setCurrentPage(
-                    mode === "player" ? "player" : "dashboard"
+                    mode === "player"
+                      ? "player"
+                      : "dashboard"
                   );
 
                   setShowIntro(true);
+
                   sessionStorage.setItem(
                     "gamescope-show-intro",
                     "true"
                   );
                 } else {
                   setCurrentPage(
-                    mode === "player" ? "player" : "dashboard"
+                    mode === "player"
+                      ? "player"
+                      : "dashboard"
                   );
                 }
 
@@ -665,10 +850,30 @@ function App() {
             />
           )}
 
+          {/* RESET PASSWORD */}
+          {currentPage === "reset-password" && (
+            <ResetPassword
+              darkMode={darkMode}
+              token={resetToken}
+              onBack={() => {
+                setResetToken("");
+
+                window.history.replaceState(
+                  {},
+                  "",
+                  "/"
+                );
+
+                setCurrentPage("login");
+              }}
+            />
+          )}
+
           {/* DEVELOPER: MY GAMES */}
           {currentPage === "my-games" &&
-            mode === "developer" &&
-            isLoggedIn && (
+            isLoggedIn &&
+            isDeveloper &&
+            mode === "developer" && (
               <MyGames
                 {...sharedProps}
                 onOpenGame={openDeveloperGame}
@@ -676,68 +881,84 @@ function App() {
             )}
 
           {/* DEVELOPER DASHBOARD */}
-          {currentPage === "dashboard" && mode === "developer" && (
-            <Dashboard
-              {...sharedProps}
-              analyzed={developerAnalyzed}
-              setAnalyzed={setDeveloperAnalyzed}
-              analyzedAppId={developerAppId}
-              setAnalyzedAppId={setDeveloperAppId}
-              analysis={developerAnalysis}
-              setAnalysis={setDeveloperAnalysis}
-              onAnalysisComplete={(result) =>
-                recordAnalysis(result, "developer")
-              }
-            />
-          )}
+          {currentPage === "dashboard" &&
+            isLoggedIn &&
+            isDeveloper &&
+            mode === "developer" && (
+              <Dashboard
+                {...sharedProps}
+                analyzed={developerAnalyzed}
+                setAnalyzed={setDeveloperAnalyzed}
+                analyzedAppId={developerAppId}
+                setAnalyzedAppId={setDeveloperAppId}
+                analysis={developerAnalysis}
+                setAnalysis={setDeveloperAnalysis}
+                onAnalysisComplete={(result) =>
+                  recordAnalysis(result, "developer")
+                }
+              />
+            )}
 
           {/* REVIEW ANALYSIS */}
-          {currentPage === "reviews" && (
-            <Reviews
-              {...sharedProps}
-              analyzed={activeAnalyzed}
-              analyzedAppId={activeAppId}
-              analysis={activeAnalysis}
-            />
-          )}
+          {currentPage === "reviews" &&
+            isLoggedIn &&
+            ((mode === "developer" && isDeveloper) ||
+              (mode === "player" && isPlayer)) && (
+              <Reviews
+                {...sharedProps}
+                analyzed={activeAnalyzed}
+                analyzedAppId={activeAppId}
+                analysis={activeAnalysis}
+              />
+            )}
 
           {/* ANALYTICS */}
-          {currentPage === "analytics" && (
-            <Analytics
-              {...sharedProps}
-              analyzed={activeAnalyzed}
-              analyzedAppId={activeAppId}
-              analysis={activeAnalysis}
-            />
-          )}
+          {currentPage === "analytics" &&
+            isLoggedIn &&
+            isDeveloper &&
+            mode === "developer" && (
+              <Analytics
+                {...sharedProps}
+                analyzed={developerAnalyzed}
+                analyzedAppId={developerAppId}
+                analysis={developerAnalysis}
+              />
+            )}
 
           {/* ISSUES */}
-          {currentPage === "issues" && (
-            <Issues
-              {...sharedProps}
-              analyzed={activeAnalyzed}
-              analyzedAppId={activeAppId}
-              analysis={activeAnalysis}
-              onOpenGame={openDeveloperGame}
-            />
-          )}
+          {currentPage === "issues" &&
+            isLoggedIn &&
+            isDeveloper &&
+            mode === "developer" && (
+              <Issues
+                {...sharedProps}
+                analyzed={developerAnalyzed}
+                analyzedAppId={developerAppId}
+                analysis={developerAnalysis}
+                onOpenGame={openDeveloperGame}
+              />
+            )}
 
           {/* PROFILE */}
-          {currentPage === "profile" && isLoggedIn && (
-            <Profile
-              {...sharedProps}
-              activityHistory={activityHistory}
-            />
-          )}
+          {currentPage === "profile" &&
+            isLoggedIn &&
+            account && (
+              <Profile
+                {...sharedProps}
+                activityHistory={activityHistory}
+                roles={account.roles}
+              />
+            )}
 
           {/* SETTINGS */}
-          {currentPage === "settings" && (
-            <Settings
-              {...sharedProps}
-              accentColor={accentColor}
-              setAccentColor={setAccentColor}
-            />
-          )}
+          {currentPage === "settings" &&
+            isLoggedIn && (
+              <Settings
+                {...sharedProps}
+                accentColor={accentColor}
+                setAccentColor={setAccentColor}
+              />
+            )}
         </>
       )}
     </div>

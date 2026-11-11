@@ -1,3 +1,4 @@
+
 export type Page =
   | "player"
   | "dashboard"
@@ -11,6 +12,7 @@ export type Page =
   | "login"
   | "signup"
   | "forgot-password"
+  | "reset-password"
   | "compare";
 
 export type Mode = "player" | "developer";

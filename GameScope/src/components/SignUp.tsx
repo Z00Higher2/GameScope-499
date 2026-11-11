@@ -1,6 +1,7 @@
 
 import React, { useState } from "react";
 import type { Mode } from "../type";
+import { signUp } from "../api";
 import "./Login.css";
 
 interface SignUpProps {
@@ -20,6 +21,7 @@ function SignUp({
   onBack,
   mode,
 }: SignUpProps) {
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -30,8 +32,9 @@ function SignUp({
 
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Calculate password strength
+  // Calculate password strength.
   const getPasswordStrength = () => {
     if (!password) return 0;
 
@@ -49,8 +52,28 @@ function SignUp({
 
   const strengthLabels = ["", "Weak", "Fair", "Good", "Strong"];
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  // Submit registration to the Python backend.
+  const handleSubmit = async (
+    event: React.FormEvent<HTMLFormElement>
+  ) => {
     event.preventDefault();
+
+    if (isSubmitting) return;
+
+    const cleanUsername = username.trim();
+    const cleanEmail = email.trim();
+
+    if (cleanUsername.length < 3 || cleanUsername.length > 30) {
+      setError("Username must be between 3 and 30 characters.");
+      return;
+    }
+
+    if (!/^[A-Za-z0-9_]+$/.test(cleanUsername)) {
+      setError(
+        "Username can only contain letters, numbers, and underscores."
+      );
+      return;
+    }
 
     if (password.length < 8) {
       setError("Password must be at least 8 characters.");
@@ -68,7 +91,28 @@ function SignUp({
     }
 
     setError("");
-    onSignUp(email.trim(), password, selectedMode);
+    setIsSubmitting(true);
+
+    try {
+      // Create the account in MySQL through FastAPI.
+      await signUp({
+        username: cleanUsername,
+        email: cleanEmail,
+        password,
+        mode: selectedMode,
+      });
+
+      // Continue into the existing GameScope app flow.
+      onSignUp(cleanEmail, password, selectedMode);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to create your account. Please try again."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -90,6 +134,7 @@ function SignUp({
           type="button"
           className="login-back-button"
           onClick={onBack}
+          disabled={isSubmitting}
         >
           <span className="login-back-arrow">←</span>
           Back to Sign In
@@ -127,8 +172,10 @@ function SignUp({
                 }`}
                 onClick={() => setSelectedMode("player")}
                 aria-pressed={selectedMode === "player"}
+                disabled={isSubmitting}
               >
                 <span className="login-role-icon">🎮</span>
+
                 <span className="login-role-text">
                   <strong>Player</strong>
                   <small>Discover games</small>
@@ -142,8 +189,10 @@ function SignUp({
                 }`}
                 onClick={() => setSelectedMode("developer")}
                 aria-pressed={selectedMode === "developer"}
+                disabled={isSubmitting}
               >
                 <span className="login-role-icon">📊</span>
+
                 <span className="login-role-text">
                   <strong>Developer</strong>
                   <small>Analyze feedback</small>
@@ -152,9 +201,44 @@ function SignUp({
             </div>
           </div>
 
+          {/* Username */}
+          <div className="login-field-group">
+            <label htmlFor="signup-username">
+              Username
+            </label>
+
+            <div className="login-input-wrapper">
+              <span className="login-input-icon">👤</span>
+
+              <input
+                id="signup-username"
+                type="text"
+                placeholder="Choose a username"
+                value={username}
+                onChange={(event) => {
+                  setUsername(event.target.value);
+                  setError("");
+                }}
+                autoComplete="username"
+                minLength={3}
+                maxLength={30}
+                pattern="[A-Za-z0-9_]+"
+                title="Use only letters, numbers, and underscores."
+                required
+                disabled={isSubmitting}
+              />
+            </div>
+
+            <small className="login-footer-text">
+              3–30 characters. Letters, numbers, and underscores only.
+            </small>
+          </div>
+
           {/* Email */}
           <div className="login-field-group">
-            <label htmlFor="signup-email">Email Address</label>
+            <label htmlFor="signup-email">
+              Email Address
+            </label>
 
             <div className="login-input-wrapper">
               <span className="login-input-icon">✉</span>
@@ -164,16 +248,22 @@ function SignUp({
                 type="email"
                 placeholder="you@example.com"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  setError("");
+                }}
                 autoComplete="email"
                 required
+                disabled={isSubmitting}
               />
             </div>
           </div>
 
           {/* Password */}
           <div className="login-field-group">
-            <label htmlFor="signup-password">Password</label>
+            <label htmlFor="signup-password">
+              Password
+            </label>
 
             <div className="login-input-wrapper">
               <span className="login-input-icon">🔒</span>
@@ -190,13 +280,19 @@ function SignUp({
                 autoComplete="new-password"
                 minLength={8}
                 required
+                disabled={isSubmitting}
               />
 
               <button
                 type="button"
                 className="login-password-toggle"
-                onClick={() => setShowPassword((current) => !current)}
-                aria-label={showPassword ? "Hide password" : "Show password"}
+                onClick={() =>
+                  setShowPassword((current) => !current)
+                }
+                aria-label={
+                  showPassword ? "Hide password" : "Show password"
+                }
+                disabled={isSubmitting}
               >
                 {showPassword ? "Hide" : "Show"}
               </button>
@@ -209,14 +305,20 @@ function SignUp({
                   {[1, 2, 3, 4].map((level) => (
                     <span
                       key={level}
-                      className={level <= passwordStrength ? `strength-level-${passwordStrength}` : ""}
+                      className={
+                        level <= passwordStrength
+                          ? `strength-level-${passwordStrength}`
+                          : ""
+                      }
                     />
                   ))}
                 </div>
 
                 <span className="password-strength-label">
                   Password strength:{" "}
-                  <strong>{strengthLabels[passwordStrength]}</strong>
+                  <strong>
+                    {strengthLabels[passwordStrength]}
+                  </strong>
                 </span>
               </div>
             )}
@@ -233,7 +335,9 @@ function SignUp({
 
               <input
                 id="signup-confirm-password"
-                type={showConfirmPassword ? "text" : "password"}
+                type={
+                  showConfirmPassword ? "text" : "password"
+                }
                 placeholder="Re-enter your password"
                 value={confirmPassword}
                 onChange={(event) => {
@@ -242,6 +346,7 @@ function SignUp({
                 }}
                 autoComplete="new-password"
                 required
+                disabled={isSubmitting}
               />
 
               <button
@@ -251,8 +356,11 @@ function SignUp({
                   setShowConfirmPassword((current) => !current)
                 }
                 aria-label={
-                  showConfirmPassword ? "Hide password" : "Show password"
+                  showConfirmPassword
+                    ? "Hide password"
+                    : "Show password"
                 }
+                disabled={isSubmitting}
               >
                 {showConfirmPassword ? "Hide" : "Show"}
               </button>
@@ -262,7 +370,9 @@ function SignUp({
             {confirmPassword && (
               <span
                 className={`password-match ${
-                  password === confirmPassword ? "matched" : "not-matched"
+                  password === confirmPassword
+                    ? "matched"
+                    : "not-matched"
                 }`}
               >
                 {password === confirmPassword
@@ -281,6 +391,7 @@ function SignUp({
                 setAcceptedTerms(event.target.checked);
                 setError("");
               }}
+              disabled={isSubmitting}
             />
 
             <span>
@@ -288,17 +399,29 @@ function SignUp({
             </span>
           </label>
 
-          {/* Validation */}
+          {/* Validation and API errors */}
           {error && (
-            <p className="login-error-message" role="alert">
+            <p
+              className="login-error-message"
+              role="alert"
+            >
               {error}
             </p>
           )}
 
           {/* Submit */}
-          <button type="submit" className="login-submit-button">
-            <span>Create Account</span>
-            <span className="login-submit-arrow">→</span>
+          <button
+            type="submit"
+            className="login-submit-button"
+            disabled={isSubmitting}
+          >
+            <span>
+              {isSubmitting ? "Creating Account..." : "Create Account"}
+            </span>
+
+            <span className="login-submit-arrow">
+              {isSubmitting ? "..." : "→"}
+            </span>
           </button>
 
           <p className="login-footer-text">

@@ -1,5 +1,6 @@
 
 import React, { useState } from "react";
+import { forgotPassword } from "../api";
 import "./Login.css";
 
 interface ForgotPasswordProps {
@@ -13,17 +14,37 @@ function ForgotPassword({
 }: ForgotPasswordProps) {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (
+    event: React.FormEvent<HTMLFormElement>
+  ) => {
     event.preventDefault();
 
-    if (!email.trim()) return;
+    if (!email.trim() || loading) return;
 
-    setSubmitted(true);
+    setLoading(true);
+    setError("");
+
+    try {
+      await forgotPassword(email.trim());
+
+      setSubmitted(true);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to process your request. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleChangeEmail = () => {
     setSubmitted(false);
+    setError("");
   };
 
   return (
@@ -84,9 +105,13 @@ function ForgotPassword({
                   type="email"
                   placeholder="you@example.com"
                   value={email}
-                  onChange={(event) => setEmail(event.target.value)}
+                  onChange={(event) => {
+                    setEmail(event.target.value);
+                    setError("");
+                  }}
                   autoComplete="email"
                   required
+                  disabled={loading}
                 />
               </div>
 
@@ -95,12 +120,29 @@ function ForgotPassword({
               </span>
             </div>
 
+            {error && (
+              <div
+                className="login-error"
+                role="alert"
+              >
+                {error}
+              </div>
+            )}
+
             <button
               type="submit"
               className="login-submit-button"
+              disabled={loading}
             >
-              <span>Send Recovery Instructions</span>
-              <span className="login-submit-arrow">→</span>
+              <span>
+                {loading
+                  ? "Sending Instructions..."
+                  : "Send Recovery Instructions"}
+              </span>
+
+              <span className="login-submit-arrow">
+                {loading ? "..." : "→"}
+              </span>
             </button>
           </form>
         ) : (

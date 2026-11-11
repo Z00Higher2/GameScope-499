@@ -3,6 +3,14 @@ import React, { useEffect, useRef, useState } from "react";
 import "./Profile.css";
 import Navbar from "./Navbar";
 import type { Page, Mode } from "../type";
+import {
+  getActiveSessions,
+  logoutAllDevices,
+} from "../api";
+import type {
+  AccountMode,
+  ActiveSession,
+} from "../api";
 
 interface ProfileProps {
   darkMode: boolean;
@@ -18,16 +26,17 @@ interface ProfileProps {
   steamConnected: boolean;
   onSteamConnect: () => void;
   onSteamDisconnect: () => void;
+  roles: AccountMode[];
 
   activityHistory: {
-  appId: string;
-  gameName: string;
-  analyzedAt: string;
-  mode: Mode;
-  positivePercentage: number;
-  negativePercentage: number;
-  totalReviews: number;
-}[];
+    appId: string;
+    gameName: string;
+    analyzedAt: string;
+    mode: Mode;
+    positivePercentage: number;
+    negativePercentage: number;
+    totalReviews: number;
+  }[];
 }
 
 interface DeveloperProfileData {
@@ -59,6 +68,18 @@ function readSavedData<T>(key: string, fallback: T): T {
   }
 }
 
+function formatSessionDate(value: string | null): string {
+  if (!value) return "Not available";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Not available";
+  }
+
+  return date.toLocaleString();
+}
+
 function Profile({
   darkMode,
   setDarkMode,
@@ -74,6 +95,7 @@ function Profile({
   steamConnected,
   onSteamConnect,
   onSteamDisconnect,
+  roles,
 }: ProfileProps) {
   const isPlayer = mode === "player";
 
@@ -129,6 +151,105 @@ function Profile({
     );
 
   const [newGame, setNewGame] = useState("");
+
+  // Account security
+  const [sessions, setSessions] = useState<ActiveSession[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionsError, setSessionsError] = useState("");
+  const [sessionsMessage, setSessionsMessage] = useState("");
+  const [loggingOutAll, setLoggingOutAll] = useState(false);
+
+  const loadSessions = async () => {
+    setSessionsLoading(true);
+    setSessionsError("");
+    setSessionsMessage("");
+
+    try {
+      const response = await getActiveSessions();
+      setSessions(response.sessions);
+    } catch (error) {
+      setSessionsError(
+        error instanceof Error
+          ? error.message
+          : "Unable to load active sessions."
+      );
+    } finally {
+      setSessionsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setSessions([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    const load = async () => {
+      setSessionsLoading(true);
+      setSessionsError("");
+
+      try {
+        const response = await getActiveSessions();
+
+        if (!cancelled) {
+          setSessions(response.sessions);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setSessionsError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load active sessions."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setSessionsLoading(false);
+        }
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn, accountEmail]);
+
+  const handleLogoutAllDevices = async () => {
+    const confirmed = window.confirm(
+      "Are you sure you want to log out of all devices? " +
+      "This will end every active GameScope session, including this one."
+    );
+
+    if (!confirmed) return;
+
+    setLoggingOutAll(true);
+    setSessionsError("");
+    setSessionsMessage("");
+
+    try {
+      const response = await logoutAllDevices();
+
+      setSessions([]);
+      setSessionsMessage(
+        `${response.message} (${response.revoked_sessions} sessions ended.)`
+      );
+
+      // The backend has already revoked the current session.
+      onLogout();
+    } catch (error) {
+      setSessionsError(
+        error instanceof Error
+          ? error.message
+          : "Unable to log out of all devices."
+      );
+    } finally {
+      setLoggingOutAll(false);
+    }
+  };
 
   // Keep account-specific information updated.
   useEffect(() => {
@@ -359,12 +480,8 @@ function Profile({
 
       <main className="profile-content">
         <header className="profile-heading">
-          <span className="profile-eyebrow">
-            GAMESCOPE ACCOUNT
-          </span>
-
+          <span className="profile-eyebrow">GAMESCOPE ACCOUNT</span>
           <h1>My Profile</h1>
-
           <p>
             Manage your account and view your
             {isPlayer ? " gaming profile." : " developer profile."}
@@ -389,9 +506,15 @@ function Profile({
             <h2>{displayName}</h2>
             <p>{accountEmail}</p>
 
-            <span className="profile-mode">
-              {isPlayer ? "Player Account" : "Developer Account"}
-            </span>
+            <div className="profile-mode">
+              {roles.map((role) => (
+                <span key={role}>
+                  {role === "player"
+                    ? "Player Account"
+                    : "Developer Account"}
+                </span>
+              ))}
+            </div>
           </div>
 
           <button
@@ -413,10 +536,7 @@ function Profile({
             <h2>Edit Profile</h2>
 
             <div className="profile-form-group">
-              <label htmlFor="profile-display-name">
-                Display Name
-              </label>
-
+              <label htmlFor="profile-display-name">Display Name</label>
               <input
                 id="profile-display-name"
                 type="text"
@@ -435,14 +555,12 @@ function Profile({
 
             <div className="profile-form-group">
               <label htmlFor="profile-email">Email Address</label>
-
               <input
                 id="profile-email"
                 type="email"
                 value={accountEmail}
                 disabled
               />
-
               <span>Email editing is not available yet.</span>
             </div>
 
@@ -469,10 +587,7 @@ function Profile({
         {/* Profile picture controls */}
         <section className="profile-section">
           <h2>Profile Picture</h2>
-
-          <p>
-            Upload a picture to personalize your GameScope account.
-          </p>
+          <p>Upload a picture to personalize your GameScope account.</p>
 
           <div className="profile-picture-actions">
             <input
@@ -513,6 +628,127 @@ function Profile({
           )}
         </section>
 
+        {/* Account Security */}
+        <section className="profile-section profile-security-section">
+          <div className="profile-security-heading">
+            <div>
+              <h2>Account Security</h2>
+              <p>
+                Review where your GameScope account is currently signed in.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              className="profile-refresh-button"
+              onClick={loadSessions}
+              disabled={sessionsLoading || loggingOutAll}
+            >
+              {sessionsLoading ? "Refreshing..." : "Refresh"}
+            </button>
+          </div>
+
+          <div className="profile-security-summary">
+            <div className="profile-security-icon">
+              <span aria-hidden="true">⌁</span>
+            </div>
+
+            <div>
+              <strong>
+                {sessions.length} active{" "}
+                {sessions.length === 1 ? "session" : "sessions"}
+              </strong>
+              <span>
+                Sessions associated with your GameScope account
+              </span>
+            </div>
+          </div>
+
+          {sessionsError && (
+            <p className="profile-upload-error" role="alert">
+              {sessionsError}
+            </p>
+          )}
+
+          {sessionsMessage && (
+            <p className="profile-security-success" role="status">
+              {sessionsMessage}
+            </p>
+          )}
+
+          {sessionsLoading ? (
+            <div className="profile-security-empty">
+              Loading active sessions...
+            </div>
+          ) : sessions.length > 0 ? (
+            <div className="profile-session-list">
+              {sessions.map((session) => (
+                <article
+                  className="profile-session-item"
+                  key={session.session_id}
+                >
+                  <div className="profile-session-device">
+                    <div className="profile-session-device-icon">
+                      <span aria-hidden="true">▣</span>
+                    </div>
+
+                    <div className="profile-session-details">
+                      <div className="profile-session-title">
+                        <h3>GameScope Browser Session</h3>
+
+                        {session.is_current && (
+                          <span className="profile-current-session">
+                            This device
+                          </span>
+                        )}
+                      </div>
+
+                      <p>
+                        Last active:{" "}
+                        {formatSessionDate(session.last_seen_at)}
+                      </p>
+
+                      <p>
+                        Expires:{" "}
+                        {formatSessionDate(session.expires_at)}
+                      </p>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            !sessionsError && (
+              <div className="profile-security-empty">
+                No active sessions were found.
+              </div>
+            )
+          )}
+
+          <div className="profile-security-actions">
+            <div>
+              <strong>Log out of all devices</strong>
+              <p>
+                End every active session, including the current browser.
+                You will need to sign in again.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              className="profile-logout-all-button"
+              onClick={handleLogoutAllDevices}
+              disabled={
+                loggingOutAll ||
+                sessionsLoading ||
+                sessions.length === 0
+              }
+            >
+              {loggingOutAll ? "Logging out..." : "Log Out All Devices"}
+            </button>
+          </div>
+        </section>
+
         {/* Player Profile */}
         {isPlayer ? (
           <section className="profile-section">
@@ -537,7 +773,6 @@ function Profile({
                     checked={favoriteGenres.includes(genre)}
                     onChange={() => handleGenreChange(genre)}
                   />
-
                   {genre}
                 </label>
               ))}
@@ -548,7 +783,6 @@ function Profile({
             </span>
           </section>
         ) : (
-          /* Developer Profile */
           <section className="profile-section">
             <h2>Developer Profile</h2>
 
@@ -561,7 +795,6 @@ function Profile({
               <label htmlFor="developer-company">
                 Company / Studio Name
               </label>
-
               <input
                 id="developer-company"
                 type="text"
@@ -575,10 +808,7 @@ function Profile({
             </div>
 
             <div className="profile-form-group">
-              <label htmlFor="developer-role">
-                Your Role
-              </label>
-
+              <label htmlFor="developer-role">Your Role</label>
               <input
                 id="developer-role"
                 type="text"
@@ -592,10 +822,7 @@ function Profile({
             </div>
 
             <div className="profile-form-group">
-              <label htmlFor="developer-website">
-                Company Website
-              </label>
-
+              <label htmlFor="developer-website">Company Website</label>
               <input
                 id="developer-website"
                 type="url"
@@ -607,10 +834,8 @@ function Profile({
               />
             </div>
 
-            {/* Managed Games */}
             <div className="profile-managed-games">
               <h3>Managed Games</h3>
-
               <p>
                 Keep a list of games associated with your studio.
               </p>
@@ -728,9 +953,7 @@ function Profile({
                     "Are you sure you want to disconnect your Steam account?"
                   );
 
-                  if (confirmed) {
-                    onSteamDisconnect();
-                  }
+                  if (confirmed) onSteamDisconnect();
                 }}
               >
                 Disconnect Steam
@@ -751,12 +974,15 @@ function Profile({
             your Steam profile. Real Steam sign-in will be added later.
           </span>
         </section>
-                {/* Recent Analysis Activity */}
+
+        {/* Recent Analysis Activity */}
         <section className="profile-section profile-activity">
           <div className="profile-activity-heading">
             <div>
               <h2>Recent Activity</h2>
-              <p>Your recently analyzed games and their review statistics.</p>
+              <p>
+                Your recently analyzed games and their review statistics.
+              </p>
             </div>
 
             <span className="profile-activity-count">

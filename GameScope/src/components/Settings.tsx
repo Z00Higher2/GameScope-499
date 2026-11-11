@@ -16,7 +16,6 @@ import type {
 } from "../preferences";
 
 const FAVORITES_KEY = "gamescope-favorite-games";
-const STEAM_PROFILE_KEY = "gamescope-steam-profile";
 
 function loadFavorites(): string[] {
   try {
@@ -40,12 +39,10 @@ interface SettingsProps {
   setAccentColor: React.Dispatch<
     React.SetStateAction<AccentColor>
   >;
-
   setMode: React.Dispatch<React.SetStateAction<Mode>>;
   isLoggedIn?: boolean;
   accountEmail?: string;
   onLogout?: () => void;
-
   steamConnected: boolean;
   onSteamConnect: () => void;
   onSteamDisconnect: () => void;
@@ -74,7 +71,6 @@ function Settings({
   const [favorites, setFavorites] = useState<string[]>(loadFavorites);
   const [favoriteInput, setFavoriteInput] = useState("");
   const [savedMessage, setSavedMessage] = useState("");
-
 
   useEffect(() => {
     localStorage.setItem(
@@ -127,8 +123,6 @@ function Settings({
     setSavedMessage("Game removed from your saved list.");
   };
 
-
-
   const exportPreferences = () => {
     const exportData = {
       application: "GameScope",
@@ -164,7 +158,7 @@ function Settings({
     setPreferences({ ...DEFAULT_PREFERENCES });
     setAccentColor("purple");
     setSavedMessage("Preferences restored to defaults.");
-    };
+  };
 
   const toggleGenre = (genre: string) => {
     setPreferences((previous) => ({
@@ -186,7 +180,6 @@ function Settings({
         preferences.compactLayout ? "settings-compact" : ""
       }`}
     >
-      
       <Navbar
         darkMode={darkMode}
         setDarkMode={setDarkMode}
@@ -199,7 +192,6 @@ function Settings({
         accountEmail={accountEmail}
         onLogout={onLogout}
       />
-
 
       <main className="settings-main">
         <header className="settings-header">
@@ -253,6 +245,7 @@ function Settings({
                 >
                   Dark
                 </button>
+
                 <button
                   type="button"
                   className={`settings-choice ${
@@ -278,17 +271,17 @@ function Settings({
                 className="settings-select"
                 value={accentColor}
                 onChange={(event) => {
-                    const color = event.target.value as AccentColor;
+                  const color = event.target.value as AccentColor;
 
-                    setAccentColor(color);
-                    updatePreference("accentColor", color);
+                  setAccentColor(color);
+                  updatePreference("accentColor", color);
                 }}
                 aria-label="Accent color"
-                >
+              >
                 <option value="purple">Purple</option>
                 <option value="blue">Blue</option>
                 <option value="green">Green</option>
-            </select>
+              </select>
             </div>
 
             <div className="settings-divider" />
@@ -382,7 +375,9 @@ function Settings({
             <div className="settings-section-icon">⌁</div>
             <div>
               <h2>Analysis Configuration</h2>
-              <p>Configure proposed review and issue-detection thresholds.</p>
+              <p>
+                Configure proposed review and issue-detection thresholds.
+              </p>
             </div>
           </div>
 
@@ -457,7 +452,9 @@ function Settings({
             <div className="settings-section-icon">▦</div>
             <div>
               <h2>Dashboard Preferences</h2>
-              <p>Choose your preferred starting point and display options.</p>
+              <p>
+                Choose your preferred starting point and display options.
+              </p>
             </div>
           </div>
 
@@ -589,7 +586,9 @@ function Settings({
             <div className="settings-section-icon">⇩</div>
             <div>
               <h2>Export & Reports</h2>
-              <p>Choose what the Issues page's exported report includes.</p>
+              <p>
+                Choose what the Issues page's exported report includes.
+              </p>
             </div>
           </div>
 
@@ -647,9 +646,10 @@ function Settings({
           </p>
         </section>
 
+        {/* STEAM ACCOUNT - PLAYER MODE ONLY */}
 
-        {/* Steam Account */}
-          <section className="settings-section">
+        {mode === "player" && (
+          <section className="settings-section" id="steam-account">
             <div className="steam-account-header">
               <div>
                 <h2>Steam Account</h2>
@@ -714,142 +714,147 @@ function Settings({
               your Steam profile. Real Steam sign-in will be added later.
             </p>
           </section>
+        )}
 
-        {/* 7. PLAYER PREFERENCES */}
+        {/* 7. PLAYER PREFERENCES - PLAYER MODE ONLY */}
 
-        <section className="settings-section" id="players">
-          <div className="settings-section-heading">
-            <div className="settings-section-icon">◇</div>
-            <div>
-              <h2>Player Preferences</h2>
-              <p>Save games and personalize future discovery features.</p>
-            </div>
-          </div>
-
-          <div className="settings-card">
-            <div className="settings-row">
-              <div className="settings-row-copy">
-                <h3>Favorite games</h3>
-                <p>Add a game name to your locally saved list.</p>
+        {mode === "player" && (
+          <section className="settings-section" id="players">
+            <div className="settings-section-heading">
+              <div className="settings-section-icon">◇</div>
+              <div>
+                <h2>Player Preferences</h2>
+                <p>
+                  Save games and personalize future discovery features.
+                </p>
               </div>
             </div>
 
-            <div className="settings-favorite-form">
-              <input
-                className="settings-input"
-                value={favoriteInput}
-                onChange={(event) =>
-                  setFavoriteInput(event.target.value)
+            <div className="settings-card">
+              <div className="settings-row">
+                <div className="settings-row-copy">
+                  <h3>Favorite games</h3>
+                  <p>Add a game name to your locally saved list.</p>
+                </div>
+              </div>
+
+              <div className="settings-favorite-form">
+                <input
+                  className="settings-input"
+                  value={favoriteInput}
+                  onChange={(event) =>
+                    setFavoriteInput(event.target.value)
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") addFavorite();
+                  }}
+                  placeholder="Enter a game name..."
+                  aria-label="Game name"
+                />
+                <button
+                  type="button"
+                  className="settings-primary-button"
+                  onClick={addFavorite}
+                >
+                  Add Game
+                </button>
+              </div>
+
+              {favorites.length > 0 ? (
+                <div className="settings-favorite-list">
+                  {favorites.map((game) => (
+                    <div className="settings-favorite-item" key={game}>
+                      <span>🎮</span>
+                      <strong>{game}</strong>
+                      <button
+                        type="button"
+                        onClick={() => removeFavorite(game)}
+                        aria-label={`Remove ${game}`}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="settings-empty">
+                  No saved games yet. Add a game above to get started.
+                </p>
+              )}
+
+              <div className="settings-divider" />
+
+              <SettingToggle
+                title="Hide games I already own"
+                description="Preference for future game discovery and recommendations."
+                checked={preferences.hideOwnedGames}
+                onChange={(value) =>
+                  updatePreference("hideOwnedGames", value)
                 }
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") addFavorite();
-                }}
-                placeholder="Enter a game name..."
-                aria-label="Game name"
               />
-              <button
-                type="button"
-                className="settings-primary-button"
-                onClick={addFavorite}
-              >
-                Add Game
-              </button>
-            </div>
 
-            {favorites.length > 0 ? (
-              <div className="settings-favorite-list">
-                {favorites.map((game) => (
-                  <div className="settings-favorite-item" key={game}>
-                    <span>🎮</span>
-                    <strong>{game}</strong>
+              <div className="settings-divider" />
+
+              <SettingSelect
+                title="Recommendation priority"
+                description="Choose what future game recommendations should emphasize."
+                value={preferences.recommendationPriority}
+                options={[
+                  ["quality", "Review quality"],
+                  ["sentiment", "Player sentiment"],
+                  ["issues", "Common player issues"],
+                ]}
+                onChange={(value) =>
+                  updatePreference(
+                    "recommendationPriority",
+                    value as Preferences["recommendationPriority"]
+                  )
+                }
+              />
+
+              <div className="settings-divider" />
+
+              <div className="settings-row settings-genres-row">
+                <div className="settings-row-copy">
+                  <h3>Preferred genres</h3>
+                  <p>Select genres for future discovery features.</p>
+                </div>
+
+                <div className="settings-genre-options">
+                  {[
+                    "Action",
+                    "RPG",
+                    "Strategy",
+                    "Indie",
+                    "Simulation",
+                    "Adventure",
+                  ].map((genre) => (
                     <button
+                      key={genre}
                       type="button"
-                      onClick={() => removeFavorite(game)}
-                      aria-label={`Remove ${game}`}
+                      className={`settings-genre ${
+                        preferences.preferredGenres.includes(genre)
+                          ? "selected"
+                          : ""
+                      }`}
+                      aria-pressed={preferences.preferredGenres.includes(
+                        genre
+                      )}
+                      onClick={() => toggleGenre(genre)}
                     >
-                      Remove
+                      {genre}
                     </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="settings-empty">
-                No saved games yet. Add a game above to get started.
-              </p>
-            )}
-
-            <div className="settings-divider" />
-
-            <SettingToggle
-              title="Hide games I already own"
-              description="Preference for future game discovery and recommendations."
-              checked={preferences.hideOwnedGames}
-              onChange={(value) =>
-                updatePreference("hideOwnedGames", value)
-              }
-            />
-
-            <div className="settings-divider" />
-
-            <SettingSelect
-              title="Recommendation priority"
-              description="Choose what future game recommendations should emphasize."
-              value={preferences.recommendationPriority}
-              options={[
-                ["quality", "Review quality"],
-                ["sentiment", "Player sentiment"],
-                ["issues", "Common player issues"],
-              ]}
-              onChange={(value) =>
-                updatePreference(
-                  "recommendationPriority",
-                  value as Preferences["recommendationPriority"]
-                )
-              }
-            />
-
-            <div className="settings-divider" />
-
-            <div className="settings-row settings-genres-row">
-              <div className="settings-row-copy">
-                <h3>Preferred genres</h3>
-                <p>Select genres for future discovery features.</p>
-              </div>
-
-              <div className="settings-genre-options">
-                {[
-                  "Action",
-                  "RPG",
-                  "Strategy",
-                  "Indie",
-                  "Simulation",
-                  "Adventure",
-                ].map((genre) => (
-                  <button
-                    key={genre}
-                    type="button"
-                    className={`settings-genre ${
-                      preferences.preferredGenres.includes(genre)
-                        ? "selected"
-                        : ""
-                    }`}
-                    aria-pressed={preferences.preferredGenres.includes(
-                      genre
-                    )}
-                    onClick={() => toggleGenre(genre)}
-                  >
-                    {genre}
-                  </button>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
 
-          <p className="settings-note">
-            Favorite games and genres are saved in this browser.
-            They are not synced across devices or user accounts.
-          </p>
-        </section>
+            <p className="settings-note">
+              Favorite games and genres are saved in this browser.
+              They are not synced across devices or user accounts.
+            </p>
+          </section>
+        )}
 
         {/* 8. PRIVACY & DATA */}
 

@@ -1,3 +1,4 @@
+
 /*
  * GameScope API client.
  *
@@ -22,10 +23,88 @@ function withParams(path: string, ...params: string[]): string {
   const query = params.filter(Boolean).join("&");
   return query ? `${path}?${query}` : path;
 }
+
+// =========================================================
+// AUTHENTICATION TYPES
+// =========================================================
+
+export type AccountMode = "player" | "developer";
+
+export interface SignUpRequest {
+  username: string;
+  email: string;
+  password: string;
+  mode: AccountMode;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface AuthUser {
+  user_id: number;
+  username: string;
+  email: string;
+  roles: AccountMode[];
+}
+
+export interface SignUpResponse {
+  message: string;
+  user: AuthUser;
+}
+
+export interface LoginResponse {
+  message: string;
+  user: AuthUser;
+  expires_at: string;
+}
+
+export interface CurrentUserResponse {
+  user: AuthUser;
+}
+
+export interface LogoutResponse {
+  message: string;
+}
+
+export interface ActiveSession {
+  session_id: number;
+  expires_at: string;
+  last_seen_at: string | null;
+  is_current: boolean;
+}
+
+export interface ActiveSessionsResponse {
+  sessions: ActiveSession[];
+}
+
+export interface LogoutAllResponse {
+  message: string;
+  revoked_sessions: number;
+}
+
+export interface ForgotPasswordResponse {
+  message: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  new_password: string;
+}
+
+export interface ResetPasswordResponse {
+  message: string;
+}
+
+// =========================================================
+// GAME TYPES
+// =========================================================
+
 export interface GameSearchResult {
   name: string;
   appId: string;
-  image?: string | null; // small cover image from Steam search
+  image?: string | null;
 }
 
 export interface GameDetails {
@@ -33,18 +112,18 @@ export interface GameDetails {
   name: string;
   developer: string | null;
   publisher: string | null;
-  releaseDate: string | null; // ISO date, e.g. "2024-12-06"
-  price: number | null; // current price in USD, 0 when free
+  releaseDate: string | null;
+  price: number | null;
   shortDescription: string | null;
-  headerImage?: string | null; // Steam header image URL
-  comingSoon: boolean; // not released on Steam yet
+  headerImage?: string | null;
+  comingSoon: boolean;
   earlyAccess: boolean;
 }
 
 export interface SteamStanding {
   appId: string;
-  summary: string | null; // Steam's rating, e.g. "Very Positive"
-  score: number; // 1-4 negative, 5 mixed, 6-9 positive, 0 too few reviews
+  summary: string | null;
+  score: number;
   totalReviews: number;
   positivePercent: number | null;
 }
@@ -75,7 +154,6 @@ export interface GameAnalysis {
     reliablePercentage: number;
   };
 
-  // What the junk filter removed in the latest run
   filter: {
     collected: number;
     kept: number;
@@ -93,7 +171,7 @@ export interface GameAnalysis {
   positiveTopics: { topic: string; mentions: number }[];
   negativeTopics: { topic: string; mentions: number }[];
 
-    prosAndCons: {
+  prosAndCons: {
     pros: {
       topic: string;
       mentions: number;
@@ -192,14 +270,13 @@ export interface TopicSearchResult {
   games: {
     appId: string;
     name: string;
-    status: IssueStatus | null; // null when no one has set a status
+    status: IssueStatus | null;
     totalReviews: number;
     mentions: number;
     praised: number;
     complaints: number;
     praiseRate: number;
     complaintRate: number;
-    // Complaint rate in the older half of the reviews vs the newer half
     trend: {
       since: string;
       earlierComplaintRate: number;
@@ -209,6 +286,63 @@ export interface TopicSearchResult {
   }[];
 }
 
+// =========================================================
+// PATCH IMPACT TYPES
+// =========================================================
+
+export interface PatchWindow {
+  reviews: number;
+  positive: number;
+  positivePct: number;
+  from: string | null;
+  to: string | null;
+}
+
+export type PatchChange = "improved" | "worsened" | "steady";
+
+export interface PatchTopicChange {
+  topic: string;
+  beforeComplaints: number;
+  afterComplaints: number;
+  beforeRate: number;
+  afterRate: number;
+  change: number;
+  direction: PatchChange;
+  issueStatus: IssueStatus | null;
+}
+
+export interface PatchImpactEntry {
+  id: string;
+  title: string;
+  url: string | null;
+  postedAt: string;
+  isPatchNotes: boolean;
+  state: "measured" | "too_few_reviews" | "outside_reviews";
+  verdict: PatchChange | "unknown";
+  before: PatchWindow;
+  after: PatchWindow;
+  sentimentChange?: number;
+  topics?: PatchTopicChange[];
+  summary?: string;
+}
+
+export interface PatchImpactReport {
+  windowDays: number;
+  minReviews: number;
+  includeAnnouncements: boolean;
+  reviewsFrom: string | null;
+  reviewsTo: string | null;
+  totalReviews: number;
+  totalUpdates: number;
+  patchNotes: number;
+  measured: number;
+  patches: PatchImpactEntry[];
+}
+
+// =========================================================
+// SHARED API REQUEST
+// =========================================================
+
 async function request<T>(
   path: string,
   init?: RequestInit
@@ -216,7 +350,11 @@ async function request<T>(
   let response: Response;
 
   try {
-  response = await fetch(`${API_BASE_URL}${path}`, init);
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...init,
+      // Required for the browser to send/receive the HttpOnly session cookie.
+      credentials: "include",
+    });
   } catch (error) {
     if (
       error instanceof DOMException &&
@@ -242,7 +380,7 @@ async function request<T>(
         detail = body.detail;
       }
     } catch {
-      // Not JSON, e.g. the dev server's proxy error when the API is down
+      // Not JSON, e.g. the dev server's proxy error when the API is down.
     }
 
     throw new Error(detail);
@@ -250,6 +388,111 @@ async function request<T>(
 
   return response.json() as Promise<T>;
 }
+
+// =========================================================
+// AUTHENTICATION API
+// =========================================================
+
+/*
+ * Register a new GameScope account.
+ *
+ * Every account receives the player role.
+ * Developer accounts additionally receive the developer role.
+ */
+export function signUp(data: SignUpRequest) {
+  return request<SignUpResponse>("/api/auth/signup", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
+  });
+}
+
+/*
+ * Authenticate an existing GameScope account.
+ */
+export function login(data: LoginRequest) {
+  return request<LoginResponse>("/api/auth/login", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
+  });
+}
+
+/*
+ * Restore the authenticated user when the app loads or refreshes.
+ * The browser automatically sends the HttpOnly session cookie.
+ */
+export function getCurrentUser() {
+  return request<CurrentUserResponse>("/api/auth/me");
+}
+
+/*
+ * Revoke the current server-side session and clear the session cookie.
+ */
+export function logout() {
+  return request<LogoutResponse>("/api/auth/logout", {
+    method: "POST",
+  });
+}
+
+/*
+ * Retrieve all active sessions for the authenticated account.
+ */
+export function getActiveSessions() {
+  return request<ActiveSessionsResponse>("/api/auth/sessions");
+}
+
+/*
+ * Revoke every active session belonging to the account.
+ */
+export function logoutAllDevices() {
+  return request<LogoutAllResponse>("/api/auth/logout-all", {
+    method: "POST",
+  });
+}
+
+/*
+ * Request a password-reset email.
+ *
+ * The backend returns a generic message whether or not
+ * the supplied email belongs to an account.
+ */
+export function forgotPassword(email: string) {
+  return request<ForgotPasswordResponse>(
+    "/api/auth/forgot-password",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email }),
+    }
+  );
+}
+
+/*
+ * Reset the account password using the emailed reset token.
+ */
+export function resetPassword(data: ResetPasswordRequest) {
+  return request<ResetPasswordResponse>(
+    "/api/auth/reset-password",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    }
+  );
+}
+
+// =========================================================
+// STEAM GAME API
+// =========================================================
 
 /*
  * Find Steam games by name.
@@ -278,6 +521,10 @@ export function getGameDetails(
   );
 }
 
+// =========================================================
+// GAME ANALYSIS API
+// =========================================================
+
 /*
  * Count a search for a game. Returns its new total.
  */
@@ -297,8 +544,14 @@ export interface TrendingGame {
 /*
  * The most-searched games on the site, most first.
  */
-export function getTrending(limit: number, signal?: AbortSignal) {
-  return request<TrendingGame[]>(`/api/trending?limit=${limit}`, { signal });
+export function getTrending(
+  limit: number,
+  signal?: AbortSignal
+) {
+  return request<TrendingGame[]>(
+    `/api/trending?limit=${limit}`,
+    { signal }
+  );
 }
 
 /*
@@ -349,6 +602,10 @@ export function getAnalysis(appId: string) {
   );
 }
 
+// =========================================================
+// ISSUES API
+// =========================================================
+
 export function getIssues(
   appId: string,
   minMentions: number,
@@ -389,6 +646,9 @@ export function searchTopic(
   );
 }
 
+/*
+ * Update the status of an issue.
+ */
 export function updateIssueStatus(
   appId: string,
   topic: string,
@@ -403,6 +663,10 @@ export function updateIssueStatus(
     }
   );
 }
+
+// =========================================================
+// REVIEWS API
+// =========================================================
 
 /*
  * Reviews ranked by quality score, for the Reviews page.
@@ -420,58 +684,11 @@ export function getReviewCards(
     ),
     { signal }
   );
-} 
-export interface PatchWindow {
-  reviews: number;
-  positive: number;
-  positivePct: number;
-  from: string | null;
-  to: string | null;
 }
 
-export type PatchChange = "improved" | "worsened" | "steady";
-
-export interface PatchTopicChange {
-  topic: string;
-  beforeComplaints: number;
-  afterComplaints: number;
-  beforeRate: number; // % of all reviews in the window
-  afterRate: number;
-  change: number; // percentage points, after minus before
-  direction: PatchChange; // "steady" unless the change is statistically real
-  issueStatus: IssueStatus | null; // status set on the Issues page
-}
-
-export interface PatchImpactEntry {
-  id: string;
-  title: string;
-  url: string | null;
-  postedAt: string;
-  isPatchNotes: boolean;
-  // measured: enough reviews on both sides
-  // too_few_reviews: some reviews, but fewer than minReviews on a side
-  // outside_reviews: posted before or after the stored reviews
-  state: "measured" | "too_few_reviews" | "outside_reviews";
-  verdict: PatchChange | "unknown";
-  before: PatchWindow;
-  after: PatchWindow;
-  sentimentChange?: number;
-  topics?: PatchTopicChange[];
-  summary?: string;
-}
-
-export interface PatchImpactReport {
-  windowDays: number;
-  minReviews: number;
-  includeAnnouncements: boolean;
-  reviewsFrom: string | null;
-  reviewsTo: string | null;
-  totalReviews: number;
-  totalUpdates: number;
-  patchNotes: number;
-  measured: number;
-  patches: PatchImpactEntry[];
-}
+// =========================================================
+// PATCH IMPACT API
+// =========================================================
 
 /*
  * Patch Impact: reviews just before each developer update vs just after.

@@ -1,11 +1,16 @@
 
 import React, { useState } from "react";
 import type { Mode } from "../type";
+import { login } from "../api";
 import "./Login.css";
 
 interface LoginProps {
   darkMode: boolean;
-  onLogin: (email: string, password: string, selectedMode: Mode) => void;
+  onLogin: (
+    email: string,
+    password: string,
+    selectedMode: Mode
+  ) => void | Promise<void>;
   onBack: () => void;
   mode: Mode;
   onSignUpClick: () => void;
@@ -22,20 +27,71 @@ function Login({
 }: LoginProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [selectedMode, setSelectedMode] = useState<Mode>(mode);
+  const [selectedMode, setSelectedMode] =
+    useState<Mode>(mode);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const handleSubmit = async (
+    event: React.FormEvent<HTMLFormElement>
+  ) => {
     event.preventDefault();
 
-    onLogin(email.trim(), password, selectedMode);
+    if (isSubmitting) return;
+
+    const cleanEmail = email.trim();
+
+    if (!cleanEmail || !password) {
+      setErrorMessage(
+        "Please enter your email and password."
+      );
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorMessage("");
+
+    try {
+      const response = await login({
+        email: cleanEmail,
+        password,
+      });
+
+      // Verify that the account has the selected role.
+      if (!response.user.roles.includes(selectedMode)) {
+        setErrorMessage(
+          `This account does not have the ${selectedMode} role.`
+        );
+        return;
+      }
+
+      // Wait for App.tsx to retrieve and establish
+      // the authenticated account and its permissions.
+      await onLogin(
+        cleanEmail,
+        password,
+        selectedMode
+      );
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to sign in. Please try again."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <main
       className={`login-page ${
-        darkMode ? "login-dark-mode" : "login-light-mode"
+        darkMode
+          ? "login-dark-mode"
+          : "login-light-mode"
       }`}
     >
       {/* Animated background */}
@@ -51,9 +107,13 @@ function Login({
           type="button"
           className="login-back-button"
           onClick={onBack}
+          disabled={isSubmitting}
         >
           <span className="login-back-arrow">←</span>
-          Back to {mode === "player" ? "Player Home" : "Dashboard"}
+          Back to{" "}
+          {mode === "player"
+            ? "Player Home"
+            : "Dashboard"}
         </button>
 
         {/* Branding */}
@@ -84,12 +144,21 @@ function Login({
               <button
                 type="button"
                 className={`login-role-option ${
-                  selectedMode === "player" ? "selected" : ""
+                  selectedMode === "player"
+                    ? "selected"
+                    : ""
                 }`}
-                onClick={() => setSelectedMode("player")}
-                aria-pressed={selectedMode === "player"}
+                onClick={() =>
+                  setSelectedMode("player")
+                }
+                aria-pressed={
+                  selectedMode === "player"
+                }
+                disabled={isSubmitting}
               >
-                <span className="login-role-icon">🎮</span>
+                <span className="login-role-icon">
+                  🎮
+                </span>
 
                 <span className="login-role-text">
                   <strong>Player</strong>
@@ -100,12 +169,21 @@ function Login({
               <button
                 type="button"
                 className={`login-role-option ${
-                  selectedMode === "developer" ? "selected" : ""
+                  selectedMode === "developer"
+                    ? "selected"
+                    : ""
                 }`}
-                onClick={() => setSelectedMode("developer")}
-                aria-pressed={selectedMode === "developer"}
+                onClick={() =>
+                  setSelectedMode("developer")
+                }
+                aria-pressed={
+                  selectedMode === "developer"
+                }
+                disabled={isSubmitting}
               >
-                <span className="login-role-icon">📊</span>
+                <span className="login-role-icon">
+                  📊
+                </span>
 
                 <span className="login-role-text">
                   <strong>Developer</strong>
@@ -122,16 +200,22 @@ function Login({
             </label>
 
             <div className="login-input-wrapper">
-              <span className="login-input-icon">✉</span>
+              <span className="login-input-icon">
+                ✉
+              </span>
 
               <input
                 id="login-email"
                 type="email"
                 placeholder="you@example.com"
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  setErrorMessage("");
+                }}
                 autoComplete="email"
                 required
+                disabled={isSubmitting}
               />
             </div>
           </div>
@@ -143,27 +227,40 @@ function Login({
             </label>
 
             <div className="login-input-wrapper">
-              <span className="login-input-icon">🔒</span>
+              <span className="login-input-icon">
+                🔒
+              </span>
 
               <input
                 id="login-password"
-                type={showPassword ? "text" : "password"}
+                type={
+                  showPassword ? "text" : "password"
+                }
                 placeholder="Enter your password"
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  setErrorMessage("");
+                }}
                 autoComplete="current-password"
                 required
+                disabled={isSubmitting}
               />
 
               <button
                 type="button"
                 className="login-password-toggle"
                 onClick={() =>
-                  setShowPassword((current) => !current)
+                  setShowPassword(
+                    (current) => !current
+                  )
                 }
                 aria-label={
-                  showPassword ? "Hide password" : "Show password"
+                  showPassword
+                    ? "Hide password"
+                    : "Show password"
                 }
+                disabled={isSubmitting}
               >
                 {showPassword ? "Hide" : "Show"}
               </button>
@@ -179,7 +276,9 @@ function Login({
                 onChange={(event) =>
                   setRememberMe(event.target.checked)
                 }
+                disabled={isSubmitting}
               />
+
               <span>Remember me</span>
             </label>
 
@@ -187,18 +286,37 @@ function Login({
               type="button"
               className="login-password-toggle"
               onClick={onForgotPasswordClick}
+              disabled={isSubmitting}
             >
               Forgot Password?
             </button>
           </div>
 
+          {/* Login error */}
+          {errorMessage && (
+            <div
+              className="login-error-message"
+              role="alert"
+            >
+              {errorMessage}
+            </div>
+          )}
+
           {/* Submit */}
           <button
             type="submit"
             className="login-submit-button"
+            disabled={isSubmitting}
           >
-            <span>Sign In</span>
-            <span className="login-submit-arrow">→</span>
+            <span>
+              {isSubmitting
+                ? "Signing In..."
+                : "Sign In"}
+            </span>
+
+            <span className="login-submit-arrow">
+              {isSubmitting ? "..." : "→"}
+            </span>
           </button>
 
           {/* Footer */}
@@ -211,6 +329,7 @@ function Login({
             <button
               type="button"
               onClick={onSignUpClick}
+              disabled={isSubmitting}
             >
               Sign Up
             </button>
