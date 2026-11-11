@@ -1,11 +1,12 @@
+
 -- ============================================================
 -- DATABASE
 -- ============================================================
 
-create database if not exists game_reviews
-    character set utf8mb4 collate utf8mb4_general_ci;
+CREATE DATABASE IF NOT EXISTS game_reviews
+    CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 
-use game_reviews;
+USE game_reviews;
 
 -- ============================================================
 -- USERS
@@ -13,418 +14,518 @@ use game_reviews;
 -- never as plaintext.
 -- ============================================================
 
-create table if not exists users(
-    user_id int unsigned auto_increment not null,
-    username varchar(255) not null,
-    email varchar(255) not null,
-    password_hash varchar(255) not null,
-    created_at timestamp not null default current_timestamp,
-    updated_at timestamp not null default current_timestamp
-        on update current_timestamp,
+CREATE TABLE IF NOT EXISTS users (
+    user_id INT UNSIGNED AUTO_INCREMENT NOT NULL,
+    username VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
 
-    primary key (user_id),
-    unique key uq_users_username (username),
-    unique key uq_users_email (email)
+    PRIMARY KEY (user_id),
+    UNIQUE KEY uq_users_username (username),
+    UNIQUE KEY uq_users_email (email)
 ) ENGINE = InnoDB;
 
--- A user can have both roles. The application should add the player role at
--- signup and add the developer role when the user requests developer access.
-create table if not exists user_roles(
-    user_id int unsigned not null,
-    role enum('player', 'developer') not null,
+-- ============================================================
+-- PASSWORD RESET TOKENS
+-- ============================================================
 
-    primary key (user_id, role),
-    constraint fk_user_roles_user_id
-        foreign key (user_id)
-        references users(user_id)
-        on update cascade
-        on delete cascade
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    reset_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT UNSIGNED NOT NULL,
+    token_hash CHAR(64) NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    used_at DATETIME NULL DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_password_reset_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(user_id)
+        ON DELETE CASCADE,
+
+    INDEX idx_reset_user_id (user_id),
+    INDEX idx_reset_expires_at (expires_at)
+) ENGINE = InnoDB;
+
+-- ============================================================
+-- USER SESSIONS
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS user_sessions (
+    session_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT UNSIGNED NOT NULL,
+    token_hash CHAR(64) NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_seen_at TIMESTAMP NULL DEFAULT NULL,
+    revoked_at TIMESTAMP NULL DEFAULT NULL,
+
+    CONSTRAINT fk_user_sessions_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(user_id)
+        ON DELETE CASCADE,
+
+    INDEX idx_sessions_user_id (user_id),
+    INDEX idx_sessions_expires_at (expires_at)
+) ENGINE = InnoDB;
+
+-- ============================================================
+-- USER ROLES
+-- A user can have both player and developer roles.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS user_roles (
+    user_id INT UNSIGNED NOT NULL,
+    role ENUM('player', 'developer') NOT NULL,
+
+    PRIMARY KEY (user_id, role),
+
+    CONSTRAINT fk_user_roles_user_id
+        FOREIGN KEY (user_id)
+        REFERENCES users(user_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
 -- ============================================================
 -- USER PRIORITIES
--- Importance scores are from 1 (not important) to 5 (must-have).
--- A user can save one score for each category.
+-- Importance scores: 1 (not important) to 5 (must-have).
 -- ============================================================
 
-create table if not exists user_priorities(
-    user_id int unsigned not null,
-    category enum(
+CREATE TABLE IF NOT EXISTS user_priorities (
+    user_id INT UNSIGNED NOT NULL,
+
+    category ENUM(
         'performance_stability',
         'story_immersion',
         'multiplayer',
         'price_value'
-    ) not null,
-    importance tinyint unsigned not null,
-    updated_at timestamp not null default current_timestamp
-        on update current_timestamp,
+    ) NOT NULL,
 
-    primary key (user_id, category),
-    constraint chk_user_priorities_importance
-        check (importance between 1 and 5),
-    constraint fk_user_priorities_user_id
-        foreign key (user_id)
-        references users(user_id)
-        on update cascade
-        on delete cascade
+    importance TINYINT UNSIGNED NOT NULL,
+
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (user_id, category),
+
+    CONSTRAINT chk_user_priorities_importance
+        CHECK (importance BETWEEN 1 AND 5),
+
+    CONSTRAINT fk_user_priorities_user_id
+        FOREIGN KEY (user_id)
+        REFERENCES users(user_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
 -- ============================================================
 -- DEVELOPER PROFILES
--- Developer status is stored in user_roles. Organization affiliation is
--- tracked separately in organization_memberships.
+-- Developer status is stored in user_roles.
+-- Organization affiliation is tracked separately.
 -- ============================================================
 
-create table if not exists developer_profiles(
-    user_id int unsigned not null,
-    organization_type enum('indie', 'company', 'organization', 'other') null,
-    created_at timestamp not null default current_timestamp,
-    updated_at timestamp not null default current_timestamp
-        on update current_timestamp,
+CREATE TABLE IF NOT EXISTS developer_profiles (
+    user_id INT UNSIGNED NOT NULL,
 
-    primary key (user_id),
-    constraint fk_developer_profiles_user_id
-    foreign key (user_id)
-    references users(user_id)
-    on update cascade
-    on delete cascade
+    organization_type ENUM(
+        'indie',
+        'company',
+        'organization',
+        'other'
+    ) NULL,
+
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (user_id),
+
+    CONSTRAINT fk_developer_profiles_user_id
+        FOREIGN KEY (user_id)
+        REFERENCES users(user_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
 -- ============================================================
 -- GAMES
 -- ============================================================
 
-create table if not exists games(
-    game_id int unsigned auto_increment not null,
-    app_id int unsigned not null,
-    game_name varchar(255) not null,
-    game_release_date date,
-    game_description text,
-    game_developer varchar(255),
-    game_publisher varchar(255),
-    game_price decimal(10,2),
-    game_early_access_release_date date null,
+CREATE TABLE IF NOT EXISTS games (
+    game_id INT UNSIGNED AUTO_INCREMENT NOT NULL,
+    app_id INT UNSIGNED NOT NULL,
+    game_name VARCHAR(255) NOT NULL,
+    game_release_date DATE,
+    game_description TEXT,
+    game_developer VARCHAR(255),
+    game_publisher VARCHAR(255),
+    game_price DECIMAL(10,2),
+    game_early_access_release_date DATE NULL,
 
-    primary key (game_id),
-    unique key uq_games_app_id (app_id),
-    index idx_game_name (game_name)
+    PRIMARY KEY (game_id),
+    UNIQUE KEY uq_games_app_id (app_id),
+    INDEX idx_game_name (game_name)
 ) ENGINE = InnoDB;
 
 -- ============================================================
--- STEAM LINKS AND PLAYER LIBRARIES
--- Store the SteamID64 and public profile details only; never store Steam
--- passwords. A linked account does not guarantee its library is public.
+-- STEAM ACCOUNTS
+-- Never store Steam passwords.
 -- ============================================================
 
-create table if not exists steam_accounts(
-    user_id int unsigned not null,
-    steam_id varchar(32) not null,
-    steam_display_name varchar(255) null,
-    profile_url varchar(512) null,
-    linked_at timestamp not null default current_timestamp,
+CREATE TABLE IF NOT EXISTS steam_accounts (
+    user_id INT UNSIGNED NOT NULL,
+    steam_id VARCHAR(32) NOT NULL,
+    steam_display_name VARCHAR(255) NULL,
+    profile_url VARCHAR(512) NULL,
+    linked_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    primary key (user_id),
-    unique key uq_steam_accounts_steam_id (steam_id),
-    constraint fk_steam_accounts_user_id
-        foreign key (user_id)
-        references users(user_id)
-        on update cascade
-        on delete cascade
+    PRIMARY KEY (user_id),
+    UNIQUE KEY uq_steam_accounts_steam_id (steam_id),
+
+    CONSTRAINT fk_steam_accounts_user_id
+        FOREIGN KEY (user_id)
+        REFERENCES users(user_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
+-- ============================================================
+-- PLAYER GAMES
+-- ============================================================
 
-create table if not exists player_games(
-    user_id int unsigned not null,
-    game_id int unsigned not null,
-    source enum('steam', 'manual') not null,
-    playtime_forever_minutes bigint unsigned null,
-    last_synced_at timestamp null,
+CREATE TABLE IF NOT EXISTS player_games (
+    user_id INT UNSIGNED NOT NULL,
+    game_id INT UNSIGNED NOT NULL,
+    source ENUM('steam', 'manual') NOT NULL,
+    playtime_forever_minutes BIGINT UNSIGNED NULL,
+    last_synced_at TIMESTAMP NULL,
 
-    primary key (user_id, game_id),
-    constraint fk_player_games_user_id
-        foreign key (user_id)
-        references users(user_id)
-        on update cascade
-        on delete cascade,
-    constraint fk_player_games_game_id
-        foreign key (game_id)
-        references games(game_id)
-        on update cascade
-        on delete cascade,
-    index idx_player_games_game_id (game_id)
+    PRIMARY KEY (user_id, game_id),
+
+    CONSTRAINT fk_player_games_user_id
+        FOREIGN KEY (user_id)
+        REFERENCES users(user_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_player_games_game_id
+        FOREIGN KEY (game_id)
+        REFERENCES games(game_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+
+    INDEX idx_player_games_game_id (game_id)
 ) ENGINE = InnoDB;
 
 -- ============================================================
 -- ORGANIZATIONS
 -- ============================================================
 
-create table if not exists organizations(
-    organization_id int unsigned auto_increment not null,
-    organization_name varchar(255) not null,
-    created_by_user_id int unsigned not null,
-    created_at timestamp not null default current_timestamp,
+CREATE TABLE IF NOT EXISTS organizations (
+    organization_id INT UNSIGNED AUTO_INCREMENT NOT NULL,
+    organization_name VARCHAR(255) NOT NULL,
+    created_by_user_id INT UNSIGNED NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    primary key (organization_id),
-    index idx_organizations_name (organization_name),
-    constraint fk_organizations_created_by
-        foreign key (created_by_user_id)
-        references users(user_id)
-        on update cascade
-        on delete restrict
+    PRIMARY KEY (organization_id),
+    INDEX idx_organizations_name (organization_name),
+
+    CONSTRAINT fk_organizations_created_by
+        FOREIGN KEY (created_by_user_id)
+        REFERENCES users(user_id)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT
 ) ENGINE = InnoDB;
 
-create table if not exists organization_memberships(
-    organization_id int unsigned not null,
-    user_id int unsigned not null,
-    organization_email varchar(255) null,
-    joined_at timestamp not null default current_timestamp,
-    
-    primary key (organization_id, user_id),
-    constraint fk_org_memberships_organization_id
-        foreign key (organization_id)
-        references organizations(organization_id)
-        on update cascade
-        on delete cascade,
-    constraint fk_org_memberships_user_id
-        foreign key (user_id)
-        references users(user_id)
-        on update cascade
-        on delete cascade
+-- ============================================================
+-- ORGANIZATION MEMBERSHIPS
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS organization_memberships (
+    organization_id INT UNSIGNED NOT NULL,
+    user_id INT UNSIGNED NOT NULL,
+    organization_email VARCHAR(255) NULL,
+    joined_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (organization_id, user_id),
+
+    CONSTRAINT fk_org_memberships_organization_id
+        FOREIGN KEY (organization_id)
+        REFERENCES organizations(organization_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_org_memberships_user_id
+        FOREIGN KEY (user_id)
+        REFERENCES users(user_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
-create table if not exists organization_games(
-    organization_id int unsigned not null,
-    game_id int unsigned not null,
-    relationship enum('developed', 'published', 'owned') not null,
-    added_by_user_id int unsigned null,
-    added_at timestamp not null default current_timestamp,
+-- ============================================================
+-- ORGANIZATION GAMES
+-- ============================================================
 
-    primary key (organization_id, game_id, relationship),
-    constraint fk_org_games_organization_id
-        foreign key (organization_id)
-        references organizations(organization_id)
-        on update cascade
-        on delete cascade,
-    constraint fk_org_games_game_id
-        foreign key (game_id)
-        references games(game_id)
-        on update cascade
-        on delete cascade,
-    constraint fk_org_games_added_by
-        foreign key (added_by_user_id)
-        references users(user_id)
-        on update cascade
-        on delete set null,
-    index idx_org_games_game_id (game_id)
+CREATE TABLE IF NOT EXISTS organization_games (
+    organization_id INT UNSIGNED NOT NULL,
+    game_id INT UNSIGNED NOT NULL,
+    relationship ENUM('developed', 'published', 'owned') NOT NULL,
+    added_by_user_id INT UNSIGNED NULL,
+    added_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (organization_id, game_id, relationship),
+
+    CONSTRAINT fk_org_games_organization_id
+        FOREIGN KEY (organization_id)
+        REFERENCES organizations(organization_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_org_games_game_id
+        FOREIGN KEY (game_id)
+        REFERENCES games(game_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_org_games_added_by
+        FOREIGN KEY (added_by_user_id)
+        REFERENCES users(user_id)
+        ON UPDATE CASCADE
+        ON DELETE SET NULL,
+
+    INDEX idx_org_games_game_id (game_id)
 ) ENGINE = InnoDB;
-
 
 -- ============================================================
 -- REVIEWS
 -- ============================================================
 
-create table if not exists reviews(
-    game_id int unsigned not null,
-	review_id varchar(255) not null,
-    review_text text,
-    recommended boolean not null,
-    playtime_hours  decimal(10,2) not null,
-    playtime_at_review_hours decimal(10,2) not null,
-    helpful_votes int not null default 0,
-    language varchar(50),
-    written_during_early_access boolean not null default false,
-    created_at datetime,
-    updated_at datetime,
+CREATE TABLE IF NOT EXISTS reviews (
+    game_id INT UNSIGNED NOT NULL,
+    review_id VARCHAR(255) NOT NULL,
+    review_text TEXT,
+    recommended BOOLEAN NOT NULL,
+    playtime_hours DECIMAL(10,2) NOT NULL,
+    playtime_at_review_hours DECIMAL(10,2) NOT NULL,
+    helpful_votes INT NOT NULL DEFAULT 0,
+    language VARCHAR(50),
+    written_during_early_access BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at DATETIME,
+    updated_at DATETIME,
 
-    primary key (review_id),
-    foreign key (game_id) 
-    references games(game_id)
-    on update cascade
-    on delete cascade,
+    PRIMARY KEY (review_id),
 
-    index idx_revs_game_id (game_id),
-    index idx_play_hours (playtime_hours),
-    index idx_play_hours_at_review (playtime_at_review_hours),
-    index idx_helpful_votes (helpful_votes),
-    index idx_language (language),
-    index idx_recommended (recommended),
-    index idx_revs_game_created (game_id, created_at)
+    FOREIGN KEY (game_id)
+        REFERENCES games(game_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+
+    INDEX idx_revs_game_id (game_id),
+    INDEX idx_play_hours (playtime_hours),
+    INDEX idx_play_hours_at_review (playtime_at_review_hours),
+    INDEX idx_helpful_votes (helpful_votes),
+    INDEX idx_language (language),
+    INDEX idx_recommended (recommended),
+    INDEX idx_revs_game_created (game_id, created_at)
 ) ENGINE = InnoDB;
-
 
 -- ============================================================
 -- GAME UPDATES
 -- Developer announcements from Steam, collected by steam_updates.py
 -- ============================================================
 
-create table if not exists game_updates(
-    update_id varchar(32) not null,
-    game_id int unsigned not null,
-    title varchar(255) not null,
-    url varchar(512),
-    posted_at datetime not null,
-    is_patch_notes boolean not null default false,
+CREATE TABLE IF NOT EXISTS game_updates (
+    update_id VARCHAR(32) NOT NULL,
+    game_id INT UNSIGNED NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    url VARCHAR(512),
+    posted_at DATETIME NOT NULL,
+    is_patch_notes BOOLEAN NOT NULL DEFAULT FALSE,
 
-    primary key (update_id),
-    foreign key (game_id)
-    references games(game_id)
-    on update cascade
-    on delete cascade,
+    PRIMARY KEY (update_id),
 
-    index idx_updates_game_posted (game_id, posted_at)
+    FOREIGN KEY (game_id)
+        REFERENCES games(game_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+
+    INDEX idx_updates_game_posted (game_id, posted_at)
 ) ENGINE = InnoDB;
 
-
 -- ============================================================
--- IMPORTING_REVIEWS
+-- IMPORTING REVIEWS
 -- ============================================================
 
-create table if not exists reviews_import(
-    import_id int unsigned auto_increment not null,
-    game_id int unsigned not null,
-    source_filename varchar(255) not null,
-    import_started_at timestamp not null default current_timestamp,
-    import_completed_at timestamp null default null,
-    reviews_in_file int unsigned not null default 0,
-    reviews_imported int unsigned not null default 0,
-    reviews_skipped int unsigned not null default 0,
+CREATE TABLE IF NOT EXISTS reviews_import (
+    import_id INT UNSIGNED AUTO_INCREMENT NOT NULL,
+    game_id INT UNSIGNED NOT NULL,
+    source_filename VARCHAR(255) NOT NULL,
+    import_started_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    import_completed_at TIMESTAMP NULL DEFAULT NULL,
+    reviews_in_file INT UNSIGNED NOT NULL DEFAULT 0,
+    reviews_imported INT UNSIGNED NOT NULL DEFAULT 0,
+    reviews_skipped INT UNSIGNED NOT NULL DEFAULT 0,
 
-    status enum (
+    status ENUM(
         'Started',
         'Completed',
         'Failed'
-    ) not null default 'Started',
+    ) NOT NULL DEFAULT 'Started',
 
-    error_message text null default null,
-    primary key (import_id),
+    error_message TEXT NULL DEFAULT NULL,
 
-    constraint fk_imports_game_id
-        foreign key (game_id)
-        references games(game_id)
-        on update cascade
-        on delete cascade,
+    PRIMARY KEY (import_id),
 
-    index idx_imports_game_id (game_id),
-    index idx_imports_date (import_started_at),
-    index idx_imports_status (status)
+    CONSTRAINT fk_imports_game_id
+        FOREIGN KEY (game_id)
+        REFERENCES games(game_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+
+    INDEX idx_imports_game_id (game_id),
+    INDEX idx_imports_date (import_started_at),
+    INDEX idx_imports_status (status)
 ) ENGINE = InnoDB;
 
 -- ============================================================
 -- REVIEW FILTER RUNS
--- How many reviews the junk filter removed each time a game
--- was analyzed, and why (written by pipeline.py)
+-- How many reviews the junk filter removed and why.
 -- ============================================================
 
-create table if not exists review_filter_runs(
-    run_id int unsigned auto_increment not null,
-    game_id int unsigned not null,
-    reviews_collected int unsigned not null default 0,
-    reviews_kept int unsigned not null default 0,
-    removed_reasons text,
-    run_at timestamp not null default current_timestamp,
+CREATE TABLE IF NOT EXISTS review_filter_runs (
+    run_id INT UNSIGNED AUTO_INCREMENT NOT NULL,
+    game_id INT UNSIGNED NOT NULL,
+    reviews_collected INT UNSIGNED NOT NULL DEFAULT 0,
+    reviews_kept INT UNSIGNED NOT NULL DEFAULT 0,
+    removed_reasons TEXT,
+    run_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    primary key (run_id),
-    foreign key (game_id)
-    references games(game_id)
-    on update cascade
-    on delete cascade,
+    PRIMARY KEY (run_id),
 
-    index idx_filter_runs_game (game_id, run_at)
+    FOREIGN KEY (game_id)
+        REFERENCES games(game_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+
+    INDEX idx_filter_runs_game (game_id, run_at)
 ) ENGINE = InnoDB;
 
 -- ============================================================
 -- ISSUE STATUSES
--- The status a developer sets for each issue on the Issues page
--- (written by pipeline.py)
+-- The status a developer sets for each issue on the Issues page.
 -- ============================================================
 
-create table if not exists issue_statuses(
-    game_id int unsigned not null,
-    topic varchar(50) not null,
+CREATE TABLE IF NOT EXISTS issue_statuses (
+    game_id INT UNSIGNED NOT NULL,
+    topic VARCHAR(50) NOT NULL,
 
-    status enum (
+    status ENUM(
         'Detected',
         'Investigating',
         'In Progress',
         'Resolved'
-    ) not null default 'Detected',
+    ) NOT NULL DEFAULT 'Detected',
 
-    updated_at timestamp not null default current_timestamp
-        on update current_timestamp,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
 
-    primary key (game_id, topic),
-    foreign key (game_id)
-    references games(game_id)
-    on update cascade
-    on delete cascade
+    PRIMARY KEY (game_id, topic),
+
+    FOREIGN KEY (game_id)
+        REFERENCES games(game_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
 ) ENGINE = InnoDB;
--- ============================================================
--- MIGRATION for an EXISTING database (run once; skip on a fresh install)
--- ============================================================
--- After running this updated schema against an existing database, copy
--- current roles before changing application queries:
--- insert into user_roles (user_id, role)
--- select user_id, account_type from users;
---
--- Existing developer_profiles.organization_name values should be reviewed
--- and migrated into organizations/organization_memberships before removing
--- that column. Do not treat those unreviewed names as verified affiliations.
--- alter table users
---     add unique key uq_users_username (username);
--- alter table games
---     add column game_early_access_release_date date null after game_price;
--- alter table reviews
---     add column written_during_early_access boolean not null default false after language;
 
 -- ============================================================
 -- GAME SEARCHES
--- How many times each game was searched on the site (any Steam
--- game, analyzed or not), for the trending cards
+-- How many times each game was searched on the site.
+-- Used by trending cards.
 -- ============================================================
 
-create table if not exists game_searches(
-    app_id int unsigned not null,
-    game_name varchar(255),
-    searches int unsigned not null default 0,
-    last_searched_at timestamp not null default current_timestamp
-        on update current_timestamp,
+CREATE TABLE IF NOT EXISTS game_searches (
+    app_id INT UNSIGNED NOT NULL,
+    game_name VARCHAR(255),
+    searches INT UNSIGNED NOT NULL DEFAULT 0,
+    last_searched_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
 
-    primary key (app_id),
-    index idx_searches_count (searches)
+    PRIMARY KEY (app_id),
+    INDEX idx_searches_count (searches)
 ) ENGINE = InnoDB;
 
-show tables;
+-- ============================================================
+-- MIGRATION FOR EXISTING DATABASES
+-- Run applicable migrations separately when upgrading an existing DB.
+-- Skip on a fresh installation.
+-- ============================================================
 
-describe games;
-describe reviews;
-describe game_updates;
-describe reviews_import;
-describe review_filter_runs;
-describe issue_statuses;
-describe game_searches;
-describe users;
-describe user_roles;
-describe user_priorities;
-describe developer_profiles;
-describe steam_accounts;
-describe player_games;
-describe organizations;
-describe organization_memberships;
-describe organization_games;
+-- Existing role migration, if required:
+-- INSERT INTO user_roles (user_id, role)
+-- SELECT user_id, account_type FROM users;
 
-select * from games;
-select * from reviews;
-select * from game_updates;
-select * from reviews_import;
-select * from review_filter_runs;
-select * from issue_statuses;
-select * from game_searches;
-select * from users;
-select * from user_roles;
-select * from user_priorities;
-select * from developer_profiles;
-select * from steam_accounts;
-select * from player_games;
-select * from organizations;
-select * from organization_memberships;
-select * from organization_games;
+-- Existing developer_profiles.organization_name values should be reviewed
+-- and migrated into organizations/organization_memberships before removing
+-- that column. Do not treat unreviewed names as verified affiliations.
+
+-- ALTER TABLE users
+--     ADD UNIQUE KEY uq_users_username (username);
+
+-- ALTER TABLE games
+--     ADD COLUMN game_early_access_release_date DATE NULL AFTER game_price;
+
+-- ALTER TABLE reviews
+--     ADD COLUMN written_during_early_access BOOLEAN NOT NULL DEFAULT FALSE
+--     AFTER language;
+
+-- ============================================================
+-- DATABASE INSPECTION
+-- ============================================================
+
+SHOW TABLES;
+
+DESCRIBE games;
+DESCRIBE reviews;
+DESCRIBE game_updates;
+DESCRIBE reviews_import;
+DESCRIBE review_filter_runs;
+DESCRIBE issue_statuses;
+DESCRIBE game_searches;
+DESCRIBE users;
+DESCRIBE user_roles;
+DESCRIBE user_sessions;
+DESCRIBE password_reset_tokens;
+DESCRIBE user_priorities;
+DESCRIBE developer_profiles;
+DESCRIBE steam_accounts;
+DESCRIBE player_games;
+DESCRIBE organizations;
+DESCRIBE organization_memberships;
+DESCRIBE organization_games;
+
+-- ============================================================
+-- DATA INSPECTION
+-- ============================================================
+
+SELECT * FROM games;
+SELECT * FROM reviews;
+SELECT * FROM game_updates;
+SELECT * FROM reviews_import;
+SELECT * FROM review_filter_runs;
+SELECT * FROM issue_statuses;
+SELECT * FROM game_searches;
+SELECT * FROM users;
+SELECT * FROM user_roles;
+SELECT * FROM user_sessions;
+SELECT * FROM password_reset_tokens;
+SELECT * FROM user_priorities;
+SELECT * FROM developer_profiles;
+SELECT * FROM steam_accounts;
+SELECT * FROM player_games;
+SELECT * FROM organizations;
+SELECT * FROM organization_memberships;
+SELECT * FROM organization_games;

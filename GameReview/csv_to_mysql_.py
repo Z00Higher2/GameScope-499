@@ -203,11 +203,18 @@ def parse_rows(rows, requested_app_id):
 
 
 def connect_database(use_database=True):
+    user = os.getenv("MYSQL_USER")
+    password = os.getenv("MYSQL_PASSWORD")
+
+    if not user or not password:
+        raise RuntimeError(
+            "MYSQL_USER and MYSQL_PASSWORD must be configured."
+    )
     settings = {
         "host": os.getenv("MYSQL_HOST", "localhost"),
         "port": int(os.getenv("MYSQL_PORT", "3306")),
-        "user": os.getenv("MYSQL_USER", "root"),
-        "password": os.getenv("MYSQL_PASSWORD", ""),
+        "user": user,
+        "password": password,
     }
 
     # Enable SSL certificate verification when a CA certificate is configured.
