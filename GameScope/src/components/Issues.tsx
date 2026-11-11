@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Navbar from "./Navbar";
 import IssueSearch from "./IssueSearch";
+import PatchImpact from "./PatchImpact";
 import { getIssues, updateIssueStatus } from "../api";
 import type { GameAnalysis, IssueStatus, IssuesReport } from "../api";
 import { exportIssuesReport } from "../exportReport";
@@ -27,7 +28,7 @@ interface IssuesProps {
 }
 
 type Issue = IssuesReport["issues"][number];
-type Tab = "game" | "compare";
+type Tab = "game" | "patches" | "compare";
 
 const priorities: Issue["priority"][] = [
   "Critical",
@@ -258,6 +259,17 @@ function Issues({
   // OPEN GAME FROM COMPARISON
   // ------------------------------------------
 
+  // ------------------------------------------
+  // OPEN AN ISSUE FROM PATCH IMPACT
+  // ------------------------------------------
+
+  const openIssue = (topic: string) => {
+    if (issues.some((issue) => issue.name === topic)) {
+      setSelectedIssueName(topic);
+    }
+    setTab("game");
+  };
+
   const openGame = async (appId: string) => {
     await onOpenGame(appId);
     setTab("game");
@@ -336,6 +348,16 @@ function Issues({
           <button
             type="button"
             role="tab"
+            aria-selected={tab === "patches"}
+            className={`issues-tab ${tab === "patches" ? "active" : ""}`}
+            onClick={() => setTab("patches")}
+          >
+            Patch impact
+          </button>
+
+          <button
+            type="button"
+            role="tab"
             aria-selected={tab === "compare"}
             className={`issues-tab ${tab === "compare" ? "active" : ""}`}
             onClick={() => setTab("compare")}
@@ -354,13 +376,23 @@ function Issues({
           />
         )}
 
+        {/* PATCH IMPACT */}
+        {tab === "patches" && hasGame && (
+          <PatchImpact
+            key={analyzedAppId}
+            appId={analyzedAppId}
+            gameName={gameName}
+            onOpenIssue={openIssue}
+          />
+        )}
+
         {/* NO GAME SELECTED */}
-        {tab === "game" && !hasGame && (
+        {(tab === "game" || tab === "patches") && !hasGame && (
           <section className="issues-card issues-detail-empty">
             <h2>No game analyzed yet</h2>
             <p>
               Analyze a Steam game on the Dashboard to see its recurring
-              complaints here.
+              complaints and how its updates changed reviews here.
             </p>
             <button
               type="button"

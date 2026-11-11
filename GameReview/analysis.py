@@ -990,3 +990,215 @@ def build_analysis(stored):
             scored, positive, negative, positive_pct, negative_topics, filter_run
         ),
     }
+
+
+# ==========================================
+# Patch Impact: Reviews Before and After Each Update
+# ==========================================
+
+# Days of reviews compared on each side of an update. A window also stops
+# at the neighbouring update, so each comparison is about one update only.
+PATCH_WINDOW_DAYS = 14
+# Reviews each side needs before GameScope compares them
+MIN_PATCH_REVIEWS = 10
+# A topic is listed when this many reviews complain about it on either side
+MIN_PATCH_COMPLAINTS = 3
+# |z| at or above this is a real change, not noise (two-proportion z-test,
+# about 95% confidence)
+SIGNIFICANT_Z = 1.96
+
+
+def proportion_z(hits_a, total_a, hits_b, total_b):
+    """
+    Two-proportion z-test: how many standard errors apart two rates are.
+    Small samples swing a lot, so the website only calls a change real
+    when |z| >= SIGNIFICANT_Z.
+    """
+    if not total_a or not total_b:
+        return 0.0
+    pooled = (hits_a + hits_b) / (total_a + total_b)
+    spread = math.sqrt(pooled * (1 - pooled) * (1 / total_a + 1 / total_b))
+    if not spread:
+        return 0.0
+    return (hits_b / total_b - hits_a / total_a) / spread
+
+
+def change_direction(z, higher_is_better):
+    if abs(z) < SIGNIFICANT_Z:
+        return "steady"
+    return "improved" if (z > 0) == higher_is_better else "worsened"
+
+
+def window_summary(reviews):
+    dates = [r["created_at"] for r in reviews]
+    positive = sum(1 for r in reviews if r["recommended"])
+    return {
+        "reviews": len(reviews),
+        "positive": positive,
+        "positivePct": percent(positive, len(reviews)),
+        "from": min(dates).isoformat() if dates else None,
+        "to": max(dates).isoformat() if dates else None,
+    }
+
+
+def patch_topic_changes(before, after):
+    changes = []
+    for topic in TOPIC_PATTERNS:
+        before_hits = sum(
+            1 for r in before if topic in r["topics"] and is_complaint(r, topic)
+        )
+        after_hits = sum(
+            1 for r in after if topic in r["topics"] and is_complaint(r, topic)
+        )
+        if max(before_hits, after_hits) < MIN_PATCH_COMPLAINTS:
+            continue
+
+        # Share of ALL reviews in the window that complain about the topic,
+        # so a quieter week after the patch doesn't look like a fix
+        before_rate = round(100 * before_hits / len(before), 1)
+        after_rate = round(100 * after_hits / len(after), 1)
+        z = proportion_z(before_hits, len(before), after_hits, len(after))
+        changes.append(
+            {
+                "topic": topic,
+                "beforeComplaints": before_hits,
+                "afterComplaints": after_hits,
+                "beforeRate": before_rate,
+                "afterRate": after_rate,
+                "change": round(after_rate - before_rate, 1),
+                "direction": change_direction(z, higher_is_better=False),
+            }
+        )
+
+    changes.sort(key=lambda item: abs(item["change"]), reverse=True)
+    return changes
+
+
+def short_date(moment):
+    return f"{moment:%b} {moment.day}, {moment.year}"
+
+
+def patch_summary(title, posted_at, before, after, direction, topics):
+    when = short_date(posted_at)
+    parts = [
+        f'After "{title}" ({when}), {after["positivePct"]}% of reviews '
+        f'recommend the game, compared with {before["positivePct"]}% before.'
+    ]
+    if direction == "steady":
+        parts.append("That difference is within normal noise.")
+
+    fixed = [t for t in topics if t["direction"] == "improved"]
+    broke = [t for t in topics if t["direction"] == "worsened"]
+    if fixed:
+        top = fixed[0]
+        parts.append(
+            f"{top['topic']} complaints fell from {top['beforeRate']:g}% "
+            f"to {top['afterRate']:g}% of reviews."
+        )
+    if broke:
+        top = broke[0]
+        parts.append(
+            f"{top['topic']} complaints rose from {top['beforeRate']:g}% "
+            f"to {top['afterRate']:g}% of reviews."
+        )
+    if not fixed and not broke:
+        parts.append("No topic's complaint rate changed by more than noise.")
+    return " ".join(parts)
+
+
+def build_patch_impact(
+    stored,
+    updates,
+    window_days=PATCH_WINDOW_DAYS,
+    min_reviews=MIN_PATCH_REVIEWS,
+    include_announcements=False,
+    statuses=None,
+):
+    """
+    Compare the reviews written just before each update with those
+    written just after it: overall sentiment and each topic's complaints.
+
+    updates: rows from game_updates (update_id, title, url, posted_at,
+    is_patch_notes). statuses: the Issues page status for each topic.
+    """
+    statuses = statuses or {}
+    scored = [r for r in score_reviews(stored["reviews"]) if r["created_at"]]
+    scored.sort(key=lambda r: r["created_at"])
+
+    chosen = sorted(
+        (
+            u
+            for u in updates
+            if u["posted_at"] and (include_announcements or u["is_patch_notes"])
+        ),
+        key=lambda u: u["posted_at"],
+    )
+
+    first_review = scored[0]["created_at"] if scored else None
+    last_review = scored[-1]["created_at"] if scored else None
+    window = timedelta(days=window_days)
+
+    patches = []
+    for index, update in enumerate(chosen):
+        posted = update["posted_at"]
+        previous = chosen[index - 1]["posted_at"] if index > 0 else None
+        following = chosen[index + 1]["posted_at"] if index + 1 < len(chosen) else None
+
+        start = max(posted - window, previous) if previous else posted - window
+        end = min(posted + window, following) if following else posted + window
+
+        before = [r for r in scored if start <= r["created_at"] < posted]
+        after = [r for r in scored if posted <= r["created_at"] < end]
+
+        entry = {
+            "id": str(update["update_id"]),
+            "title": update["title"],
+            "url": update["url"],
+            "postedAt": posted.isoformat(),
+            "isPatchNotes": bool(update["is_patch_notes"]),
+            "before": window_summary(before),
+            "after": window_summary(after),
+        }
+
+        if not scored or posted < first_review or posted > last_review:
+            entry.update(state="outside_reviews", verdict="unknown")
+        elif len(before) < min_reviews or len(after) < min_reviews:
+            entry.update(state="too_few_reviews", verdict="unknown")
+        else:
+            z = proportion_z(
+                entry["before"]["positive"], len(before),
+                entry["after"]["positive"], len(after),
+            )
+            direction = change_direction(z, higher_is_better=True)
+            topics = patch_topic_changes(before, after)
+            for topic in topics:
+                topic["issueStatus"] = statuses.get(topic["topic"])
+            entry.update(
+                state="measured",
+                verdict=direction,
+                sentimentChange=(
+                    entry["after"]["positivePct"] - entry["before"]["positivePct"]
+                ),
+                topics=topics,
+                summary=patch_summary(
+                    update["title"], posted, entry["before"], entry["after"],
+                    direction, topics,
+                ),
+            )
+        patches.append(entry)
+
+    patches.reverse()  # newest first
+    measured = [p for p in patches if p["state"] == "measured"]
+
+    return {
+        "windowDays": window_days,
+        "minReviews": min_reviews,
+        "includeAnnouncements": include_announcements,
+        "reviewsFrom": first_review.isoformat() if first_review else None,
+        "reviewsTo": last_review.isoformat() if last_review else None,
+        "totalReviews": len(scored),
+        "totalUpdates": len(updates),
+        "patchNotes": sum(1 for u in updates if u["is_patch_notes"]),
+        "measured": len(measured),
+        "patches": patches,
+    }

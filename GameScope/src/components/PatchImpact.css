@@ -1,0 +1,285 @@
+/* =========================================================
+   GAMESCOPE — PATCH IMPACT
+   Builds on Issues.css (same theme variables and cards)
+========================================================= */
+
+.patch-impact .issues-card-header {
+  flex-wrap: wrap;
+}
+
+.patch-filters {
+  grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
+}
+
+.patch-toggle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+
+  color: var(--issues-text);
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.patch-toggle input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--issues-purple);
+}
+
+.patch-coverage {
+  margin: 0 0 16px;
+  color: var(--issues-muted);
+  font-size: 13px;
+}
+
+.patch-list {
+  max-height: 640px;
+  overflow-y: auto;
+}
+
+.patch-unmeasured {
+  opacity: 0.72;
+}
+
+.patch-focus {
+  padding: 4px 2px;
+}
+
+/* =========================================================
+   VERDICT BADGES AND CHANGE COLORS
+========================================================= */
+
+.patch-verdict {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+
+  border-radius: 999px;
+
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.patch-verdict.patch-improved {
+  background: color-mix(in srgb, var(--issues-green) 14%, transparent);
+  color: var(--issues-green);
+}
+
+.patch-verdict.patch-worsened {
+  background: color-mix(in srgb, var(--issues-red) 14%, transparent);
+  color: var(--issues-red);
+}
+
+.patch-verdict.patch-steady {
+  background: color-mix(in srgb, var(--issues-blue) 13%, transparent);
+  color: var(--issues-blue);
+}
+
+.patch-verdict.patch-unknown {
+  background: var(--issues-soft);
+  color: var(--issues-muted);
+}
+
+/* =========================================================
+   BEFORE / AFTER SENTIMENT
+========================================================= */
+
+.patch-compare {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.patch-side {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+
+  padding: 14px 15px;
+
+  border: 1px solid var(--issues-line);
+  border-radius: 13px;
+
+  background: var(--issues-card-solid);
+}
+
+.patch-side-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.patch-side-top span {
+  color: var(--issues-muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.patch-side-top strong {
+  font-size: 26px;
+  font-weight: 850;
+}
+
+.patch-track {
+  height: 8px;
+  overflow: hidden;
+
+  border-radius: 999px;
+
+  background: color-mix(in srgb, var(--issues-red) 22%, transparent);
+}
+
+.patch-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--issues-green);
+  transition: width 0.4s ease;
+}
+
+.patch-side small {
+  color: var(--issues-muted);
+  font-size: 11.5px;
+}
+
+/* =========================================================
+   TOPIC CHANGES
+========================================================= */
+
+.patch-topics {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.patch-topic {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  padding: 11px 13px;
+
+  border: 1px solid var(--issues-line);
+  border-radius: 11px;
+
+  background: var(--issues-card-solid);
+}
+
+.patch-topic-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.patch-topic-name {
+  padding: 0;
+  border: 0;
+  background: none;
+
+  color: var(--issues-text);
+  font-size: 14px;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.patch-topic-name:hover {
+  color: var(--issues-purple);
+  text-decoration: underline;
+}
+
+.patch-topic-rates {
+  margin-left: auto;
+  color: var(--issues-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.patch-topic-change {
+  min-width: 70px;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.patch-topic-change.patch-improved,
+.patch-hint.patch-improved {
+  color: var(--issues-green);
+}
+
+.patch-topic-change.patch-worsened,
+.patch-hint.patch-worsened {
+  color: var(--issues-red);
+}
+
+.patch-topic-change.patch-steady {
+  color: var(--issues-muted);
+}
+
+.patch-hint {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+
+@media (max-width: 1000px) {
+  .patch-impact .issues-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .patch-list {
+    max-height: 340px;
+  }
+}
+
+@media (max-width: 600px) {
+  .patch-filters,
+  .patch-compare {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .patch-topic-rates {
+    margin-left: 0;
+  }
+
+  .patch-topic-change {
+    min-width: 0;
+    text-align: left;
+  }
+}
+
+.patch-more {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.patch-focus > .issues-compare-link {
+  display: inline-block;
+  margin: 0 0 10px;
+}
+
+/* Three Issues tabs don't fit a phone: scroll them instead of cutting the labels */
+@media (max-width: 600px) {
+  .issues-tabs {
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .issues-tab {
+    flex: 0 0 auto;
+    overflow: visible;
+  }
+}
