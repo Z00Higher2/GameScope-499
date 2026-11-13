@@ -194,6 +194,27 @@ CREATE TABLE IF NOT EXISTS steam_accounts (
 ) ENGINE = InnoDB;
 
 -- ============================================================
+-- STEAM LINK
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS steam_link_states (
+    state_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT UNSIGNED NOT NULL,
+    state_hash CHAR(64) NOT NULL UNIQUE,
+    session_token_hash CHAR(64) NOT NULL,
+    expires_at DATETIME NOT NULL,
+    used_at DATETIME NULL DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_steam_link_states_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(user_id)
+        ON DELETE CASCADE,
+
+    INDEX idx_steam_link_states_user (user_id),
+    INDEX idx_steam_link_states_expiry (expires_at)
+) ENGINE=InnoDB;
+-- ============================================================
 -- PLAYER GAMES
 -- ============================================================
 

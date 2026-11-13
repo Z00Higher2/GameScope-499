@@ -7,6 +7,7 @@ Start it from the GameReview folder:
     python -m uvicorn api:app --reload --port 8000
 """
 
+import re
 import json
 import os
 import time
@@ -19,6 +20,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Literal
 from collections import defaultdict, deque
 from threading import Lock
+from fastapi.responses import RedirectResponse
 
 import requests
 
@@ -55,6 +57,10 @@ from analysis import (
 
 logger = logging.getLogger(__name__)
 
+# ==========================================
+# Configuration
+# ==========================================
+
 # Browser session cookie.
 SESSION_COOKIE_NAME = "gamescope_session"
 SESSION_DURATION_DAYS = auth.SESSION_DURATION_DAYS
@@ -70,17 +76,40 @@ FRONTEND_URL = os.getenv(
     "https://gamescope-five.vercel.app",
 ).rstrip("/")
 
-RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "").strip()
 RESEND_FROM = os.getenv(
     "RESEND_FROM",
     "GameScope <onboarding@resend.dev>",
 )
 
+# Steam search and game images.
 STEAM_SEARCH_URL = "https://store.steampowered.com/api/storesearch/"
 MAX_APP_ID = 4_294_967_295
 
 STEAM_IMAGE_BASE = (
     "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps"
+)
+
+# Steam Web API configuration.
+# Keep this key on the backend. Never expose it in the frontend.
+STEAM_API_KEY = os.getenv("STEAM_API_KEY", "").strip()
+
+STEAM_OWNED_GAMES_URL = (
+    "https://api.steampowered.com/"
+    "IPlayerService/GetOwnedGames/v1/"
+)
+
+# Steam OpenID account linking.
+STEAM_OPENID_URL = "https://steamcommunity.com/openid/login"
+
+STEAM_OPENID_RETURN_URL = os.getenv(
+    "STEAM_OPENID_RETURN_URL",
+    "http://localhost:8000/api/auth/steam/callback",
+)
+
+STEAM_OPENID_REALM = os.getenv(
+    "STEAM_OPENID_REALM",
+    "http://localhost:8000/",
 )
 
 # Steam appdetails cache.
@@ -815,6 +844,466 @@ def reset_password(request: ResetPasswordRequest):
 
 
 # ==========================================
+# Steam Account Linking
+# Start Steam OpenID Authentication
+# ==========================================
+
+@app.get("/api/auth/steam/link")
+def start_steam_link(request: Request):
+    """
+    Start Steam OpenID authentication for the logged-in
+    GameScope account.
+    """
+
+    account = get_current_account(request)
+    session_token = request.cookies.get(SESSION_COOKIE_NAME)
+
+    if not session_token:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required.",
+        )
+
+    try:
+        state = auth.create_steam_link_state(
+            account["user_id"],
+            session_token,
+        )
+
+    except MySQLError as error:
+        raise database_error(error) from error
+
+    return_to = (
+        f"{STEAM_OPENID_RETURN_URL}"
+        f"?{urlencode({'state': state})}"
+    )
+
+    params = {
+        "openid.ns": "http://specs.openid.net/auth/2.0",
+        "openid.mode": "checkid_setup",
+        "openid.return_to": return_to,
+        "openid.realm": STEAM_OPENID_REALM,
+        "openid.identity": (
+            "http://specs.openid.net/auth/2.0/"
+            "identifier_select"
+        ),
+        "openid.claimed_id": (
+            "http://specs.openid.net/auth/2.0/"
+            "identifier_select"
+        ),
+    }
+
+    steam_url = f"{STEAM_OPENID_URL}?{urlencode(params)}"
+
+    return RedirectResponse(
+        url=steam_url,
+        status_code=303,
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+# ==========================================
+# Steam Account Linking
+# Verify Steam OpenID Callback
+# ==========================================
+
+@app.get("/api/auth/steam/callback")
+def steam_link_callback(
+    request: Request,
+    state: str = Query(..., min_length=20, max_length=256),
+):
+    """
+    Receive and verify Steam OpenID authentication.
+
+    The Steam ID is only trusted after Steam confirms
+    the OpenID assertion.
+    """
+
+    account = get_current_account(request)
+    session_token = request.cookies.get(SESSION_COOKIE_NAME)
+
+    if not session_token:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required.",
+        )
+
+    # Make sure Steam returned a successful authentication.
+    if request.query_params.get("openid.mode") != "id_res":
+        raise HTTPException(
+            status_code=400,
+            detail="Steam authentication was cancelled or failed.",
+        )
+
+    # Collect the OpenID response fields.
+    openid_fields = {
+        key: value
+        for key, value in request.query_params.items()
+        if key.startswith("openid.")
+    }
+
+    claimed_id = openid_fields.get("openid.claimed_id", "")
+    identity = openid_fields.get("openid.identity", "")
+    response_nonce = openid_fields.get("openid.response_nonce", "")
+    return_to = openid_fields.get("openid.return_to", "")
+
+    # Confirm the response came from the expected OpenID provider.
+    if (
+        openid_fields.get("openid.ns")
+        != "http://specs.openid.net/auth/2.0"
+        or openid_fields.get("openid.op_endpoint")
+        != STEAM_OPENID_URL
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid Steam OpenID provider response.",
+        )
+
+    # Both identifiers must refer to the same Steam account.
+    steam_id_match = re.fullmatch(
+        r"https?://steamcommunity\.com/openid/id/([0-9]{17})",
+        claimed_id,
+    )
+
+    if not steam_id_match or identity != claimed_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Steam returned an invalid account identity.",
+        )
+
+    steam_id = steam_id_match.group(1)
+
+    # Require the exact callback URL and state originally generated.
+    expected_return_to = (
+        f"{STEAM_OPENID_RETURN_URL}"
+        f"?{urlencode({'state': state})}"
+    )
+
+    if return_to != expected_return_to:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid Steam authentication response.",
+        )
+
+    if not response_nonce:
+        raise HTTPException(
+            status_code=400,
+            detail="Steam authentication response is incomplete.",
+        )
+
+    # Ask Steam to verify the original signed assertion.
+    verification_fields = dict(openid_fields)
+    verification_fields["openid.mode"] = "check_authentication"
+
+    try:
+        verification_response = requests.post(
+            STEAM_OPENID_URL,
+            data=verification_fields,
+            timeout=10,
+        )
+        verification_response.raise_for_status()
+
+    except requests.RequestException as error:
+        logger.warning(
+            "Steam OpenID verification request failed: %s",
+            type(error).__name__,
+        )
+
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to verify your Steam account right now.",
+        ) from error
+
+    verification_text = verification_response.text
+
+    if not re.search(
+        r"(?m)^is_valid:true\s*$",
+        verification_text,
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Steam could not verify this account.",
+        )
+
+    # Consume the state only after Steam has verified the assertion.
+    try:
+        state_valid = auth.consume_steam_link_state(
+            state,
+            account["user_id"],
+            session_token,
+        )
+
+        if not state_valid:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "This Steam linking request has expired "
+                    "or was already used."
+                ),
+            )
+
+        auth.link_steam_account(
+            account["user_id"],
+            steam_id,
+        )
+
+    except ValueError as error:
+        raise HTTPException(
+            status_code=409,
+            detail=str(error),
+        ) from error
+
+    except MySQLError as error:
+        raise database_error(error) from error
+
+    logger.info(
+        "Steam account successfully linked for GameScope user_id=%s.",
+        account["user_id"],
+    )
+
+    # Redirect to the React application root.
+    # GameScope uses internal page state rather than /profile routing.
+    return RedirectResponse(
+        url=f"{FRONTEND_URL}/?steam=linked",
+        status_code=303,
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+# ==========================================
+# Steam Account Linking
+# Get Linked Steam Account
+# ==========================================
+
+@app.get("/api/auth/steam/account")
+def get_linked_steam_account(request: Request):
+    """
+    Return the Steam account linked to the
+    currently authenticated GameScope user.
+    """
+
+    account = get_current_account(request)
+
+    try:
+        steam_account = auth.get_steam_account(
+            account["user_id"]
+        )
+
+    except MySQLError as error:
+        raise database_error(error) from error
+
+    return {
+        "linked": steam_account is not None,
+        "steam_account": steam_account,
+    }
+
+
+# ==========================================
+# Steam Library
+# Retrieve Owned Games
+# ==========================================
+
+@app.get("/api/auth/steam/library")
+def get_steam_library(
+    account=Depends(get_current_account),
+):
+    """
+    Retrieve games owned by the authenticated user's
+    linked Steam account.
+
+    Steam API keys are only used on the backend.
+    Steam playtime is returned in hours.
+
+    The response matches the SteamLibraryResponse
+    interface in the frontend API client.
+    """
+
+    if not STEAM_API_KEY:
+        logger.error(
+            "Steam library request failed: STEAM_API_KEY is not configured."
+        )
+
+        raise HTTPException(
+            status_code=503,
+            detail="Steam library access is not configured on the server.",
+        )
+
+    # Retrieve the Steam account from the authenticated user's
+    # existing GameScope account record.
+    try:
+        steam_account = auth.get_steam_account(
+            account["user_id"]
+        )
+
+    except MySQLError as error:
+        raise database_error(error) from error
+
+    if not steam_account:
+        raise HTTPException(
+            status_code=404,
+            detail="Connect your Steam account before viewing your library.",
+        )
+
+    steam_id = str(steam_account.get("steam_id") or "")
+
+    if not re.fullmatch(r"[0-9]{17}", steam_id):
+        logger.error(
+            "Invalid stored Steam ID for GameScope user_id=%s.",
+            account["user_id"],
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail="The linked Steam account contains invalid account information.",
+        )
+
+    try:
+        response = requests.get(
+            STEAM_OWNED_GAMES_URL,
+            params={
+                "key": STEAM_API_KEY,
+                "steamid": steam_id,
+                "include_appinfo": 1,
+                "include_played_free_games": 1,
+                "format": "json",
+            },
+            timeout=15,
+        )
+
+        response.raise_for_status()
+
+    except requests.Timeout as error:
+        logger.warning(
+            "Steam library request timed out for GameScope user_id=%s.",
+            account["user_id"],
+        )
+
+        raise HTTPException(
+            status_code=504,
+            detail="Steam took too long to respond. Please try again.",
+        ) from error
+
+    except requests.RequestException as error:
+        logger.warning(
+            "Steam library request failed for GameScope user_id=%s: %s",
+            account["user_id"],
+            type(error).__name__,
+        )
+
+        raise HTTPException(
+            status_code=502,
+            detail="Steam library is temporarily unavailable.",
+        ) from error
+
+    try:
+        data = response.json()
+
+    except ValueError as error:
+        logger.warning("Steam returned an invalid library response.")
+
+        raise HTTPException(
+            status_code=502,
+            detail="Steam returned an invalid library response.",
+        ) from error
+
+    steam_response = data.get("response")
+
+    if not isinstance(steam_response, dict):
+        raise HTTPException(
+            status_code=502,
+            detail="Steam returned an unexpected library response.",
+        )
+
+    # Steam may omit the games field when the account's
+    # game details are private. A valid empty library can
+    # still have game_count = 0.
+    if "game_count" not in steam_response:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Steam did not return your games. "
+                "Make sure your Steam Game Details privacy setting "
+                "allows your games to be viewed, then try again."
+            ),
+        )
+
+    steam_games = steam_response.get("games") or []
+
+    if not isinstance(steam_games, list):
+        raise HTTPException(
+            status_code=502,
+            detail="Steam returned an invalid games list.",
+        )
+
+    games = []
+
+    for game in steam_games:
+        if not isinstance(game, dict):
+            continue
+
+        app_id = game.get("appid")
+
+        if not app_id:
+            continue
+
+        name = game.get("name") or f"Steam App {app_id}"
+
+        # Steam reports playtime_forever in minutes.
+        playtime_minutes = game.get("playtime_forever") or 0
+
+        try:
+            playtime_minutes = max(0, int(playtime_minutes))
+        except (TypeError, ValueError):
+            playtime_minutes = 0
+
+        playtime_hours = round(playtime_minutes / 60, 1)
+
+        # Steam reports the last-played time as a Unix timestamp.
+        last_played_timestamp = game.get("rtime_last_played") or 0
+
+        try:
+            last_played_timestamp = int(last_played_timestamp)
+        except (TypeError, ValueError):
+            last_played_timestamp = 0
+
+        last_played = None
+
+        if last_played_timestamp > 0:
+            try:
+                last_played = datetime.fromtimestamp(
+                    last_played_timestamp,
+                    tz=timezone.utc,
+                ).isoformat()
+            except (OverflowError, OSError, ValueError):
+                last_played = None
+
+        games.append(
+            {
+                "appId": str(app_id),
+                "name": name,
+                "playtime": playtime_hours,
+                "lastPlayed": last_played,
+                "image": (
+                    f"https://cdn.akamai.steamstatic.com/"
+                    f"steam/apps/{app_id}/header.jpg"
+                ),
+            }
+        )
+
+    # Show recently played games first.
+    games.sort(
+        key=lambda game: game["lastPlayed"] or "",
+        reverse=True,
+    )
+
+    return {
+        "steamId": steam_id,
+        "gameCount": int(steam_response.get("game_count") or len(games)),
+        "games": games,
+    }
+
+
+# ==========================================
 # Health Check
 # ==========================================
 
@@ -1379,3 +1868,42 @@ def get_review_cards(
     return build_review_cards(
         load_stored(app_id, days)
     )[:limit]
+
+
+# ==========================================
+# Steam Account Linking
+# Disconnect Steam Account
+# ==========================================
+
+@app.post("/api/auth/steam/unlink")
+def unlink_steam_account(
+    account=Depends(get_current_account),
+):
+    """
+    Disconnect the Steam account belonging to the
+    currently authenticated GameScope user.
+    """
+
+    try:
+        unlinked = auth.unlink_steam_account(
+            account["user_id"]
+        )
+
+    except MySQLError as error:
+        raise database_error(error) from error
+
+    if not unlinked:
+        return {
+            "message": "No Steam account is currently linked.",
+            "unlinked": False,
+        }
+
+    logger.info(
+        "Steam account disconnected for GameScope user_id=%s.",
+        account["user_id"],
+    )
+
+    return {
+        "message": "Steam account disconnected successfully.",
+        "unlinked": True,
+    }

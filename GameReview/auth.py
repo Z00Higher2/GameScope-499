@@ -12,6 +12,7 @@ Handles:
 - Password reset token creation
 - Password reset token validation
 - Secure password resets
+- Steam account linking and unlinking
 """
 
 import re
@@ -590,9 +591,6 @@ def create_password_reset_token(email):
     Returns:
         A dictionary containing the raw token and expiration time.
         None if the email address does not exist.
-
-    The raw token must only be used to construct the reset link
-    that will be delivered to the user's email address.
     """
 
     email = email.strip().lower()
@@ -627,7 +625,6 @@ def create_password_reset_token(email):
 
         user_id = user["user_id"]
 
-        # Invalidate previous unused reset tokens for this user.
         cursor.execute(
             """
             UPDATE password_reset_tokens
@@ -758,8 +755,6 @@ def reset_user_password(token, new_password):
     - Updates the password using Argon2id.
     - Marks the reset token as used.
     - Revokes all existing sessions.
-
-    Returns True if successful, otherwise raises ValueError.
     """
 
     if not token:
@@ -781,7 +776,6 @@ def reset_user_password(token, new_password):
         connection = importer.connect_database(use_database=True)
         cursor = connection.cursor(dictionary=True)
 
-        # Lock the token record to prevent simultaneous reuse.
         cursor.execute(
             """
             SELECT reset_id, user_id
@@ -819,7 +813,6 @@ def reset_user_password(token, new_password):
             connection.rollback()
             raise ValueError("Unable to reset the account password.")
 
-        # Mark the token as permanently used.
         cursor.execute(
             """
             UPDATE password_reset_tokens
@@ -830,7 +823,6 @@ def reset_user_password(token, new_password):
             (reset_id,),
         )
 
-        # Revoke every active session belonging to this user.
         cursor.execute(
             """
             UPDATE user_sessions
@@ -855,6 +847,351 @@ def reset_user_password(token, new_password):
             connection.rollback()
 
         logger.exception("Database error during password reset.")
+        raise
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
+
+
+# ============================================================
+# STEAM ACCOUNT LINKING STATE
+# ============================================================
+
+STEAM_LINK_STATE_DURATION_MINUTES = 10
+
+
+def create_steam_link_state(user_id, session_token):
+    """
+    Create a short-lived Steam linking state.
+
+    Only hashes of the state and GameScope session token
+    are stored in MySQL.
+    """
+
+    if not user_id or not session_token:
+        raise ValueError("A valid user and session are required.")
+
+    state = secrets.token_urlsafe(32)
+    state_hash = hashlib.sha256(state.encode("utf-8")).hexdigest()
+    session_token_hash = hash_session_token(session_token)
+
+    connection = None
+    cursor = None
+
+    try:
+        connection = importer.connect_database(use_database=True)
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            INSERT INTO steam_link_states (
+                user_id,
+                state_hash,
+                session_token_hash,
+                expires_at
+            )
+            VALUES (
+                %s,
+                %s,
+                %s,
+                DATE_ADD(
+                    UTC_TIMESTAMP(),
+                    INTERVAL %s MINUTE
+                )
+            )
+            """,
+            (
+                user_id,
+                state_hash,
+                session_token_hash,
+                STEAM_LINK_STATE_DURATION_MINUTES,
+            ),
+        )
+
+        connection.commit()
+
+        return state
+
+    except MySQLError:
+        if connection:
+            connection.rollback()
+
+        logger.exception("Database error creating Steam link state.")
+        raise
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
+
+
+def consume_steam_link_state(state, user_id, session_token):
+    """
+    Validate and permanently consume a Steam linking state.
+
+    The state must belong to the same user and GameScope
+    session, must not be expired, and must not have been used.
+    """
+
+    if not state or not user_id or not session_token:
+        return False
+
+    state_hash = hashlib.sha256(state.encode("utf-8")).hexdigest()
+    session_token_hash = hash_session_token(session_token)
+
+    connection = None
+    cursor = None
+
+    try:
+        connection = importer.connect_database(use_database=True)
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            """
+            SELECT state_id
+            FROM steam_link_states
+            WHERE state_hash = %s
+                AND user_id = %s
+                AND session_token_hash = %s
+                AND used_at IS NULL
+                AND expires_at > UTC_TIMESTAMP()
+            LIMIT 1
+            FOR UPDATE
+            """,
+            (state_hash, user_id, session_token_hash),
+        )
+
+        record = cursor.fetchone()
+
+        if not record:
+            connection.rollback()
+            return False
+
+        cursor.execute(
+            """
+            UPDATE steam_link_states
+            SET used_at = UTC_TIMESTAMP()
+            WHERE state_id = %s
+                AND used_at IS NULL
+            """,
+            (record["state_id"],),
+        )
+
+        consumed = cursor.rowcount == 1
+
+        connection.commit()
+
+        return consumed
+
+    except MySQLError:
+        if connection:
+            connection.rollback()
+
+        logger.exception("Database error consuming Steam link state.")
+        raise
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
+
+
+# ============================================================
+# STEAM ACCOUNT STORAGE
+# ============================================================
+
+def link_steam_account(user_id, steam_id):
+    """
+    Link a verified Steam account to a GameScope user.
+
+    The database's unique constraints prevent one Steam
+    account from being linked to multiple GameScope accounts.
+    """
+
+    if not user_id or not steam_id:
+        raise ValueError("A valid user and Steam account are required.")
+
+    if not re.fullmatch(r"[0-9]{17}", str(steam_id)):
+        raise ValueError("Invalid Steam account ID.")
+
+    profile_url = f"https://steamcommunity.com/profiles/{steam_id}"
+
+    connection = None
+    cursor = None
+
+    try:
+        connection = importer.connect_database(use_database=True)
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            INSERT INTO steam_accounts (
+                user_id,
+                steam_id,
+                profile_url
+            )
+            VALUES (%s, %s, %s)
+            """,
+            (user_id, str(steam_id), profile_url),
+        )
+
+        connection.commit()
+
+        return {
+            "steam_id": str(steam_id),
+            "profile_url": profile_url,
+        }
+
+    except IntegrityError as error:
+        if connection:
+            connection.rollback()
+
+        raise ValueError(
+            "This GameScope account or Steam account is already linked."
+        ) from error
+
+    except MySQLError:
+        if connection:
+            connection.rollback()
+
+        logger.exception("Database error linking Steam account.")
+        raise
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
+
+
+def get_steam_account(user_id):
+    """
+    Retrieve the Steam account linked to a GameScope user.
+
+    Returns None if the user has not linked a Steam account.
+    """
+
+    if not user_id:
+        return None
+
+    connection = None
+    cursor = None
+
+    try:
+        connection = importer.connect_database(use_database=True)
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            """
+            SELECT
+                steam_id,
+                steam_display_name,
+                profile_url,
+                linked_at
+            FROM steam_accounts
+            WHERE user_id = %s
+            LIMIT 1
+            """,
+            (user_id,),
+        )
+
+        steam_account = cursor.fetchone()
+
+        if not steam_account:
+            return None
+
+        return {
+            "steam_id": steam_account["steam_id"],
+            "steam_display_name": steam_account["steam_display_name"],
+            "profile_url": steam_account["profile_url"],
+            "linked_at": (
+                steam_account["linked_at"].isoformat()
+                if steam_account["linked_at"]
+                else None
+            ),
+        }
+
+    except MySQLError:
+        logger.exception("Database error retrieving Steam account.")
+        raise
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
+
+
+def unlink_steam_account(user_id):
+    """
+    Unlink the Steam account belonging to a GameScope user.
+
+    This does not delete the Steam account itself.
+
+    Pending Steam-link states are invalidated in the same
+    transaction so an outstanding authentication attempt
+    cannot unexpectedly relink the account afterward.
+
+    Returns True if an account was unlinked, otherwise False.
+    """
+
+    if not user_id:
+        raise ValueError("A valid GameScope user is required.")
+
+    connection = None
+    cursor = None
+
+    try:
+        connection = importer.connect_database(use_database=True)
+        cursor = connection.cursor()
+
+        # Invalidate outstanding Steam linking requests.
+        cursor.execute(
+            """
+            UPDATE steam_link_states
+            SET used_at = UTC_TIMESTAMP()
+            WHERE user_id = %s
+                AND used_at IS NULL
+            """,
+            (user_id,),
+        )
+
+        # Delete only the link belonging to this GameScope user.
+        cursor.execute(
+            """
+            DELETE FROM steam_accounts
+            WHERE user_id = %s
+            """,
+            (user_id,),
+        )
+
+        unlinked = cursor.rowcount == 1
+
+        connection.commit()
+
+        if unlinked:
+            logger.info(
+                "Steam account unlinked for GameScope user_id=%s.",
+                user_id,
+            )
+
+        return unlinked
+
+    except MySQLError:
+        if connection:
+            connection.rollback()
+
+        logger.exception("Database error unlinking Steam account.")
         raise
 
     finally:
