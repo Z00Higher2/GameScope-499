@@ -21,7 +21,9 @@ import {
   analyzeGame,
   getAnalysis,
   getCurrentUser,
+  getSteamAccount,
   logout,
+  startSteamLink,
 } from "./api";
 
 import type {
@@ -107,16 +109,6 @@ function getSavedActivityHistory(
   }
 }
 
-function getSavedSteamConnection(email: string): boolean {
-  try {
-    const key = `gamescope-steam-${email.toLowerCase()}`;
-
-    return localStorage.getItem(key) === "true";
-  } catch {
-    return false;
-  }
-}
-
 function App() {
   const [resetToken, setResetToken] = useState(
     () =>
@@ -193,35 +185,61 @@ function App() {
   const [steamConnected, setSteamConnected] =
     useState(false);
 
+  /*
+   * The backend is the source of truth for Steam linking.
+   * Do not use localStorage to simulate a Steam connection.
+   */
   useEffect(() => {
-    if (!account?.email) {
+    if (!account?.email || !isPlayer) {
       setSteamConnected(false);
       return;
     }
 
-    setSteamConnected(
-      getSavedSteamConnection(account.email)
-    );
-  }, [account?.email]);
+    let cancelled = false;
 
+    const loadSteamConnection = async () => {
+      try {
+        const response = await getSteamAccount();
+
+        if (!cancelled) {
+          setSteamConnected(
+            response.linked && response.steam_account !== null
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Unable to retrieve Steam connection:",
+          error
+        );
+
+        if (!cancelled) {
+          setSteamConnected(false);
+        }
+      }
+    };
+
+    void loadSteamConnection();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [account?.email, isPlayer]);
+
+  /*
+   * Starting the connection redirects the browser to Steam.
+   * The backend verifies the OpenID response and stores the link.
+   */
   const handleSteamConnect = () => {
     if (!account?.email || !isPlayer) return;
 
-    localStorage.setItem(
-      `gamescope-steam-${account.email.toLowerCase()}`,
-      "true"
-    );
-
-    setSteamConnected(true);
+    startSteamLink();
   };
 
+  /*
+   * Profile calls this after the backend successfully disconnects
+   * the Steam account.
+   */
   const handleSteamDisconnect = () => {
-    if (!account?.email || !isPlayer) return;
-
-    localStorage.removeItem(
-      `gamescope-steam-${account.email.toLowerCase()}`
-    );
-
     setSteamConnected(false);
   };
 

@@ -6,10 +6,13 @@ import type { Page, Mode } from "../type";
 import {
   getActiveSessions,
   logoutAllDevices,
+  getSteamAccount,
+  unlinkSteamAccount,
 } from "../api";
 import type {
   AccountMode,
   ActiveSession,
+  SteamAccount,
 } from "../api";
 
 interface ProfileProps {
@@ -91,11 +94,11 @@ function Profile({
   isLoggedIn,
   accountEmail,
   onLogout,
-  activityHistory,
   steamConnected,
   onSteamConnect,
   onSteamDisconnect,
   roles,
+  activityHistory,
 }: ProfileProps) {
   const isPlayer = mode === "player";
 
@@ -159,6 +162,15 @@ function Profile({
   const [sessionsMessage, setSessionsMessage] = useState("");
   const [loggingOutAll, setLoggingOutAll] = useState(false);
 
+  // Real Steam account connection
+  const [linkedSteamAccount, setLinkedSteamAccount] =
+    useState<SteamAccount | null>(null);
+
+  const [steamLoading, setSteamLoading] = useState(true);
+  const [steamError, setSteamError] = useState("");
+  const [steamDisconnecting, setSteamDisconnecting] = useState(false);
+  const [steamMessage, setSteamMessage] = useState("");
+
   const loadSessions = async () => {
     setSessionsLoading(true);
     setSessionsError("");
@@ -178,6 +190,7 @@ function Profile({
     }
   };
 
+  // Load active GameScope sessions.
   useEffect(() => {
     if (!isLoggedIn) {
       setSessions([]);
@@ -217,6 +230,84 @@ function Profile({
       cancelled = true;
     };
   }, [isLoggedIn, accountEmail]);
+
+  // Load the Steam account linked to the current GameScope account.
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setLinkedSteamAccount(null);
+      setSteamLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadSteamAccount = async () => {
+      setSteamLoading(true);
+      setSteamError("");
+
+      try {
+        const response = await getSteamAccount();
+
+        if (!cancelled) {
+          setLinkedSteamAccount(response.steam_account);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setSteamError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load your Steam account."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setSteamLoading(false);
+        }
+      }
+    };
+
+    void loadSteamAccount();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn, accountEmail]);
+
+  // Disconnect the linked Steam account.
+  const handleDisconnectSteam = async () => {
+    const confirmed = window.confirm(
+      "Are you sure you want to disconnect your Steam account from GameScope?"
+    );
+
+    if (!confirmed) return;
+
+    setSteamDisconnecting(true);
+    setSteamError("");
+    setSteamMessage("");
+
+    try {
+      const response = await unlinkSteamAccount();
+
+      setLinkedSteamAccount(null);
+
+      // Update App.tsx so the Navbar and My Library update immediately.
+      onSteamDisconnect();
+
+      setSteamMessage(
+        response.unlinked
+          ? "Your Steam account has been disconnected successfully."
+          : "No Steam account was linked to your account."
+      );
+    } catch (error) {
+      setSteamError(
+        error instanceof Error
+          ? error.message
+          : "Unable to disconnect your Steam account."
+      );
+    } finally {
+      setSteamDisconnecting(false);
+    }
+  };
 
   const handleLogoutAllDevices = async () => {
     const confirmed = window.confirm(
@@ -474,6 +565,7 @@ function Profile({
         mode={mode}
         setMode={setMode}
         isLoggedIn={isLoggedIn}
+        steamConnected={steamConnected}
         accountEmail={accountEmail}
         onLogout={onLogout}
       />
@@ -913,13 +1005,13 @@ function Profile({
           </section>
         )}
 
-        {/* Steam Account */}
+        {/* Real Steam Account */}
         <section className="profile-section steam-account-section">
           <h2>Steam Account</h2>
 
           <p>
-            Connect your Steam account to prepare for personalized
-            gaming features and account integration.
+            Link your Steam account to connect your gaming identity
+            with your GameScope profile.
           </p>
 
           <div className="steam-account-card">
@@ -936,42 +1028,98 @@ function Profile({
 
                 <span
                   className={`steam-connection-status ${
-                    steamConnected ? "connected" : "disconnected"
+                    linkedSteamAccount ? "connected" : "disconnected"
                   }`}
                 >
-                  {steamConnected ? "Demo Connected" : "Not Connected"}
+                  {steamLoading
+                    ? "Checking connection..."
+                    : linkedSteamAccount
+                      ? "Connected"
+                      : "Not Connected"}
                 </span>
               </div>
             </div>
 
-            {steamConnected ? (
-              <button
-                type="button"
-                className="profile-remove-button"
-                onClick={() => {
-                  const confirmed = window.confirm(
-                    "Are you sure you want to disconnect your Steam account?"
-                  );
+            {steamLoading ? (
+              <span className="profile-upload-hint">
+                Checking your linked Steam account...
+              </span>
+            ) : linkedSteamAccount ? (
+              <div className="steam-linked-content">
+                <div className="steam-linked-details">
+                  <p>
+                    <strong>Steam ID:</strong>{" "}
+                    {linkedSteamAccount.steam_id}
+                  </p>
 
-                  if (confirmed) onSteamDisconnect();
-                }}
-              >
-                Disconnect Steam
-              </button>
+                  {linkedSteamAccount.steam_display_name && (
+                    <p>
+                      <strong>Display Name:</strong>{" "}
+                      {linkedSteamAccount.steam_display_name}
+                    </p>
+                  )}
+
+                  {linkedSteamAccount.profile_url && (
+                    <a
+                      href={linkedSteamAccount.profile_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      View Steam Profile
+                    </a>
+                  )}
+                </div>
+
+                <div
+                  className="steam-linked-actions"
+                  style={{
+                    display: "flex",
+                    justifyContent: "flex-start",
+                    alignItems: "flex-start",
+                    width: "100%",
+                    marginTop: "12px",
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="profile-remove-button"
+                    onClick={handleDisconnectSteam}
+                    disabled={steamDisconnecting}
+                  >
+                    {steamDisconnecting
+                      ? "Disconnecting..."
+                      : "Disconnect Steam"}
+                  </button>
+                </div>
+              </div>
             ) : (
               <button
                 type="button"
                 className="profile-upload-button"
                 onClick={onSteamConnect}
+                disabled={!isLoggedIn || !isPlayer}
               >
-                Connect Steam (Demo)
+                Connect Steam
               </button>
             )}
           </div>
 
+          {steamError && (
+            <p className="profile-upload-error" role="alert">
+              {steamError}
+            </p>
+          )}
+
+          {steamMessage && (
+            <p className="profile-security-success" role="status">
+              {steamMessage}
+            </p>
+          )}
+
           <span className="profile-upload-hint">
-            Demo only: this does not authenticate with Steam or access
-            your Steam profile. Real Steam sign-in will be added later.
+            GameScope uses Steam OpenID to verify your Steam identity.
+            You will be redirected to Steam to authorize the connection.
+            GameScope never asks for your Steam password.
           </span>
         </section>
 

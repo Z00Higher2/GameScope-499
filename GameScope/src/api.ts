@@ -97,6 +97,46 @@ export interface ResetPasswordResponse {
   message: string;
 }
 
+export interface SteamAccount {
+  steam_id: string;
+  steam_display_name: string | null;
+  profile_url: string | null;
+  linked_at: string | null;
+}
+
+export interface SteamAccountResponse {
+  linked: boolean;
+  steam_account: SteamAccount | null;
+}
+
+// =========================================================
+// STEAM LIBRARY TYPES
+// =========================================================
+
+/*
+ * One game returned by the authenticated user's Steam library.
+ *
+ * playtime is represented in hours.
+ * lastPlayed is an ISO date string, or null if the game
+ * has never been played.
+ */
+export interface SteamLibraryGame {
+  appId: string;
+  name: string;
+  playtime: number;
+  lastPlayed: string | null;
+  image: string | null;
+}
+
+/*
+ * Complete Steam library response.
+ */
+export interface SteamLibraryResponse {
+  steamId: string;
+  gameCount: number;
+  games: SteamLibraryGame[];
+}
+
 // =========================================================
 // GAME TYPES
 // =========================================================
@@ -487,6 +527,64 @@ export function resetPassword(data: ResetPasswordRequest) {
       },
       body: JSON.stringify(data),
     }
+  );
+}
+
+// =========================================================
+// STEAM ACCOUNT LINKING API
+// =========================================================
+
+/*
+ * Retrieve the Steam account linked to the current
+ * authenticated GameScope account.
+ */
+export function getSteamAccount() {
+  return request<SteamAccountResponse>(
+    "/api/auth/steam/account"
+  );
+}
+
+/*
+ * Begin Steam OpenID account linking.
+ *
+ * The backend redirects the browser to Steam.
+ */
+export function startSteamLink() {
+  window.location.assign(
+    `${API_BASE_URL}/api/auth/steam/link`
+  );
+}
+
+/*
+ * Disconnect the Steam account from the current
+ * authenticated GameScope account.
+ */
+export function unlinkSteamAccount() {
+  return request<{
+    message: string;
+    unlinked: boolean;
+  }>("/api/auth/steam/unlink", {
+    method: "POST",
+  });
+}
+
+// =========================================================
+// STEAM LIBRARY API
+// =========================================================
+
+/*
+ * Retrieve the owned games for the Steam account linked
+ * to the current authenticated GameScope account.
+ *
+ * The Steam Web API key stays on the backend and is never
+ * exposed to the frontend.
+ */
+export function getSteamLibrary(
+  signal?: AbortSignal
+) {
+  return request<SteamLibraryResponse>(
+    "/api/auth/steam/library",
+    { signal }
   );
 }
 

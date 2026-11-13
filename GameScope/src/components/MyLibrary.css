@@ -1,43 +1,45 @@
 
 /* =========================================================
    GAMESCOPE MY LIBRARY
-   Shared Theme Variables
+   Refined Theme System
 ========================================================= */
 
 .my-library {
-  /* Global accent colors inherited from App.tsx */
   --library-accent: var(--accent-color, #7065ee);
   --library-accent-strong: var(--accent-strong, #8b80ff);
 
-  /* Derived accent colors */
   --library-accent-hover: color-mix(
     in srgb,
     var(--library-accent) 82%,
-    #000000
+    #000
   );
 
   --library-accent-soft: color-mix(
     in srgb,
-    var(--library-accent) 12%,
+    var(--library-accent) 10%,
+    transparent
+  );
+
+  --library-accent-border: color-mix(
+    in srgb,
+    var(--library-accent) 17%,
     transparent
   );
 
   --library-glow: color-mix(
     in srgb,
-    var(--library-accent) 25%,
+    var(--library-accent) 22%,
     transparent
   );
 
-  /* Light theme */
-  --library-bg: #f4f5fb;
-  --library-card: #ffffff;
-  --library-card-soft: #f8f8fc;
-  --library-surface: #f6f6fc;
+  --library-bg: #f5f6fc;
+  --library-card: #fff;
+  --library-card-soft: #fafaff;
+  --library-surface: #f0f1f8;
   --library-text: #202136;
   --library-muted: #77798f;
-
-  /* Status colors */
   --library-green: #22a879;
+  --library-red: #e35d6a;
 
   min-height: 100vh;
   width: 100%;
@@ -47,18 +49,18 @@
 
   background:
     radial-gradient(
-      circle at 78% 5%,
+      ellipse at 82% 4%,
       var(--library-accent-soft),
-      transparent 30%
+      transparent 34%
     ),
     radial-gradient(
-      circle at 10% 35%,
+      ellipse at 5% 38%,
       color-mix(
         in srgb,
         var(--library-accent) 5%,
         transparent
       ),
-      transparent 28%
+      transparent 30%
     ),
     var(--library-bg);
 
@@ -67,38 +69,50 @@
     color 0.35s ease;
 }
 
-/* Dark theme */
+/* =========================================================
+   DARK THEME
+========================================================= */
+
 .my-library-dark {
-  --library-bg: #09090d;
-  --library-card: #111117;
-  --library-card-soft: #17171f;
-  --library-surface: #171720;
-  --library-text: #f4f4f5;
-  --library-muted: #a1a1aa;
+  --library-bg: #09090f;
+  --library-card: #12121b;
+  --library-card-soft: #171722;
+  --library-surface: #1b1b27;
+  --library-text: #f4f4f8;
+  --library-muted: #a1a1b2;
+  --library-accent-soft: color-mix(
+    in srgb,
+    var(--library-accent) 13%,
+    transparent
+  );
 
   background:
     radial-gradient(
-      circle at 75% 5%,
+      ellipse at 80% 4%,
       color-mix(
         in srgb,
-        var(--library-accent) 13%,
+        var(--library-accent) 14%,
+        transparent
+      ),
+      transparent 35%
+    ),
+    radial-gradient(
+      ellipse at 8% 40%,
+      color-mix(
+        in srgb,
+        var(--library-accent) 7%,
         transparent
       ),
       transparent 32%
     ),
-    radial-gradient(
-      circle at 15% 35%,
-      color-mix(
-        in srgb,
-        var(--library-accent) 6%,
-        transparent
-      ),
-      transparent 30%
-    ),
     var(--library-bg);
 }
 
-/* Smooth text theme transitions */
+.my-library,
+.my-library * {
+  box-sizing: border-box;
+}
+
 .my-library h1,
 .my-library h2,
 .my-library h3,
@@ -106,20 +120,22 @@
 .my-library span,
 .my-library strong {
   transition:
-    color 0.35s ease,
-    opacity 0.35s ease;
+    color 0.3s ease,
+    opacity 0.3s ease;
 }
 
-/* Main content */
+/* =========================================================
+   MAIN CONTENT
+========================================================= */
+
 .library-content {
   width: min(1400px, 92%);
   margin: 0 auto;
-  padding: 48px 0 70px;
+  padding: 46px 0 76px;
 
-  animation: libraryPageEnter 0.8s
+  animation: libraryPageEnter 0.7s
     cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-
 
 /* =========================================================
    HERO SECTION
@@ -127,55 +143,66 @@
 
 .library-header {
   position: relative;
+  isolation: isolate;
 
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 30px;
+  justify-content: space-between;
+  gap: 36px;
 
-  min-height: 250px;
-  margin-bottom: 36px;
-  padding: 42px 48px;
+  min-height: 265px;
+  margin-bottom: 34px;
+  padding: 44px 48px;
 
   overflow: hidden;
 
-  border: 1px solid color-mix(
-    in srgb,
-    var(--library-accent) 15%,
-    transparent
-  );
-
-  border-radius: 24px;
+  border: 1px solid var(--library-accent-border);
+  border-radius: 26px;
 
   background:
     radial-gradient(
       circle at 85% 20%,
       color-mix(
         in srgb,
-        var(--library-accent) 20%,
+        var(--library-accent) 17%,
         transparent
       ),
-      transparent 35%
+      transparent 38%
     ),
     linear-gradient(
-      120deg,
+      125deg,
       var(--library-card),
       var(--library-card-soft)
     );
 
   box-shadow:
-    0 15px 40px rgba(70, 55, 150, 0.06),
-    0 0 35px color-mix(
-      in srgb,
-      var(--library-accent) 4%,
-      transparent
-    );
+    0 16px 45px rgba(45, 40, 100, 0.055),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
 
   animation: libraryHeroEnter 0.8s
     cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .library-header::before {
+  content: "";
+
+  position: absolute;
+  z-index: -1;
+  top: -130px;
+  right: 15%;
+
+  width: 300px;
+  height: 300px;
+
+  border-radius: 50%;
+
+  background: var(--library-accent-soft);
+  filter: blur(35px);
+
+  pointer-events: none;
+}
+
+.library-header::after {
   content: "";
 
   position: absolute;
@@ -195,46 +222,41 @@
     transparent
   );
 
-  box-shadow: 0 0 15px var(--library-glow);
+  box-shadow: 0 0 16px var(--library-glow);
 
-  animation: libraryAccentPulse 3s ease-in-out infinite;
+  animation: libraryAccentPulse 4s ease-in-out infinite;
 }
 
 .library-header-copy {
   position: relative;
   z-index: 2;
 
-  max-width: 650px;
+  max-width: 680px;
 }
 
 .library-title-label {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 11px;
 
-  margin-bottom: 16px;
+  margin-bottom: 17px;
 
-  animation: libraryFadeUp 0.7s 0.12s ease both;
+  animation: libraryFadeUp 0.65s 0.1s ease both;
 }
 
 .library-eyebrow {
   color: var(--library-accent);
 
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 900;
-  letter-spacing: 2px;
+  letter-spacing: 2.2px;
 }
 
 .library-demo-badge {
-  padding: 6px 10px;
+  padding: 6px 11px;
 
-  border: 1px solid color-mix(
-    in srgb,
-    var(--library-accent) 20%,
-    transparent
-  );
-
+  border: 1px solid var(--library-accent-border);
   border-radius: 999px;
 
   background: var(--library-accent-soft);
@@ -242,7 +264,7 @@
 
   font-size: 9px;
   font-weight: 900;
-  letter-spacing: 1px;
+  letter-spacing: 1.1px;
 }
 
 .library-header h1 {
@@ -250,12 +272,12 @@
 
   color: var(--library-text);
 
-  font-size: clamp(34px, 5vw, 52px);
+  font-size: clamp(36px, 5vw, 54px);
   font-weight: 900;
-  letter-spacing: -2px;
-  line-height: 1.12;
+  letter-spacing: -2.5px;
+  line-height: 1.1;
 
-  animation: libraryTitleReveal 0.8s 0.1s
+  animation: libraryTitleReveal 0.8s 0.12s
     cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -275,19 +297,19 @@
   background-clip: text;
   -webkit-background-clip: text;
 
-  animation: libraryGradientShift 6s ease-in-out infinite;
+  animation: libraryGradientShift 7s ease-in-out infinite;
 }
 
 .library-header p {
-  max-width: 490px;
-  margin: 15px 0 20px;
+  max-width: 500px;
+  margin: 17px 0 21px;
 
   color: var(--library-muted);
 
   font-size: 14px;
   line-height: 1.8;
 
-  animation: libraryFadeUp 0.7s 0.25s ease both;
+  animation: libraryFadeUp 0.65s 0.22s ease both;
 }
 
 .library-connection-status {
@@ -298,9 +320,9 @@
   color: var(--library-muted);
 
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 750;
 
-  animation: libraryFadeUp 0.7s 0.35s ease both;
+  animation: libraryFadeUp 0.65s 0.3s ease both;
 }
 
 .connection-indicator {
@@ -311,12 +333,10 @@
   border-radius: 50%;
 
   background: var(--library-green);
+  box-shadow: 0 0 11px rgba(34, 168, 121, 0.65);
 
-  box-shadow: 0 0 10px rgba(34, 168, 121, 0.7);
-
-  animation: libraryStatusPulse 1.8s ease-in-out infinite;
+  animation: libraryStatusPulse 2s ease-in-out infinite;
 }
-
 
 /* =========================================================
    HERO DECORATION
@@ -332,34 +352,34 @@
   justify-content: center;
 
   width: 190px;
-  height: 170px;
-  margin-right: 30px;
+  height: 175px;
+  margin-right: 22px;
 
   flex-shrink: 0;
 
-  border: 1px solid color-mix(
-    in srgb,
-    var(--library-accent) 16%,
-    transparent
-  );
+  border: 1px solid var(--library-accent-border);
+  border-radius: 27px;
 
-  border-radius: 28px;
-
-  background: var(--library-accent-soft);
-
-  box-shadow:
-    0 15px 35px var(--library-glow),
-    inset 0 0 25px color-mix(
-      in srgb,
-      var(--library-accent) 5%,
-      transparent
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(
+        in srgb,
+        var(--library-accent) 13%,
+        var(--library-card)
+      ),
+      var(--library-accent-soft)
     );
 
-  transform: rotate(5deg);
+  box-shadow:
+    0 18px 38px var(--library-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+
+  transform: rotate(4deg);
 
   transition:
-    transform 0.35s ease,
-    box-shadow 0.35s ease;
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.4s ease;
 
   animation: libraryDecorationEnter 0.9s 0.2s
     cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -369,16 +389,14 @@
   transform: rotate(0deg) translateY(-5px);
 
   box-shadow:
-    0 20px 40px var(--library-glow),
+    0 23px 45px var(--library-glow),
     0 0 25px var(--library-glow);
 }
 
 .library-hero-icon {
   font-size: 65px;
 
-  filter: drop-shadow(
-    0 8px 12px var(--library-glow)
-  );
+  filter: drop-shadow(0 9px 13px var(--library-glow));
 
   animation: libraryIconFloat 4s ease-in-out infinite;
 }
@@ -396,7 +414,7 @@
   color: var(--library-muted);
 
   font-size: 9px;
-  font-weight: 800;
+  font-weight: 850;
   letter-spacing: 1.5px;
 }
 
@@ -404,9 +422,9 @@
   color: var(--library-accent);
 
   font-size: 13px;
+  font-weight: 900;
   letter-spacing: 2px;
 }
-
 
 /* =========================================================
    STATISTICS
@@ -417,28 +435,24 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
 
-  margin-bottom: 48px;
+  margin-bottom: 49px;
 }
 
 .library-stat-card {
   position: relative;
+  isolation: isolate;
 
   min-width: 0;
-  padding: 26px;
+  padding: 27px 28px;
 
   overflow: hidden;
 
-  border: 1px solid color-mix(
-    in srgb,
-    var(--library-accent) 12%,
-    transparent
-  );
-
-  border-radius: 18px;
+  border: 1px solid var(--library-accent-border);
+  border-radius: 19px;
 
   background: var(--library-card);
 
-  box-shadow: 0 8px 25px rgba(40, 30, 100, 0.04);
+  box-shadow: 0 8px 28px rgba(40, 30, 100, 0.045);
 
   animation: libraryStatEnter 0.65s
     cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -486,11 +500,12 @@
   content: "";
 
   position: absolute;
+  z-index: -1;
   top: -65px;
   right: -55px;
 
-  width: 150px;
-  height: 150px;
+  width: 155px;
+  height: 155px;
 
   border-radius: 50%;
 
@@ -502,7 +517,7 @@
 
   pointer-events: none;
 
-  transition: transform 0.4s ease;
+  transition: transform 0.45s ease;
 }
 
 .library-stat-card:hover {
@@ -510,17 +525,17 @@
 
   border-color: color-mix(
     in srgb,
-    var(--library-accent) 35%,
+    var(--library-accent) 38%,
     transparent
   );
 
   box-shadow:
-    0 16px 35px rgba(80, 65, 180, 0.1),
-    0 0 22px var(--library-glow);
+    0 17px 38px rgba(80, 65, 180, 0.09),
+    0 0 20px var(--library-glow);
 }
 
 .library-stat-card:hover::after {
-  transform: scale(1.3);
+  transform: scale(1.35);
 }
 
 .library-stat-card .stat-label {
@@ -529,25 +544,24 @@
 
   color: var(--library-muted);
 
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 1.3px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.4px;
 }
 
 .library-stat-card h2 {
   position: relative;
   z-index: 1;
 
-  margin: 14px 0 6px;
+  margin: 15px 0 6px;
 
   color: var(--library-accent);
 
-  font-size: 32px;
-  font-weight: 850;
-  letter-spacing: -1px;
+  font-size: clamp(27px, 3vw, 34px);
+  font-weight: 900;
+  letter-spacing: -1.2px;
 
-  animation: libraryNumberPop 0.65s 0.35s
-    cubic-bezier(0.22, 1, 0.36, 1) both;
+  overflow-wrap: anywhere;
 }
 
 .library-stat-card p {
@@ -558,27 +572,26 @@
 
   color: var(--library-muted);
 
-  font-size: 13px;
+  font-size: 12px;
 }
-
 
 /* =========================================================
    GAMES SECTION
 ========================================================= */
 
 .library-games-section {
-  margin-top: 20px;
+  margin-top: 18px;
 
   animation: libraryFadeUp 0.7s 0.25s ease both;
 }
 
 .library-games-heading {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 20px;
+  justify-content: space-between;
+  gap: 22px;
 
-  margin-bottom: 26px;
+  margin-bottom: 22px;
 }
 
 .library-games-heading h2 {
@@ -587,44 +600,38 @@
   color: var(--library-text);
 
   font-size: 25px;
-  font-weight: 850;
-  letter-spacing: -0.8px;
+  font-weight: 900;
+  letter-spacing: -0.9px;
 }
 
 .library-games-heading p {
-  margin: 8px 0 0;
+  margin: 7px 0 0;
 
   color: var(--library-muted);
 
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1.6;
 }
-
 
 /* =========================================================
    SEARCH
 ========================================================= */
 
 .library-search {
-  position: relative;
-
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 11px;
 
-  width: 290px;
-  padding: 12px 16px;
+  width: min(310px, 100%);
+  min-height: 46px;
+  padding: 0 15px;
 
-  border: 1px solid color-mix(
-    in srgb,
-    var(--library-accent) 15%,
-    transparent
-  );
-
-  border-radius: 12px;
+  border: 1px solid var(--library-accent-border);
+  border-radius: 13px;
 
   background: var(--library-card);
 
-  box-shadow: 0 5px 18px rgba(40, 30, 100, 0.03);
+  box-shadow: 0 5px 18px rgba(40, 30, 100, 0.035);
 
   transition:
     transform 0.25s ease,
@@ -642,19 +649,21 @@
   );
 
   box-shadow:
-    0 10px 25px var(--library-glow),
+    0 9px 24px var(--library-glow),
     0 0 0 3px var(--library-accent-soft);
 }
 
 .library-search span {
   color: var(--library-accent);
 
-  font-size: 22px;
+  font-size: 23px;
+  line-height: 1;
 }
 
 .library-search input {
   width: 100%;
   min-width: 0;
+  height: 42px;
 
   border: none;
   outline: none;
@@ -663,16 +672,52 @@
   color: var(--library-text);
 
   font: inherit;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .library-search input::placeholder {
   color: var(--library-muted);
 }
 
+.library-search input:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
 
 /* =========================================================
-   GAME COLLECTION GRID
+   REFRESH ROW
+========================================================= */
+
+.library-refresh-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+
+  margin: 0 0 20px;
+  padding: 13px 16px;
+
+  border: 1px solid var(--library-accent-border);
+  border-radius: 13px;
+
+  background: var(--library-card-soft);
+}
+
+.library-refresh-row > span {
+  color: var(--library-muted);
+
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.library-refresh-row .library-analyze-button {
+  width: auto;
+  min-width: 150px;
+  padding: 10px 16px;
+}
+
+/* =========================================================
+   GAME GRID
 ========================================================= */
 
 .library-game-grid {
@@ -683,23 +728,19 @@
 
 .library-game-card {
   position: relative;
+  isolation: isolate;
 
   min-width: 0;
   overflow: hidden;
 
-  border: 1px solid color-mix(
-    in srgb,
-    var(--library-accent) 12%,
-    transparent
-  );
-
-  border-radius: 18px;
+  border: 1px solid var(--library-accent-border);
+  border-radius: 19px;
 
   background: var(--library-card);
 
-  box-shadow: 0 8px 25px rgba(40, 30, 100, 0.04);
+  box-shadow: 0 8px 28px rgba(40, 30, 100, 0.045);
 
-  animation: libraryGameEnter 0.7s
+  animation: libraryGameEnter 0.65s
     cubic-bezier(0.22, 1, 0.36, 1) both;
 
   transition:
@@ -709,32 +750,32 @@
 }
 
 .library-game-card:nth-child(1) {
-  animation-delay: 0.32s;
+  animation-delay: 0.1s;
 }
 
 .library-game-card:nth-child(2) {
-  animation-delay: 0.42s;
+  animation-delay: 0.16s;
 }
 
 .library-game-card:nth-child(3) {
-  animation-delay: 0.52s;
+  animation-delay: 0.22s;
 }
 
 .library-game-card:nth-child(4) {
-  animation-delay: 0.62s;
+  animation-delay: 0.28s;
 }
 
 .library-game-card:nth-child(n + 5) {
-  animation-delay: 0.7s;
+  animation-delay: 0.32s;
 }
 
 .library-game-card::before {
   content: "";
 
   position: absolute;
+  z-index: 2;
   top: 0;
   left: 0;
-  z-index: 2;
 
   width: 100%;
   height: 2px;
@@ -757,48 +798,43 @@
 
   border-color: color-mix(
     in srgb,
-    var(--library-accent) 35%,
+    var(--library-accent) 38%,
     transparent
   );
 
   box-shadow:
-    0 20px 45px rgba(80, 65, 180, 0.12),
-    0 0 25px color-mix(
-      in srgb,
-      var(--library-accent) 8%,
-      transparent
-    );
+    0 19px 42px rgba(80, 65, 180, 0.1),
+    0 0 22px var(--library-glow);
 }
 
 .library-game-card:hover::before {
   opacity: 1;
 }
 
-
 /* =========================================================
-   GAME COVER IMAGE
+   GAME IMAGE
 ========================================================= */
 
 .library-game-image {
   display: block;
 
   width: 100%;
-  height: 190px;
+  height: 195px;
 
   object-fit: cover;
+  object-position: center;
 
   background: var(--library-surface);
 
   transition:
-    transform 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.55s cubic-bezier(0.22, 1, 0.36, 1),
     filter 0.4s ease;
 }
 
 .library-game-card:hover .library-game-image {
-  transform: scale(1.045);
+  transform: scale(1.035);
   filter: brightness(1.06);
 }
-
 
 /* =========================================================
    GAME INFORMATION
@@ -808,7 +844,7 @@
   position: relative;
   z-index: 1;
 
-  padding: 20px;
+  padding: 21px;
 }
 
 .library-game-info h3 {
@@ -816,67 +852,77 @@
 
   color: var(--library-text);
 
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 850;
-  letter-spacing: -0.4px;
+  letter-spacing: -0.35px;
+  line-height: 1.4;
 }
 
 .library-game-meta {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 8px;
 
   margin-bottom: 18px;
 
   color: var(--library-muted);
 
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 600;
 }
 
+.library-game-meta span {
+  line-height: 1.5;
+}
 
 /* =========================================================
-   ANALYZE GAME BUTTON
+   BUTTONS
 ========================================================= */
 
 .library-analyze-button {
   position: relative;
+  isolation: isolate;
 
   display: block;
   width: 100%;
+  min-height: 43px;
 
   overflow: hidden;
 
-  padding: 13px 16px;
+  padding: 12px 17px;
 
-  border: none;
+  border: 1px solid transparent;
   border-radius: 11px;
 
-  color: #ffffff;
+  color: #fff;
 
   background: linear-gradient(
-    135deg,
+    120deg,
     var(--library-accent),
     var(--library-accent-hover)
   );
 
-  box-shadow: 0 8px 22px var(--library-glow);
+  box-shadow: 0 7px 20px var(--library-glow);
 
   font: inherit;
-  font-size: 13px;
-  font-weight: 800;
+  font-size: 12px;
+  font-weight: 850;
+  letter-spacing: 0.15px;
 
   cursor: pointer;
 
   transition:
     transform 0.2s ease,
     box-shadow 0.25s ease,
-    opacity 0.2s ease;
+    opacity 0.2s ease,
+    filter 0.2s ease;
 }
 
 .library-analyze-button::before {
   content: "";
 
   position: absolute;
+  z-index: -1;
   top: 0;
   left: -120%;
 
@@ -893,20 +939,28 @@
   transform: skewX(-20deg);
 }
 
-.library-analyze-button:hover::before {
+.library-analyze-button:hover:not(:disabled)::before {
   animation: libraryButtonSweep 0.65s ease forwards;
 }
 
-.library-analyze-button:hover {
+.library-analyze-button:hover:not(:disabled) {
   transform: translateY(-2px);
 
   box-shadow:
-    0 12px 28px var(--library-glow),
-    0 0 18px var(--library-glow);
+    0 11px 26px var(--library-glow),
+    0 0 17px var(--library-glow);
+
+  filter: brightness(1.06);
 }
 
-.library-analyze-button:active {
+.library-analyze-button:active:not(:disabled) {
   transform: scale(0.98);
+}
+
+.library-analyze-button:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .library-analyze-button:focus-visible {
@@ -914,15 +968,22 @@
   outline-offset: 3px;
 }
 
-
 /* =========================================================
-   EMPTY SEARCH RESULTS
+   EMPTY / ERROR STATES
 ========================================================= */
 
 .library-empty {
   grid-column: 1 / -1;
 
-  padding: 50px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  gap: 10px;
+
+  min-height: 190px;
+  padding: 38px 24px;
 
   border: 1px dashed color-mix(
     in srgb,
@@ -930,9 +991,15 @@
     transparent
   );
 
-  border-radius: 16px;
+  border-radius: 18px;
 
-  background: var(--library-card-soft);
+  background:
+    radial-gradient(
+      circle at 50% 0%,
+      var(--library-accent-soft),
+      transparent 70%
+    ),
+    var(--library-card-soft);
 
   text-align: center;
 
@@ -940,30 +1007,38 @@
 }
 
 .library-empty h3 {
-  margin: 0 0 8px;
+  margin: 0;
 
   color: var(--library-text);
 
-  font-size: 18px;
+  font-size: 17px;
+  font-weight: 850;
 }
 
 .library-empty p {
+  max-width: 540px;
   margin: 0;
 
   color: var(--library-muted);
 
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1.75;
 }
 
+.library-empty .library-analyze-button {
+  width: auto;
+  min-width: 145px;
+  margin-top: 10px;
+}
 
 /* =========================================================
-   DARK MODE
+   DARK MODE REFINEMENTS
 ========================================================= */
 
 .my-library-dark .library-header {
   border-color: color-mix(
     in srgb,
-    var(--library-accent) 18%,
+    var(--library-accent) 22%,
     transparent
   );
 
@@ -972,64 +1047,80 @@
       circle at 85% 20%,
       color-mix(
         in srgb,
-        var(--library-accent) 18%,
+        var(--library-accent) 19%,
         transparent
       ),
-      transparent 35%
+      transparent 38%
     ),
     linear-gradient(
-      120deg,
-      #191927,
-      #211e38
+      125deg,
+      #171722,
+      #1d1b2d
     );
 
-  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.15);
+  box-shadow:
+    0 18px 45px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
 }
 
-.my-library-dark .library-connection-status {
-  color: #b5b2ca;
+.my-library-dark .library-hero-decoration {
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(
+        in srgb,
+        var(--library-accent) 18%,
+        #171722
+      ),
+      #191827
+    );
 }
 
-.my-library-dark .library-stat-card {
-  border-color: rgba(150, 140, 220, 0.15);
+.my-library-dark .library-stat-card,
+.my-library-dark .library-game-card {
+  border-color: rgba(150, 140, 220, 0.14);
 
   background: var(--library-card);
 
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.17);
 }
 
-.my-library-dark .library-stat-card:hover {
+.my-library-dark .library-stat-card:hover,
+.my-library-dark .library-game-card:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--library-accent) 40%,
+    transparent
+  );
+
   box-shadow:
-    0 16px 35px rgba(0, 0, 0, 0.3),
+    0 18px 40px rgba(0, 0, 0, 0.3),
     0 0 22px var(--library-glow);
 }
 
 .my-library-dark .library-search {
-  border-color: rgba(150, 140, 220, 0.18);
+  border-color: rgba(150, 140, 220, 0.2);
 
   background: var(--library-card);
 }
 
-.my-library-dark .library-game-card {
+.my-library-dark .library-refresh-row {
   border-color: rgba(150, 140, 220, 0.15);
 
-  background: var(--library-card);
-
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
-}
-
-.my-library-dark .library-game-card:hover {
-  box-shadow:
-    0 20px 45px rgba(0, 0, 0, 0.35),
-    0 0 25px var(--library-glow);
+  background: var(--library-card-soft);
 }
 
 .my-library-dark .library-empty {
   border-color: rgba(150, 140, 220, 0.25);
 
-  background: var(--library-card);
+  background:
+    radial-gradient(
+      circle at 50% 0%,
+      var(--library-accent-soft),
+      transparent 70%
+    ),
+    var(--library-card);
 }
-
 
 /* =========================================================
    ANIMATIONS
@@ -1038,7 +1129,7 @@
 @keyframes libraryPageEnter {
   from {
     opacity: 0;
-    transform: translateY(24px);
+    transform: translateY(20px);
   }
 
   to {
@@ -1050,7 +1141,7 @@
 @keyframes libraryHeroEnter {
   from {
     opacity: 0;
-    transform: translateY(25px) scale(0.985);
+    transform: translateY(22px) scale(0.985);
   }
 
   to {
@@ -1062,13 +1153,13 @@
 @keyframes libraryTitleReveal {
   from {
     opacity: 0;
-    transform: translateY(14px) scale(0.97);
-    filter: blur(5px);
+    transform: translateY(13px);
+    filter: blur(4px);
   }
 
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
     filter: blur(0);
   }
 }
@@ -1076,7 +1167,7 @@
 @keyframes libraryFadeUp {
   from {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(14px);
   }
 
   to {
@@ -1088,7 +1179,7 @@
 @keyframes libraryStatEnter {
   from {
     opacity: 0;
-    transform: translateY(22px) scale(0.96);
+    transform: translateY(18px) scale(0.97);
   }
 
   to {
@@ -1100,38 +1191,24 @@
 @keyframes libraryGameEnter {
   from {
     opacity: 0;
-    transform: translateY(25px) scale(0.975);
-    filter: blur(3px);
+    transform: translateY(18px);
   }
 
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
-    filter: blur(0);
-  }
-}
-
-@keyframes libraryNumberPop {
-  from {
-    opacity: 0;
-    transform: scale(0.7);
-  }
-
-  to {
-    opacity: 1;
-    transform: scale(1);
+    transform: translateY(0);
   }
 }
 
 @keyframes libraryDecorationEnter {
   from {
     opacity: 0;
-    transform: translateX(20px) rotate(10deg) scale(0.9);
+    transform: translateX(20px) rotate(9deg) scale(0.9);
   }
 
   to {
     opacity: 1;
-    transform: translateX(0) rotate(5deg) scale(1);
+    transform: translateX(0) rotate(4deg) scale(1);
   }
 }
 
@@ -1155,7 +1232,7 @@
 
   50% {
     opacity: 0.55;
-    transform: scale(0.78);
+    transform: scale(0.8);
   }
 }
 
@@ -1163,7 +1240,7 @@
   0%,
   100% {
     opacity: 0.45;
-    transform: scaleX(0.8);
+    transform: scaleX(0.85);
   }
 
   50% {
@@ -1193,120 +1270,164 @@
   }
 }
 
-
 /* =========================================================
-   RESPONSIVE LAYOUT
+   RESPONSIVE DESIGN
 ========================================================= */
 
-@media (max-width: 900px) {
+@media (max-width: 1000px) {
   .library-content {
-    width: 92%;
+    width: 93%;
+  }
+
+  .library-header {
+    padding: 38px;
+  }
+
+  .library-hero-decoration {
+    width: 160px;
+    height: 155px;
+    margin-right: 0;
+  }
+
+  .library-hero-icon {
+    font-size: 55px;
+  }
+
+  .library-game-image {
+    height: 175px;
+  }
+}
+
+@media (max-width: 760px) {
+  .library-header {
+    gap: 20px;
+    padding: 34px 30px;
+  }
+
+  .library-header h1 {
+    font-size: clamp(34px, 6vw, 45px);
+  }
+
+  .library-hero-decoration {
+    width: 135px;
+    height: 140px;
+  }
+
+  .library-stats {
+    gap: 13px;
+  }
+
+  .library-stat-card {
+    padding: 21px;
   }
 
   .library-game-grid {
     grid-template-columns: 1fr;
   }
 
-  .library-stats {
-    gap: 14px;
-  }
-
-  .library-header {
-    padding: 35px;
-  }
-
-  .library-hero-decoration {
-    width: 150px;
-    height: 145px;
-    margin-right: 5px;
-  }
-
-  .library-hero-icon {
-    font-size: 52px;
+  .library-game-image {
+    height: 210px;
   }
 }
 
-@media (max-width: 650px) {
+@media (max-width: 600px) {
   .library-content {
-    width: 90%;
-    padding-top: 30px;
-    padding-bottom: 45px;
-  }
-
-  .library-stats {
-    grid-template-columns: 1fr;
-    gap: 14px;
-  }
-
-  .library-stat-card {
-    padding: 22px;
-  }
-
-  .library-games-heading {
-    align-items: stretch;
-    flex-direction: column;
-    gap: 16px;
-  }
-
-  .library-search {
-    width: auto;
-  }
-
-  .library-game-image {
-    height: 160px;
+    width: 91%;
+    padding-top: 28px;
+    padding-bottom: 48px;
   }
 
   .library-header {
     min-height: auto;
-    padding: 30px 24px;
-  }
-
-  .library-hero-decoration {
-    display: none;
+    padding: 29px 24px;
+    border-radius: 20px;
   }
 
   .library-header h1 {
     font-size: 35px;
-    letter-spacing: -1.5px;
+    letter-spacing: -1.7px;
   }
 
   .library-header p {
     font-size: 13px;
   }
 
-  .library-games-heading h2 {
-    font-size: 23px;
+  .library-hero-decoration {
+    display: none;
+  }
+
+  .library-stats {
+    grid-template-columns: 1fr;
+    gap: 13px;
+    margin-bottom: 38px;
+  }
+
+  .library-stat-card {
+    padding: 22px 24px;
+  }
+
+  .library-stat-card h2 {
+    font-size: 29px;
+  }
+
+  .library-games-heading {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 15px;
+  }
+
+  .library-search {
+    width: 100%;
+  }
+
+  .library-refresh-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .library-refresh-row .library-analyze-button {
+    width: 100%;
+  }
+
+  .library-game-image {
+    height: 185px;
+  }
+
+  .library-game-info {
+    padding: 18px;
   }
 }
 
-@media (max-width: 420px) {
+@media (max-width: 400px) {
   .library-content {
     width: 92%;
   }
 
   .library-header {
-    padding: 26px 20px;
-    border-radius: 18px;
+    padding: 25px 19px;
   }
 
   .library-header h1 {
-    font-size: 31px;
-    letter-spacing: -1.2px;
+    font-size: 30px;
+    letter-spacing: -1.3px;
   }
 
-  .library-stat-card h2 {
-    font-size: 28px;
+  .library-title-label {
+    gap: 8px;
   }
 
-  .library-game-info {
-    padding: 17px;
+  .library-eyebrow {
+    font-size: 9px;
   }
 
-  .library-game-info h3 {
-    font-size: 16px;
+  .library-games-heading h2 {
+    font-size: 22px;
+  }
+
+  .library-game-image {
+    height: 155px;
   }
 }
-
 
 /* =========================================================
    ACCESSIBILITY
@@ -1318,9 +1439,7 @@
   .my-library *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
-
     scroll-behavior: auto !important;
-
     transition-duration: 0.01ms !important;
   }
 
