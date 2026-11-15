@@ -6,3 +6,4 @@ fastapi
 uvicorn
 pwdlib[argon2]
 resend
+vite
