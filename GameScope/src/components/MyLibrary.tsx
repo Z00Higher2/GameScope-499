@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Navbar from "./Navbar";
 import type { Page, Mode } from "../type";
-import { getSteamLibrary } from "../api";
+import { getImportedSteamLibrary } from "../api";
 import type { SteamLibraryGame } from "../api";
 import "./MyLibrary.css";
 
@@ -13,8 +13,6 @@ interface MyLibraryProps {
   setCurrentPage: React.Dispatch<React.SetStateAction<Page>>;
   onLogoClick: () => void;
   mode: Mode;
-
-  // Authentication
   setMode: React.Dispatch<React.SetStateAction<Mode>>;
   isLoggedIn: boolean;
   steamConnected: boolean;
@@ -22,14 +20,86 @@ interface MyLibraryProps {
   onLogout: () => void;
 }
 
+/*
+ * Parse date-only values as local dates to prevent timezone shifts.
+ */
+
+function parseLastPlayedDate(value: string | null): Date | null {
+  if (!value) return null;
+
+  const cleaned = value.trim();
+  const lower = cleaned.toLowerCase();
+
+  const today = new Date();
+
+  if (lower === "today") {
+    return new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate()
+    );
+  }
+
+  if (lower === "yesterday") {
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    return new Date(
+      yesterday.getFullYear(),
+      yesterday.getMonth(),
+      yesterday.getDate()
+    );
+  }
+
+  const daysAgo = lower.match(/^(\d+)\s+days?\s+ago$/);
+
+  if (daysAgo) {
+    const date = new Date(today);
+    date.setDate(date.getDate() - Number(daysAgo[1]));
+
+    return new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate()
+    );
+  }
+
+  const dateOnlyMatch = cleaned.match(
+    /^(\d{4})-(\d{2})-(\d{2})$/
+  );
+
+  if (dateOnlyMatch) {
+    const date = new Date(
+      Number(dateOnlyMatch[1]),
+      Number(dateOnlyMatch[2]) - 1,
+      Number(dateOnlyMatch[3])
+    );
+
+    if (
+      date.getFullYear() !== Number(dateOnlyMatch[1]) ||
+      date.getMonth() !== Number(dateOnlyMatch[2]) - 1 ||
+      date.getDate() !== Number(dateOnlyMatch[3])
+    ) {
+      return null;
+    }
+
+    return date;
+  }
+
+  const date = new Date(cleaned);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/*
+ * Display a readable last-played date.
+ */
 function formatLastPlayed(value: string | null): string {
   if (!value) return "Never played";
 
-  const date = new Date(value);
+  const date = parseLastPlayedDate(value);
 
-  if (Number.isNaN(date.getTime())) {
-    return "Unknown";
-  }
+  if (!date) return "Unknown";
 
   const now = new Date();
 
@@ -45,12 +115,13 @@ function formatLastPlayed(value: string | null): string {
     date.getDate()
   );
 
-  const difference = Math.floor(
+  const difference = Math.round(
     (today.getTime() - playedDate.getTime()) /
       (1000 * 60 * 60 * 24)
   );
 
-  if (difference <= 0) return "Today";
+  if (difference < 0) return "Unknown";
+  if (difference === 0) return "Today";
   if (difference === 1) return "Yesterday";
   if (difference < 7) return `${difference} days ago`;
 
@@ -64,20 +135,34 @@ function formatLastPlayed(value: string | null): string {
   });
 }
 
+/*
+ * Determine whether a game was played within the last 14 calendar days.
+ */
 function wasRecentlyPlayed(value: string | null): boolean {
-  if (!value) return false;
+  const date = parseLastPlayedDate(value);
 
-  const date = new Date(value);
+  if (!date) return false;
 
-  if (Number.isNaN(date.getTime())) {
-    return false;
-  }
+  const now = new Date();
 
-  const fourteenDays = 14 * 24 * 60 * 60 * 1000;
+  const today = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate()
+  );
 
-  const difference = Date.now() - date.getTime();
+  const playedDate = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate()
+  );
 
-  return difference >= 0 && difference <= fourteenDays;
+  const difference = Math.round(
+    (today.getTime() - playedDate.getTime()) /
+      (1000 * 60 * 60 * 24)
+  );
+
+  return difference >= 0 && difference <= 14;
 }
 
 function MyLibrary({
@@ -100,10 +185,7 @@ function MyLibrary({
   const [error, setError] = useState("");
 
   /*
-   * Load the user's actual Steam library.
-   *
-   * The request is cancelled if the component unmounts
-   * or the user's authentication/Steam connection changes.
+   * Load games imported by the GameScope Chrome extension.
    */
   useEffect(() => {
     const controller = new AbortController();
@@ -121,7 +203,7 @@ function MyLibrary({
       setError("");
 
       try {
-        const response = await getSteamLibrary(
+        const response = await getImportedSteamLibrary(
           controller.signal
         );
 
@@ -139,7 +221,7 @@ function MyLibrary({
         setError(
           err instanceof Error
             ? err.message
-            : "Unable to load your Steam library."
+            : "Unable to load your imported Steam library."
         );
       } finally {
         if (!controller.signal.aborted) {
@@ -161,7 +243,7 @@ function MyLibrary({
   ]);
 
   /*
-   * Manually retrieve the latest Steam library.
+   * Reload the games already imported into GameScope.
    */
   async function handleRefresh() {
     if (
@@ -179,7 +261,7 @@ function MyLibrary({
     setError("");
 
     try {
-      const response = await getSteamLibrary(
+      const response = await getImportedSteamLibrary(
         controller.signal
       );
 
@@ -195,7 +277,7 @@ function MyLibrary({
       setError(
         err instanceof Error
           ? err.message
-          : "Unable to refresh your Steam library."
+          : "Unable to refresh your imported Steam library."
       );
     } finally {
       setRefreshing(false);
@@ -436,7 +518,7 @@ function MyLibrary({
               <div className="library-refresh-row">
                 <span>
                   {loading
-                    ? "Loading your Steam games..."
+                    ? "Loading your imported games..."
                     : `${filteredGames.length} of ${totalGames} games`}
                 </span>
 
@@ -479,7 +561,7 @@ function MyLibrary({
 
                   <p>
                     Please wait while GameScope retrieves your
-                    Steam collection.
+                    imported Steam collection.
                   </p>
                 </div>
               )}
@@ -489,24 +571,20 @@ function MyLibrary({
                 !loading &&
                 games.length === 0 && (
                   <div className="library-empty">
-                    <h3>Your Steam library is empty</h3>
+                    <h3>Your Steam library hasn't been imported yet</h3>
 
                     <p>
-                      Steam returned no games for this account.
-                      If you own games, check that your Steam
-                      Game Details privacy setting allows your
-                      games to be viewed.
+                      Connect your Steam account and import your
+                      games using the GameScope Steam Library
+                      extension.
                     </p>
 
                     <button
                       type="button"
                       className="library-analyze-button"
-                      onClick={handleRefresh}
-                      disabled={refreshing}
+                      onClick={() => setCurrentPage("profile")}
                     >
-                      {refreshing
-                        ? "Refreshing..."
-                        : "Check Again"}
+                      Go to Profile
                     </button>
                   </div>
                 )}
@@ -552,9 +630,7 @@ function MyLibrary({
 
                               <span>
                                 Last played:{" "}
-                                {formatLastPlayed(
-                                  game.lastPlayed
-                                )}
+                                {formatLastPlayed(game.lastPlayed)}
                               </span>
                             </div>
 

@@ -1135,3 +1135,64 @@
     flex-direction: column;
   }
 }
+
+/* Steam Connector extension status */
+.steam-extension-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  width: 100%;
+  margin-top: 20px;
+  padding: 18px;
+  border: 1px solid var(--border-color, rgba(128, 128, 128, 0.2));
+  border-radius: 14px;
+  background: var(--card-background, rgba(128, 128, 128, 0.04));
+  box-sizing: border-box;
+}
+
+.steam-extension-status > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.steam-extension-status > div:first-child strong {
+  display: block;
+  margin-bottom: 7px;
+}
+
+.steam-extension-status > div:first-child p {
+  display: block;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.steam-extension-status .steam-linked-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.steam-extension-status .steam-connection-status {
+  white-space: nowrap;
+}
+
+.steam-extension-status .profile-refresh-button {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+@media (max-width: 600px) {
+  .steam-extension-status {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .steam-extension-status .steam-linked-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}

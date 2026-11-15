@@ -193,6 +193,29 @@ CREATE TABLE IF NOT EXISTS steam_accounts (
         ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
+
+CREATE TABLE IF NOT EXISTS steam_library_games (
+    library_game_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT UNSIGNED NOT NULL,
+    steam_id VARCHAR(32) NOT NULL,
+    app_id BIGINT UNSIGNED NOT NULL,
+    game_name VARCHAR(255) NOT NULL,
+    playtime_minutes INT UNSIGNED NOT NULL DEFAULT 0,
+    last_played VARCHAR(100) NULL,
+    image_url VARCHAR(1024) NULL,
+    imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    UNIQUE KEY uq_user_steam_game (user_id, app_id),
+    INDEX idx_steam_library_user (user_id),
+
+    CONSTRAINT fk_steam_library_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(user_id)
+        ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+
 -- ============================================================
 -- STEAM LINK
 -- ============================================================

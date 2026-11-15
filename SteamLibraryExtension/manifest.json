@@ -1,0 +1,37 @@
+
+{
+  "manifest_version": 3,
+  "name": "GameScope Steam Library",
+  "version": "1.0.0",
+  "description": "Connects your Steam Community library to GameScope.",
+  "permissions": [
+    "activeTab"
+  ],
+  "host_permissions": [
+    "https://steamcommunity.com/*"
+  ],
+  "externally_connectable": {
+    "matches": [
+      "https://gamescope-five.vercel.app/*",
+      "http://localhost:5173/*",
+      "http://127.0.0.1:5173/*"
+    ]
+  },
+  "action": {
+    "default_title": "Connect Steam to GameScope"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://steamcommunity.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}

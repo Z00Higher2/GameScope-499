@@ -116,6 +116,10 @@ function App() {
       ""
   );
 
+  const steamWasLinked =
+    new URLSearchParams(window.location.search).get("steam") ===
+    "linked";
+
   const [darkMode, setDarkMode] = useState(
     () => localStorage.getItem("gamescope-dark-mode") === "true"
   );
@@ -130,12 +134,15 @@ function App() {
   const [accentColor, setAccentColor] =
     useState<AccentColor>(getSavedAccentColor);
 
+ 
   // ------------------------------------------
   // AUTHENTICATION / SERVER SESSION
   // ------------------------------------------
 
   const [account, setAccount] =
     useState<DemoAccount | null>(null);
+
+  const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -163,12 +170,35 @@ function App() {
 
         localStorage.removeItem(AUTH_KEY);
         setAccount(null);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setAuthLoading(false);
+        }
       });
 
     return () => {
       cancelled = true;
     };
   }, []);
+
+  // Handle returning from Steam account linking.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+
+    if (params.get("steam") !== "linked") return;
+    if (authLoading || !account) return;
+
+    sessionStorage.setItem(
+      "gamescope-steam-link-return",
+      "true"
+    );
+
+    setShowIntro(false);
+    setCurrentPage("profile");
+
+    window.history.replaceState({}, "", "/");
+  }, [account, authLoading]);
 
   const isLoggedIn = account !== null;
 
@@ -177,6 +207,46 @@ function App() {
 
   const isDeveloper =
     account?.roles.includes("developer") ?? false;
+
+  // ------------------------------------------
+  // STEAM CALLBACK NAVIGATION
+  // ------------------------------------------
+
+  /*
+   * Steam redirects to /?steam=linked after a successful
+   * OpenID connection.
+   *
+   * Wait for the GameScope session to be restored before
+   * navigating to Profile. Profile then handles the extension
+   * detection and automatic library import.
+   */
+  useEffect(() => {
+    if (!steamWasLinked || authLoading) {
+      return;
+    }
+
+    if (isLoggedIn && isPlayer) {
+      setShowIntro(false);
+
+      sessionStorage.setItem(
+        "gamescope-show-intro",
+        "false"
+      );
+
+      setCurrentPage("profile");
+    } else {
+      console.error(
+        "Steam linking returned without an authenticated GameScope player session."
+      );
+
+      setCurrentPage("login");
+    }
+  }, [
+    steamWasLinked,
+    authLoading,
+    isLoggedIn,
+    isPlayer,
+  ]);
 
   // ------------------------------------------
   // STEAM CONNECTION STATE
@@ -769,7 +839,8 @@ function App() {
       currentPage !== "login" &&
       currentPage !== "signup" &&
       currentPage !== "forgot-password" &&
-      currentPage !== "reset-password" ? (
+      currentPage !== "reset-password" &&
+      currentPage !== "profile" ? (
         <Intro
           darkMode={darkMode}
           setDarkMode={setDarkMode}

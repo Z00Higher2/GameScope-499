@@ -137,6 +137,21 @@ export interface SteamLibraryResponse {
   games: SteamLibraryGame[];
 }
 
+export interface SteamLibraryImportGame {
+  appId: string;
+  name: string;
+  playtimeMinutes: number;
+  lastPlayed: string | null;
+  image: string | null;
+}
+
+export interface SteamLibraryImportResponse {
+  message: string;
+  steamId: string;
+  importedCount: number;
+  gameCount: number;
+}
+
 // =========================================================
 // GAME TYPES
 // =========================================================
@@ -572,12 +587,11 @@ export function unlinkSteamAccount() {
 // STEAM LIBRARY API
 // =========================================================
 
+
 /*
- * Retrieve the owned games for the Steam account linked
- * to the current authenticated GameScope account.
+ * Retrieve the owned games using the original Steam Web API.
  *
- * The Steam Web API key stays on the backend and is never
- * exposed to the frontend.
+ * Kept as a fallback. The Steam API key stays on the backend.
  */
 export function getSteamLibrary(
   signal?: AbortSignal
@@ -587,6 +601,45 @@ export function getSteamLibrary(
     { signal }
   );
 }
+
+/*
+ * Retrieve games previously imported by the GameScope
+ * Chrome extension and stored in the GameScope database.
+ */
+export function getImportedSteamLibrary(
+  signal?: AbortSignal
+) {
+  return request<SteamLibraryResponse>(
+    "/api/auth/steam/library/imported",
+    { signal }
+  );
+}
+
+/*
+ * Import games collected by the GameScope Chrome extension.
+ *
+ * The backend verifies that the supplied Steam ID matches
+ * the Steam account linked to the authenticated GameScope user.
+ */
+export function importSteamLibrary(
+  steamId: string,
+  games: SteamLibraryImportGame[]
+) {
+  return request<SteamLibraryImportResponse>(
+    "/api/auth/steam/library/imported",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        steamId,
+        games,
+      }),
+    }
+  );
+}
+
 
 // =========================================================
 // STEAM GAME API

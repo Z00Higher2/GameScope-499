@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import "./Profile.css";
 import Navbar from "./Navbar";
 import type { Page, Mode } from "../type";
@@ -8,12 +8,44 @@ import {
   logoutAllDevices,
   getSteamAccount,
   unlinkSteamAccount,
+  importSteamLibrary,
 } from "../api";
+
 import type {
   AccountMode,
   ActiveSession,
   SteamAccount,
+  SteamLibraryImportGame,
 } from "../api";
+
+// Chrome extension ID for the locally installed GameScope Steam Connector.
+const GAMESCOPE_EXTENSION_ID = "nbplhnnmbkilpfbjmhkefeklneloklaa";
+
+type SteamExtensionStatus = "checking" | "installed" | "not-installed";
+
+type SteamImportStatus =
+  | "idle"
+  | "importing"
+  | "success"
+  | "error"
+  | "extension-required";
+
+interface ChromeExtensionRuntime {
+  sendMessage: (
+    extensionId: string,
+    message: { type: string },
+    callback: (response?: {
+      success?: boolean;
+      installed?: boolean;
+      extension?: string;
+      error?: string;
+      steamId?: string;
+      gameCount?: number;
+      games?: SteamLibraryImportGame[];
+    }) => void
+  ) => void;
+  lastError?: { message: string };
+}
 
 interface ProfileProps {
   darkMode: boolean;
@@ -81,6 +113,19 @@ function formatSessionDate(value: string | null): string {
   }
 
   return date.toLocaleString();
+}
+
+function clearSteamLinkedQuery(): void {
+  sessionStorage.removeItem("gamescope-steam-link-return");
+
+  const updatedUrl = new URL(window.location.href);
+  updatedUrl.searchParams.delete("steam");
+
+  window.history.replaceState(
+    {},
+    document.title,
+    updatedUrl.pathname + updatedUrl.search + updatedUrl.hash
+  );
 }
 
 function Profile({
@@ -170,6 +215,60 @@ function Profile({
   const [steamError, setSteamError] = useState("");
   const [steamDisconnecting, setSteamDisconnecting] = useState(false);
   const [steamMessage, setSteamMessage] = useState("");
+
+  // GameScope Chrome extension detection.
+  const [steamExtensionStatus, setSteamExtensionStatus] =
+    useState<SteamExtensionStatus>("checking");
+
+  // Steam library import status.
+  const [steamImportStatus, setSteamImportStatus] =
+    useState<SteamImportStatus>("idle");
+
+  const [steamImportMessage, setSteamImportMessage] = useState("");
+
+  const steamImportStarted = useRef(false);
+
+  // Incremented when the user manually retries an import.
+  const [steamImportRetry, setSteamImportRetry] = useState(0);
+
+  // Check whether the GameScope Chrome extension is installed.
+  const checkSteamExtension = useCallback(() => {
+    setSteamExtensionStatus("checking");
+
+    const runtime = (window as Window & {
+      chrome?: { runtime?: ChromeExtensionRuntime };
+    }).chrome?.runtime;
+
+    if (!runtime) {
+      setSteamExtensionStatus("not-installed");
+      return;
+    }
+
+    try {
+      runtime.sendMessage(
+        GAMESCOPE_EXTENSION_ID,
+        { type: "GAMESCOPE_PING" },
+        (response) => {
+          if (
+            runtime.lastError ||
+            !response?.success ||
+            !response.installed
+          ) {
+            setSteamExtensionStatus("not-installed");
+            return;
+          }
+
+          setSteamExtensionStatus("installed");
+        }
+      );
+    } catch {
+      setSteamExtensionStatus("not-installed");
+    }
+  }, []);
+
+  useEffect(() => {
+    checkSteamExtension();
+  }, [checkSteamExtension]);
 
   const loadSessions = async () => {
     setSessionsLoading(true);
@@ -273,6 +372,154 @@ function Profile({
     };
   }, [isLoggedIn, accountEmail]);
 
+  // Automatically import the Steam library after Steam linking.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const steamWasJustLinked =
+      params.get("steam") === "linked" ||
+      sessionStorage.getItem("gamescope-steam-link-return") === "true";
+
+    if (!steamWasJustLinked ||
+      !isLoggedIn ||
+      steamLoading ||
+      !linkedSteamAccount
+    ) {
+      return;
+    }
+
+    if (steamExtensionStatus === "checking") {
+      return;
+    }
+
+    // If the extension is missing, leave the URL marker in place.
+    // The user can install the extension and press Check Again.
+    if (steamExtensionStatus === "not-installed") {
+      setSteamImportStatus("extension-required");
+      setSteamImportMessage(
+        "Your Steam account is connected! Install the GameScope Steam Connector, then check again to import your games."
+      );
+      return;
+    }
+
+    const steamId = linkedSteamAccount.steam_id;
+    const importKey = `gamescope-steam-imported-${steamId}`;
+
+    // Do not import again if this Steam account was already imported
+    // during this browser session.
+    if (sessionStorage.getItem(importKey) === "true") {
+      setSteamImportStatus("success");
+      setSteamImportMessage(
+        "Your Steam library has already been imported during this session."
+      );
+      clearSteamLinkedQuery();
+      return;
+    }
+
+    if (steamImportStarted.current) {
+      return;
+    }
+
+    const runtime = (window as Window & {
+      chrome?: { runtime?: ChromeExtensionRuntime };
+    }).chrome?.runtime;
+
+    if (!runtime) {
+      setSteamImportStatus("extension-required");
+      setSteamImportMessage(
+        "The GameScope Steam Connector could not be accessed. Check that the extension is installed and enabled."
+      );
+      return;
+    }
+
+    steamImportStarted.current = true;
+
+    setSteamImportStatus("importing");
+    setSteamImportMessage(
+      "Connecting to Steam and retrieving your games..."
+    );
+
+    runtime.sendMessage(
+      GAMESCOPE_EXTENSION_ID,
+      { type: "GAMESCOPE_IMPORT_STEAM_LIBRARY" },
+      (response) => {
+        if (runtime.lastError) {
+          steamImportStarted.current = false;
+          setSteamImportStatus("error");
+          setSteamImportMessage(
+            "Unable to communicate with the Steam Connector. Make sure the extension is enabled and try again."
+          );
+          return;
+        }
+
+        if (
+          !response?.success ||
+          !response.steamId ||
+          !Array.isArray(response.games)
+        ) {
+          steamImportStarted.current = false;
+          setSteamImportStatus("error");
+          setSteamImportMessage(
+            response?.error ||
+              "Unable to retrieve your Steam games. Make sure you are logged into Steam."
+          );
+          return;
+        }
+
+        // Confirm the extension returned the same Steam account
+        // that is linked to the current GameScope account.
+        if (response.steamId !== steamId) {
+          steamImportStarted.current = false;
+          setSteamImportStatus("error");
+          setSteamImportMessage(
+            "The Steam account detected by the extension does not match your linked Steam account."
+          );
+          return;
+        }
+
+        const games = response.games;
+
+        setSteamImportMessage(
+          `Retrieved ${games.length} games. Saving your library to GameScope...`
+        );
+
+        importSteamLibrary(response.steamId, games)
+          .then((result) => {
+            sessionStorage.setItem(importKey, "true");
+
+            setSteamImportStatus("success");
+            setSteamImportMessage(
+              `Successfully imported ${result.importedCount} games into your GameScope library!`
+            );
+
+            clearSteamLinkedQuery();
+          })
+          .catch((error) => {
+            steamImportStarted.current = false;
+            setSteamImportStatus("error");
+            setSteamImportMessage(
+              error instanceof Error
+                ? error.message
+                : "Unable to save your Steam library."
+            );
+          });
+      }
+    );
+  }, [
+    isLoggedIn,
+    steamLoading,
+    linkedSteamAccount,
+    steamExtensionStatus,
+    steamImportRetry,
+  ]);
+
+  // Retry a failed Steam library import.
+  const handleRetrySteamImport = () => {
+    steamImportStarted.current = false;
+    setSteamImportStatus("idle");
+    setSteamImportMessage("");
+    setSteamImportRetry((previous) => previous + 1);
+  };
+
   // Disconnect the linked Steam account.
   const handleDisconnectSteam = async () => {
     const confirmed = window.confirm(
@@ -284,6 +531,9 @@ function Profile({
     setSteamDisconnecting(true);
     setSteamError("");
     setSteamMessage("");
+    setSteamImportStatus("idle");
+    setSteamImportMessage("");
+    steamImportStarted.current = false;
 
     try {
       const response = await unlinkSteamAccount();
@@ -312,7 +562,7 @@ function Profile({
   const handleLogoutAllDevices = async () => {
     const confirmed = window.confirm(
       "Are you sure you want to log out of all devices? " +
-      "This will end every active GameScope session, including this one."
+        "This will end every active GameScope session, including this one."
     );
 
     if (!confirmed) return;
@@ -371,7 +621,7 @@ function Profile({
     setProfileSaved(false);
   }, [accountEmail]);
 
-  // Profile picture upload
+  // Profile picture upload.
   const handlePictureUpload = (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -457,7 +707,7 @@ function Profile({
     }
   };
 
-  // Edit profile
+  // Edit profile.
   const handleSaveProfile = () => {
     const trimmedName = editedName.trim();
 
@@ -478,7 +728,7 @@ function Profile({
     setProfileError("");
   };
 
-  // Player genre preferences
+  // Player genre preferences.
   const handleGenreChange = (genre: string) => {
     const updatedGenres = favoriteGenres.includes(genre)
       ? favoriteGenres.filter((item) => item !== genre)
@@ -492,7 +742,7 @@ function Profile({
     );
   };
 
-  // Developer profile updates
+  // Developer profile updates.
   const updateDeveloperField = (
     field: keyof Omit<DeveloperProfileData, "managedGames">,
     value: string
@@ -525,7 +775,8 @@ function Profile({
     if (!game) return;
 
     const alreadyExists = developerProfile.managedGames.some(
-      (existingGame) => existingGame.toLowerCase() === game.toLowerCase()
+      (existingGame) =>
+        existingGame.toLowerCase() === game.toLowerCase()
     );
 
     if (alreadyExists) {
@@ -1121,6 +1372,73 @@ function Profile({
             You will be redirected to Steam to authorize the connection.
             GameScope never asks for your Steam password.
           </span>
+
+          {/* Steam library import status */}
+          {steamImportMessage && (
+            <p
+              className={
+                steamImportStatus === "error"
+                  ? "profile-upload-error"
+                  : "profile-security-success"
+              }
+              role="status"
+            >
+              {steamImportStatus === "importing" && "⏳ "}
+              {steamImportStatus === "success" && "✓ "}
+              {steamImportMessage}
+            </p>
+          )}
+
+          {steamImportStatus === "error" && (
+            <button
+              type="button"
+              className="profile-refresh-button"
+              onClick={handleRetrySteamImport}
+            >
+              Retry Steam Library Import
+            </button>
+          )}
+
+          <div className="steam-extension-status">
+            <div>
+              <strong>GameScope Steam Connector</strong>
+              <p className="profile-upload-hint">
+                {steamExtensionStatus === "checking"
+                  ? "Checking whether the browser extension is installed..."
+                  : steamExtensionStatus === "installed"
+                    ? "Extension detected. Your Steam library can be imported through this connector."
+                    : "Extension not detected. Install the GameScope Steam Connector in Chrome to use browser-based Steam library importing."}
+              </p>
+            </div>
+
+            <div className="steam-linked-actions">
+              <span
+                className={`steam-connection-status ${
+                  steamExtensionStatus === "installed"
+                    ? "connected"
+                    : "disconnected"
+                }`}
+                role="status"
+              >
+                {steamExtensionStatus === "checking"
+                  ? "Checking"
+                  : steamExtensionStatus === "installed"
+                    ? "Extension detected"
+                    : "Not detected"}
+              </span>
+
+              <button
+                type="button"
+                className="profile-refresh-button"
+                onClick={checkSteamExtension}
+                disabled={steamExtensionStatus === "checking"}
+              >
+                {steamExtensionStatus === "checking"
+                  ? "Checking..."
+                  : "Check Again"}
+              </button>
+            </div>
+          </div>
         </section>
 
         {/* Recent Analysis Activity */}
