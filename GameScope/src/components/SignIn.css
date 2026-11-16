@@ -1,0 +1,437 @@
+/* =========================================================
+   SIGN IN
+   A single card on a solid background. The accent is a solid
+   pastel: green for players, purple for developers (follows the
+   role picked on the card). Fonts match the GameScope hero.
+========================================================= */
+
+.signin-page {
+  --si-accent: #5dcaa5;
+  --si-accent-ink: #04342c;
+  --si-accent-soft: rgba(93, 202, 165, 0.14);
+  --si-bg: #0e0e11;
+  --si-card: #141418;
+  --si-field: #0b0b0e;
+  --si-line: #26262d;
+  --si-text: #f1efe8;
+  --si-muted: #8f8d99;
+  --si-heavy: "Archivo Black", "Arial Black", sans-serif;
+
+  display: grid;
+  min-height: 100vh;
+  padding: 48px 16px;
+  place-items: center;
+  background: var(--si-bg);
+  color: var(--si-text);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.signin-page.signin-dev {
+  --si-accent: #afa9ec;
+  --si-accent-ink: #26215c;
+  --si-accent-soft: rgba(175, 169, 236, 0.14);
+}
+
+.signin-page *,
+.signin-page *::before,
+.signin-page *::after {
+  box-sizing: border-box;
+}
+
+.signin-page button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.signin-page button:focus-visible {
+  outline: 2px solid var(--si-accent);
+  outline-offset: 2px;
+}
+
+.signin-page button:disabled {
+  cursor: wait;
+}
+
+/* Card */
+
+.signin-card {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  padding: 44px 44px 30px;
+  border: 1px solid var(--si-line);
+  border-top: 3px solid var(--si-accent);
+  border-radius: 14px;
+  background: var(--si-card);
+  text-align: center;
+}
+
+.signin-back {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--si-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.signin-back:hover {
+  background: #1d1d22;
+  color: var(--si-text);
+}
+
+.signin-logo {
+  display: grid;
+  width: 88px;
+  height: 88px;
+  margin: 4px auto 22px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--si-accent-soft);
+}
+
+.signin-logo img {
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+}
+
+/* Pong easter egg: click the logo a few times and it bounces around the
+   screen until it's clicked again */
+
+.signin-logo.pong-empty {
+  outline: 2px dashed var(--si-line);
+  outline-offset: -2px;
+  background: transparent;
+}
+
+.signin-page .pong-logo {
+  display: grid;
+  width: 88px;
+  height: 88px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.signin-page .pong-logo:focus-visible {
+  outline-offset: -2px;
+}
+
+.pong-logo img {
+  transition: transform 0.12s ease;
+  pointer-events: none;
+}
+
+.pong-logo:not(.pong-flying):active img {
+  transform: scale(0.88);
+}
+
+.signin-page .pong-logo.pong-flying {
+  position: fixed;
+  z-index: 1000;
+  top: 0;
+  left: 0;
+  background: var(--si-card);
+  box-shadow:
+    0 0 0 2px var(--si-accent),
+    0 10px 30px rgba(0, 0, 0, 0.45);
+  will-change: transform;
+}
+
+.signin-card h1 {
+  margin: 0;
+  color: var(--si-text);
+  font-family: var(--si-heavy);
+  font-size: 30px;
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: 1px;
+}
+
+.signin-subtitle {
+  max-width: 400px;
+  margin: 12px auto 0;
+  color: var(--si-muted);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+/* Player / developer switch */
+
+.signin-roles {
+  display: inline-flex;
+  gap: 4px;
+  margin-top: 22px;
+  padding: 4px;
+  border: 1px solid var(--si-line);
+  border-radius: 10px;
+  background: var(--si-field);
+}
+
+.signin-page .signin-roles button {
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--si-muted);
+  font-family: var(--si-heavy);
+  font-size: 12px;
+  letter-spacing: 1px;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.signin-page .signin-roles button.active {
+  background: var(--si-accent);
+  color: var(--si-accent-ink);
+}
+
+/* Fields */
+
+.signin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 22px;
+  text-align: left;
+}
+
+.signin-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 58px;
+  padding: 0 18px;
+  border: 1px solid var(--si-line);
+  border-radius: 10px;
+  background: var(--si-field);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.signin-field:focus-within {
+  border-color: var(--si-accent);
+  box-shadow: 0 0 0 3px var(--si-accent-soft);
+}
+
+.signin-field svg {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: var(--si-muted);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.signin-field input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--si-text);
+  font: inherit;
+  font-size: 16px;
+}
+
+/* The field already lights up on focus, so drop the site-wide input
+   outline and Chrome's autofill fill that drew a second box inside it */
+.signin-page .signin-field input:focus,
+.signin-page .signin-field input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.signin-page .signin-field input:-webkit-autofill,
+.signin-page .signin-field input:-webkit-autofill:hover,
+.signin-page .signin-field input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px var(--si-field) inset;
+  -webkit-text-fill-color: var(--si-text);
+  caret-color: var(--si-text);
+  transition: background-color 9999s ease-out;
+}
+
+.signin-field input::placeholder {
+  color: #6a6875;
+}
+
+.signin-show {
+  flex: none;
+  padding: 4px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--si-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.signin-show:hover {
+  color: var(--si-accent);
+}
+
+.signin-forgot {
+  align-self: flex-end;
+  margin-top: -4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--si-muted);
+  font-size: 13px;
+}
+
+.signin-forgot:hover {
+  color: var(--si-accent);
+}
+
+.signin-error {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(240, 149, 123, 0.4);
+  border-radius: 8px;
+  background: rgba(240, 149, 123, 0.08);
+  color: #f0997b;
+  font-size: 14px;
+}
+
+.signin-success {
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--si-line);
+  border-left: 3px solid var(--si-accent);
+  border-radius: 8px;
+  background: var(--si-field);
+  color: var(--si-muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.signin-success strong {
+  color: var(--si-text);
+  word-break: break-all;
+}
+
+.signin-forgot.signin-change-email {
+  align-self: center;
+  margin-top: 0;
+}
+
+/* Slanted sign-in button (a clip-path, so focus shows as brightness) */
+
+.signin-page .signin-submit {
+  height: 60px;
+  margin-top: 4px;
+  border: 0;
+  background: var(--si-accent);
+  color: var(--si-accent-ink);
+  font-family: var(--si-heavy);
+  font-size: 17px;
+  letter-spacing: 1.5px;
+  clip-path: polygon(4% 0, 100% 0, 96% 100%, 0 100%);
+  transition: filter 0.15s ease;
+}
+
+.signin-submit:hover:not(:disabled),
+.signin-submit:focus-visible {
+  filter: brightness(1.08);
+}
+
+.signin-submit:disabled {
+  opacity: 0.7;
+}
+
+/* Divider and Steam */
+
+.signin-divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 24px 0;
+  color: var(--si-muted);
+  font-size: 14px;
+}
+
+.signin-divider::before,
+.signin-divider::after {
+  flex: 1;
+  height: 1px;
+  background: var(--si-line);
+  content: "";
+}
+
+.signin-steam {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  height: 58px;
+  border: 1px solid #2a3f5a;
+  border-radius: 10px;
+  background: #1b2838;
+  color: var(--si-text);
+  font-size: 17px;
+  font-weight: 700;
+  transition: background 0.15s ease;
+}
+
+.signin-steam:hover {
+  background: #22344a;
+}
+
+.signin-notice {
+  margin: 10px 0 0;
+  color: var(--si-muted);
+  font-size: 13px;
+}
+
+/* Footer */
+
+.signin-signup {
+  margin: 26px 0 0;
+  color: var(--si-muted);
+  font-size: 15px;
+}
+
+.signin-signup button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--si-accent);
+  font: inherit;
+  font-weight: 700;
+}
+
+.signin-signup button:hover {
+  text-decoration: underline;
+}
+
+.signin-fineprint {
+  margin: 14px 0 0;
+  color: #7a7883;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 560px) {
+  .signin-card {
+    padding: 52px 20px 26px;
+  }
+
+  .signin-card h1 {
+    font-size: 24px;
+  }
+}

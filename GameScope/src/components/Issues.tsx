@@ -529,6 +529,7 @@ function Issues({
 
                   <select
                     id="issue-status-select"
+                    disabled={!isLoggedIn}
                     value={statuses[selectedIssue.name] ?? "Detected"}
                     onChange={(event) =>
                       changeStatus(
@@ -545,7 +546,10 @@ function Issues({
                   </select>
 
                   <span className="issues-status-note" role="status">
-                    {statusError || "Saved automatically"}
+                    {statusError ||
+                      (isLoggedIn
+                        ? "Saved automatically"
+                        : "Log in with a developer account to change statuses")}
                   </span>
                 </div>
 
