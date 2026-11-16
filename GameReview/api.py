@@ -396,9 +396,8 @@ GameScope Support
             "Password reset email submitted to Resend."
         )
     except Exception as error:
-        logger.error(
-            "Unable to send password reset email through Resend: %s",
-            type(error).__name__,
+        logger.exception(
+            "Unable to send password reset email through Resend."
         )
 # ==========================================
 # Authentication Models
