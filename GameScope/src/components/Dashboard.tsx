@@ -134,6 +134,7 @@ function Dashboard({
   const [searchError, setSearchError] = useState("");
   const [searching, setSearching] = useState(false);
   const resultsRef = useRef<HTMLElement | null>(null);
+  const [scrollToResults, setScrollToResults] = useState(false);
 
   useEffect(() => {
     const query = gameSearch.trim();
@@ -237,7 +238,7 @@ function Dashboard({
       setSelectedGame(null);
       setGameSearch("");
 
-      resultsRef.current?.scrollIntoView({ behavior: "smooth" });
+      setScrollToResults(true);
     } catch (analyzeFailure) {
       setError(
         analyzeFailure instanceof Error
@@ -282,11 +283,13 @@ function Dashboard({
     analysis !== null &&
     !loading;
 
-  const showDeveloperEmptyState =
-    mode === "developer" &&
-    currentPage === "dashboard" &&
-    !analyzed &&
-    !loading;
+  // Scroll down once the new results are on screen
+  useEffect(() => {
+    if (scrollToResults && showDeveloperResults) {
+      resultsRef.current?.scrollIntoView({ behavior: "smooth" });
+      setScrollToResults(false);
+    }
+  }, [scrollToResults, showDeveloperResults]);
 
   return (
     <div className="dashboard-page">
@@ -340,6 +343,7 @@ function Dashboard({
         ]}
       />
 
+      {(loading || showDeveloperResults) && (
       <main ref={resultsRef} className="dashboard-main">
         {/* LOADING */}
 
@@ -594,19 +598,8 @@ function Dashboard({
             </section>
           </>
         )}
-
-        {/* EMPTY STATE */}
-
-        {showDeveloperEmptyState && (
-          <section className="dashboard-empty">
-            <h2>Ready to analyze a game?</h2>
-            <p>
-              Search for a Steam game above or enter
-              its App ID to begin analyzing player reviews.
-            </p>
-          </section>
-        )}
       </main>
+      )}
     </div>
   );
 }

@@ -96,7 +96,9 @@ def format_timestamp(value):
 def get_game_details(app_id):
     response = requests.get(
         STEAM_DETAILS_URL,
-        params={"appids": app_id},
+        # English US store, otherwise Steam answers in the requester's
+        # local language and release dates no longer parse
+        params={"appids": app_id, "l": "english", "cc": "us"},
         timeout=15,
     )
     response.raise_for_status()

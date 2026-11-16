@@ -208,6 +208,10 @@ function App() {
   const isDeveloper =
     account?.roles.includes("developer") ?? false;
 
+  // Guests can browse either side; a logged-in account keeps to its roles
+  const canUsePlayer = !isLoggedIn || isPlayer;
+  const canUseDeveloper = !isLoggedIn || isDeveloper;
+
   // ------------------------------------------
   // STEAM CALLBACK NAVIGATION
   // ------------------------------------------
@@ -417,6 +421,21 @@ function App() {
   const [loginFromIntro, setLoginFromIntro] =
     useState(false);
 
+  // Role picked on the Sign In card, so Forgot Password keeps its color
+  const [recoveryMode, setRecoveryMode] =
+    useState<Mode>("player");
+
+  // Account-only pages send guests to Login instead of a blank page
+  useEffect(() => {
+    if (
+      !authLoading &&
+      !isLoggedIn &&
+      ["profile", "library", "my-games"].includes(currentPage)
+    ) {
+      setCurrentPage("login");
+    }
+  }, [authLoading, isLoggedIn, currentPage]);
+
   // ------------------------------------------
   // DEVELOPER ANALYSIS STATE
   // ------------------------------------------
@@ -555,7 +574,9 @@ function App() {
           : "player"
       );
     } else {
-      setCurrentPage("login");
+      setCurrentPage(
+        mode === "developer" ? "dashboard" : "player"
+      );
     }
 
     window.scrollTo({
@@ -591,7 +612,7 @@ function App() {
     appId: string,
     result: GameAnalysis
   ) => {
-    if (!isPlayer) return;
+    if (!canUsePlayer) return;
 
     setPlayerAppId(appId);
     setPlayerAnalysis(result);
@@ -727,7 +748,7 @@ function App() {
   // ------------------------------------------
 
   const handleCompareClick = () => {
-    if (!isLoggedIn || !isPlayer) {
+    if (!canUsePlayer) {
       setLoginFromIntro(false);
       setCurrentPage("login");
       return;
@@ -741,7 +762,7 @@ function App() {
   // ------------------------------------------
 
   const openDeveloperGame = async (appId: string) => {
-    if (!isLoggedIn || !isDeveloper) {
+    if (!canUseDeveloper) {
       alert(
         "You need a developer account to access this feature."
       );
@@ -856,8 +877,7 @@ function App() {
         <>
           {/* PLAYER HOMEPAGE */}
           {currentPage === "player" &&
-            isLoggedIn &&
-            isPlayer &&
+            canUsePlayer &&
             mode === "player" && (
               <PlayerHome
                 {...sharedProps}
@@ -876,8 +896,7 @@ function App() {
 
           {/* PLAYER-ONLY: COMPARE GAMES */}
           {currentPage === "compare" &&
-            isLoggedIn &&
-            isPlayer &&
+            canUsePlayer &&
             mode === "player" && (
               <CompareGames {...sharedProps} />
             )}
@@ -915,9 +934,10 @@ function App() {
 
                 setLoginFromIntro(false);
               }}
-              onForgotPasswordClick={() =>
-                setCurrentPage("forgot-password")
-              }
+              onForgotPasswordClick={(selectedMode) => {
+                setRecoveryMode(selectedMode);
+                setCurrentPage("forgot-password");
+              }}
             />
           )}
 
@@ -935,6 +955,7 @@ function App() {
           {currentPage === "forgot-password" && (
             <ForgotPassword
               darkMode={darkMode}
+              mode={recoveryMode}
               onBack={() => setCurrentPage("login")}
             />
           )}
@@ -971,8 +992,7 @@ function App() {
 
           {/* DEVELOPER DASHBOARD */}
           {currentPage === "dashboard" &&
-            isLoggedIn &&
-            isDeveloper &&
+            canUseDeveloper &&
             mode === "developer" && (
               <Dashboard
                 {...sharedProps}
@@ -990,9 +1010,8 @@ function App() {
 
           {/* REVIEW ANALYSIS */}
           {currentPage === "reviews" &&
-            isLoggedIn &&
-            ((mode === "developer" && isDeveloper) ||
-              (mode === "player" && isPlayer)) && (
+            ((mode === "developer" && canUseDeveloper) ||
+              (mode === "player" && canUsePlayer)) && (
               <Reviews
                 {...sharedProps}
                 analyzed={activeAnalyzed}
@@ -1003,8 +1022,7 @@ function App() {
 
           {/* ANALYTICS */}
           {currentPage === "analytics" &&
-            isLoggedIn &&
-            isDeveloper &&
+            canUseDeveloper &&
             mode === "developer" && (
               <Analytics
                 {...sharedProps}
@@ -1016,8 +1034,7 @@ function App() {
 
           {/* ISSUES */}
           {currentPage === "issues" &&
-            isLoggedIn &&
-            isDeveloper &&
+            canUseDeveloper &&
             mode === "developer" && (
               <Issues
                 {...sharedProps}
@@ -1040,8 +1057,7 @@ function App() {
             )}
 
           {/* SETTINGS */}
-          {currentPage === "settings" &&
-            isLoggedIn && (
+          {currentPage === "settings" && (
               <Settings
                 {...sharedProps}
                 accentColor={accentColor}

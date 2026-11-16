@@ -1208,12 +1208,9 @@ def game_details(
     }
 # ==========================================
 # Game Analysis
-# Player or Developer
+# Open to guests; limited per IP by check_analysis_rate_limit
 # ==========================================
-@app.post(
-    "/api/analyze/{app_id}",
-    dependencies=[Depends(require_player_or_developer)],
-)
+@app.post("/api/analyze/{app_id}")
 def analyze_game(
     request: Request,
     app_id: int = Path(gt=0, le=MAX_APP_ID),
@@ -1290,12 +1287,9 @@ def analyze_game(
     )
 # ==========================================
 # Stored Game Analysis
-# Player or Developer
+# Open to guests
 # ==========================================
-@app.get(
-    "/api/games/{app_id}/analysis",
-    dependencies=[Depends(require_player_or_developer)],
-)
+@app.get("/api/games/{app_id}/analysis")
 def get_analysis(
     app_id: int = Path(gt=0, le=MAX_APP_ID),
     days: int | None = Query(None, ge=1, le=3650),
@@ -1305,12 +1299,9 @@ def get_analysis(
     )
 # ==========================================
 # Game Issues
-# Player or Developer
+# Open to guests; changing a status is developer only (below)
 # ==========================================
-@app.get(
-    "/api/games/{app_id}/issues",
-    dependencies=[Depends(require_player_or_developer)],
-)
+@app.get("/api/games/{app_id}/issues")
 def get_issues(
     app_id: int = Path(gt=0, le=MAX_APP_ID),
     min_mentions: int = Query(
@@ -1432,12 +1423,9 @@ def list_topics():
     return list(TOPIC_PATTERNS)
 # ==========================================
 # Topic Game Search
-# Developer Only
+# Open to guests
 # ==========================================
-@app.get(
-    "/api/topics/{topic}/games",
-    dependencies=[Depends(require_role("developer"))],
-)
+@app.get("/api/topics/{topic}/games")
 def search_topic(
     topic: str = Path(max_length=50),
     min_mentions: int = Query(5, ge=1, le=5000),
@@ -1491,12 +1479,9 @@ def search_topic(
     }
 # ==========================================
 # Reviews
-# Player or Developer
+# Open to guests
 # ==========================================
-@app.get(
-    "/api/games/{app_id}/reviews",
-    dependencies=[Depends(require_player_or_developer)],
-)
+@app.get("/api/games/{app_id}/reviews")
 def get_review_cards(
     app_id: int = Path(gt=0, le=MAX_APP_ID),
     limit: int = Query(300, ge=1, le=2000),

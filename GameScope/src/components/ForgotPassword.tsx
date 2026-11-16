@@ -1,17 +1,18 @@
 
 import React, { useState } from "react";
+import type { Mode } from "../type";
 import { forgotPassword } from "../api";
-import "./Login.css";
+import logo from "../img/gamescope-logo-light.png";
+import PongLogo from "./PongLogo";
+import "./SignIn.css";
 
 interface ForgotPasswordProps {
   darkMode: boolean;
+  mode: Mode;
   onBack: () => void;
 }
 
-function ForgotPassword({
-  darkMode,
-  onBack,
-}: ForgotPasswordProps) {
+function ForgotPassword({ mode, onBack }: ForgotPasswordProps) {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -49,126 +50,87 @@ function ForgotPassword({
 
   return (
     <main
-      className={`login-page ${
-        darkMode ? "login-dark-mode" : "login-light-mode"
+      className={`signin-page ${
+        mode === "developer" ? "signin-dev" : "signin-player"
       }`}
     >
-      {/* Animated background */}
-      <div className="login-background">
-        <div className="login-glow login-glow-one" />
-        <div className="login-glow login-glow-two" />
-        <div className="login-grid" />
-      </div>
-
-      <section className="login-card">
-        {/* Back navigation */}
+      <section className="signin-card" aria-labelledby="recovery-title">
         <button
           type="button"
-          className="login-back-button"
+          className="signin-back"
           onClick={onBack}
+          disabled={loading}
         >
-          <span className="login-back-arrow">←</span>
-          Back to Sign In
+          ← Back to Sign In
         </button>
 
-        {/* Branding */}
-        <div className="login-heading">
-          <div className="login-brand-icon">G</div>
+        <PongLogo src={logo} />
 
-          <span className="login-eyebrow">
-            ACCOUNT RECOVERY
-          </span>
+        <h1 id="recovery-title">
+          {submitted ? "CHECK YOUR INBOX" : "FORGOT PASSWORD"}
+        </h1>
 
-          <h1>
-            Forgot Password<span>.</span>
-          </h1>
-
-          <p>
-            {submitted
-              ? "Check your inbox for the next steps."
-              : "Don't worry. It happens. Enter your email to recover access to your account."}
-          </p>
-        </div>
+        <p className="signin-subtitle">
+          {submitted
+            ? "Your request has been submitted."
+            : "It happens. Enter your email and we'll send you a link to reset your password."}
+        </p>
 
         {!submitted ? (
-          <form onSubmit={handleSubmit}>
-            <div className="login-field-group">
-              <label htmlFor="recovery-email">
-                Email Address
-              </label>
+          <form className="signin-form" onSubmit={handleSubmit}>
+            <div className="signin-field">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <rect x="3" y="5" width="18" height="14" rx="2" />
+                <path d="m3 7 9 6 9-6" />
+              </svg>
 
-              <div className="login-input-wrapper">
-                <span className="login-input-icon">✉</span>
-
-                <input
-                  id="recovery-email"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(event) => {
-                    setEmail(event.target.value);
-                    setError("");
-                  }}
-                  autoComplete="email"
-                  required
-                  disabled={loading}
-                />
-              </div>
-
-              <span className="recovery-hint">
-                We'll use this address for your account recovery.
-              </span>
+              <input
+                type="email"
+                placeholder="Email"
+                aria-label="Email"
+                value={email}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  setError("");
+                }}
+                autoComplete="email"
+                required
+                disabled={loading}
+              />
             </div>
 
             {error && (
-              <div
-                className="login-error"
-                role="alert"
-              >
+              <p className="signin-error" role="alert">
                 {error}
-              </div>
+              </p>
             )}
 
             <button
               type="submit"
-              className="login-submit-button"
+              className="signin-submit"
               disabled={loading}
             >
-              <span>
-                {loading
-                  ? "Sending Instructions..."
-                  : "Send Recovery Instructions"}
-              </span>
-
-              <span className="login-submit-arrow">
-                {loading ? "..." : "→"}
-              </span>
+              {loading ? "SENDING..." : "SEND RESET LINK"}
             </button>
           </form>
         ) : (
-          <div className="recovery-success" role="status">
-            <div className="recovery-success-icon">✓</div>
-
-            <h2>Request Submitted</h2>
-
-            <p>
-              If an account exists for{" "}
-              <strong>{email}</strong>, recovery instructions
-              will be sent to that address.
+          <div className="signin-form" role="status">
+            <p className="signin-success">
+              If an account exists for <strong>{email}</strong>, recovery
+              instructions will be sent to that address.
             </p>
 
             <button
               type="button"
-              className="login-submit-button"
+              className="signin-submit"
               onClick={onBack}
             >
-              <span>Return to Sign In</span>
-              <span className="login-submit-arrow">→</span>
+              RETURN TO SIGN IN
             </button>
 
             <button
               type="button"
-              className="recovery-change-email"
+              className="signin-forgot signin-change-email"
               onClick={handleChangeEmail}
             >
               Use a different email address
@@ -176,9 +138,7 @@ function ForgotPassword({
           </div>
         )}
 
-        <p className="login-footer-text">
-          GameScope account recovery.
-        </p>
+        <p className="signin-fineprint">GameScope account recovery.</p>
       </section>
     </main>
   );

@@ -1227,3 +1227,199 @@
   border-color: var(--accent-color, #7065ee);
   color: var(--accent-color, #7065ee);
 }
+/* =========================================
+   GAME MENU STYLE
+   Labels in the site's heading font with a
+   round button beside each one, like an old
+   survival-horror inventory menu. Hover and
+   active light up in the mode color: green
+   for players, purple for developers.
+========================================= */
+
+.navbar {
+  --nav-accent: #5dcaa5;
+  --nav-accent-text: #0f6e56;
+  --nav-accent-soft: rgba(93, 202, 165, 0.16);
+  --nav-accent-ring: rgba(93, 202, 165, 0.5);
+  --nav-menu-font: "Archivo Black", "Arial Black", sans-serif;
+}
+
+.navbar.navbar-dev {
+  --nav-accent: #afa9ec;
+  --nav-accent-text: #534ab7;
+  --nav-accent-soft: rgba(175, 169, 236, 0.18);
+  --nav-accent-ring: rgba(175, 169, 236, 0.5);
+}
+
+.navbar.dark-navbar {
+  --nav-accent-text: var(--nav-accent);
+}
+
+.navbar .nav-item:hover,
+.navbar .nav-item.active {
+  color: var(--nav-accent-text);
+  background: var(--nav-accent-soft);
+}
+
+.navbar .nav-item.active::after {
+  background: var(--nav-accent);
+}
+
+@media (min-width: 769px) {
+  .navbar .navbar-menu {
+    gap: 6px;
+    margin-left: 36px;
+  }
+
+  .navbar .navbar-bottom {
+    gap: 6px;
+  }
+
+  .navbar .nav-item {
+    gap: 10px;
+    height: 50px;
+    padding: 0 20px 0 13px;
+    border-radius: 999px;
+    color: #3a3833;
+    font-family: var(--nav-menu-font);
+    font-size: 15px;
+    font-weight: 400;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .dark-navbar .nav-item {
+    color: #e9e4d6;
+  }
+
+  .navbar .nav-item .nav-icon {
+    display: none;
+  }
+
+  /* The round menu button */
+  .navbar .nav-item::before {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    border: 4px solid #9a9184;
+    border-radius: 50%;
+    background: #2a2723;
+    box-shadow:
+      inset 0 2px 3px rgba(0, 0, 0, 0.7),
+      0 1px 0 rgba(255, 255, 255, 0.6),
+      0 1px 3px rgba(0, 0, 0, 0.3);
+    content: "";
+    transition:
+      background 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+
+  .dark-navbar .nav-item::before {
+    border-color: #5d564d;
+    background: #171512;
+    box-shadow:
+      inset 0 2px 3px rgba(0, 0, 0, 0.8),
+      0 1px 0 rgba(255, 255, 255, 0.12),
+      0 1px 3px rgba(0, 0, 0, 0.6);
+  }
+
+  .navbar .nav-item:hover::before,
+  .navbar .nav-item.active::before {
+    background: var(--nav-accent);
+    box-shadow:
+      inset 0 2px 3px rgba(0, 0, 0, 0.35),
+      0 0 0 3px var(--nav-accent-soft),
+      0 0 12px var(--nav-accent-ring);
+  }
+
+  .navbar .nav-item:hover,
+  .navbar .nav-item.active {
+    box-shadow: inset 0 0 0 1px var(--nav-accent-ring);
+  }
+
+  .navbar .nav-item.active::after {
+    bottom: -13px;
+  }
+
+  .navbar .account-mode {
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  .navbar .account-email {
+    letter-spacing: 0;
+    text-transform: none;
+  }
+}
+
+/* Smaller laptop widths keep every menu item on one line */
+@media (min-width: 769px) and (max-width: 1440px) {
+  .navbar .navbar-menu {
+    margin-left: 20px;
+  }
+
+  .navbar .navbar-menu,
+  .navbar .navbar-bottom {
+    gap: 4px;
+  }
+
+  .navbar .nav-item {
+    gap: 8px;
+    height: 44px;
+    padding: 0 14px 0 10px;
+    font-size: 13px;
+  }
+
+  .navbar .nav-item::before {
+    width: 18px;
+    height: 18px;
+    border-width: 3px;
+  }
+
+  .navbar .nav-item.active::after {
+    bottom: -16px;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1100px) {
+  .navbar {
+    padding: 0 16px;
+  }
+
+  .navbar .logo-text {
+    display: none;
+  }
+
+  .navbar .navbar-menu {
+    margin-left: 12px;
+  }
+
+  .navbar .nav-item {
+    gap: 6px;
+    padding: 0 10px 0 8px;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+  }
+
+  .navbar .nav-item::before {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+/* Below wide screens, theme, settings and account shrink to icon buttons */
+@media (min-width: 769px) and (max-width: 1440px) {
+  .navbar .navbar-bottom .nav-text,
+  .navbar .navbar-bottom .account-info,
+  .navbar .navbar-bottom .nav-item::before {
+    display: none;
+  }
+
+  .navbar .navbar-bottom .nav-item {
+    padding: 0 12px;
+  }
+
+  .navbar .navbar-bottom .nav-item .nav-icon {
+    display: flex;
+  }
+}
