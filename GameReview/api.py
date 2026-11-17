@@ -6,6 +6,12 @@ Start it from the GameReview folder:
 import re
 import json
 import os
+from dotenv import load_dotenv
+
+load_dotenv(
+    dotenv_path=os.path.join(os.path.dirname(__file__), ".env")
+)
+
 import time
 import auth
 import logging
@@ -45,6 +51,10 @@ from analysis import (
     topic_standing,
 )
 logger = logging.getLogger(__name__)
+
+
+
+
 # ==========================================
 # Configuration
 # ==========================================
@@ -90,10 +100,24 @@ _standing_cache = {}
 # Games whose Steam announcements were already looked up since the API
 # started, so a game with no announcements isn't re-fetched on every visit.
 _updates_checked = set()
+
+# ==========================================
+# Environment Configuration
+# ==========================================
+STEAM_EXTENSION_ID = os.getenv(
+    "STEAM_EXTENSION_ID",
+    "",
+).strip()
 # ==========================================
 # FastAPI Application
 # ==========================================
 app = FastAPI(title="GameScope API")
+@app.get("/api/config")
+def get_public_config():
+    return {
+        "steamExtensionId": STEAM_EXTENSION_ID,
+    }
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -416,7 +440,6 @@ class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str
 
-
 class SteamLibraryGameImport(BaseModel):
     appId: str = Field(min_length=1, max_length=10)
     name: str = Field(min_length=1, max_length=255)
@@ -428,6 +451,1148 @@ class SteamLibraryGameImport(BaseModel):
 class SteamLibraryImportRequest(BaseModel):
     steamId: str = Field(min_length=17, max_length=17)
     games: list[SteamLibraryGameImport] = Field(max_length=1000)
+
+
+class OrganizationRequest(BaseModel):
+    organization_name: str = Field(
+        min_length=2,
+        max_length=255,
+    )
+    organization_email: str = Field(
+        min_length=5,
+        max_length=255,
+    )
+
+class OrganizationCreateRequest(BaseModel):
+    organization_name: str = Field(
+        min_length=2,
+        max_length=255,
+    )
+
+class OrganizationMembershipReviewRequest(BaseModel):
+    organization_id: int = Field(gt=0)
+    user_id: int = Field(gt=0)
+    decision: Literal["verified", "rejected"]
+
+class OrganizationGameRequest(BaseModel):
+    organization_id: int = Field(gt=0)
+    app_id: int = Field(gt=0)
+    relationship: Literal["developed", "published", "owned"]
+
+class OrganizationGameReviewRequest(BaseModel):
+    organization_id: int = Field(gt=0)
+    game_id: int = Field(gt=0)
+    relationship: Literal["developed", "published", "owned"]
+    decision: Literal["verified", "rejected"]
+
+
+class OrganizationMembershipRemovalRequest(BaseModel):
+    organization_id: int = Field(gt=0)
+    user_id: int = Field(gt=0)
+
+
+class OrganizationGameRemovalRequest(BaseModel):
+    organization_id: int = Field(gt=0)
+    game_id: int = Field(gt=0)
+    relationship: Literal["developed", "published", "owned"]
+
+
+
+@app.delete("/api/admin/organizations/games")
+def remove_organization_game(
+    request: OrganizationGameRemovalRequest,
+    account=Depends(require_role("admin")),
+):
+    connection = None
+    cursor = None
+
+    try:
+        connection = importer.connect_database(use_database=True)
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            DELETE FROM organization_games
+            WHERE organization_id = %s
+                AND game_id = %s
+                AND relationship = %s
+            """,
+            (
+                request.organization_id,
+                request.game_id,
+                request.relationship,
+            ),
+        )
+
+        if cursor.rowcount == 0:
+            raise HTTPException(
+                status_code=404,
+                detail="Organization game relationship not found.",
+            )
+
+        connection.commit()
+
+        return {
+            "message": "Organization game relationship removed successfully.",
+            "organization_id": request.organization_id,
+            "game_id": request.game_id,
+            "relationship": request.relationship,
+        }
+
+    except HTTPException:
+        if connection is not None:
+            connection.rollback()
+        raise
+
+    except MySQLError as error:
+        if connection is not None:
+            connection.rollback()
+        raise database_error(error) from error
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+
+@app.delete("/api/admin/organizations/membership")
+def remove_organization_membership(
+    request: OrganizationMembershipRemovalRequest,
+    account=Depends(require_role("admin")),
+):
+    connection = None
+    cursor = None
+
+    try:
+        connection = importer.connect_database(use_database=True)
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            DELETE FROM organization_memberships
+            WHERE organization_id = %s
+                AND user_id = %s
+            """,
+            (
+                request.organization_id,
+                request.user_id,
+            ),
+        )
+
+        if cursor.rowcount == 0:
+            raise HTTPException(
+                status_code=404,
+                detail="Organization membership not found.",
+            )
+
+        connection.commit()
+
+        return {
+            "message": "Organization membership removed successfully.",
+            "organization_id": request.organization_id,
+            "user_id": request.user_id,
+        }
+
+    except HTTPException:
+        if connection is not None:
+            connection.rollback()
+        raise
+
+    except MySQLError as error:
+        if connection is not None:
+            connection.rollback()
+        raise database_error(error) from error
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+
+@app.get("/api/admin/organizations")
+def get_all_organizations(
+    account=Depends(require_role("admin")),
+):
+    connection = None
+    cursor = None
+
+    try:
+        connection = importer.connect_database(use_database=True)
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            """
+            SELECT
+                o.organization_id,
+                o.organization_name,
+                o.created_by_user_id,
+                o.created_at,
+                COUNT(DISTINCT CASE
+                    WHEN om.affiliation_status = 'verified'
+                    THEN om.user_id
+                END) AS verified_members,
+                COUNT(DISTINCT CASE
+                    WHEN og.relationship_status = 'verified'
+                    THEN CONCAT(
+                        og.game_id,
+                        '-',
+                        og.relationship
+                    )
+                END) AS verified_game_relationships
+            FROM organizations o
+            LEFT JOIN organization_memberships om
+                ON om.organization_id = o.organization_id
+            LEFT JOIN organization_games og
+                ON og.organization_id = o.organization_id
+            GROUP BY
+                o.organization_id,
+                o.organization_name,
+                o.created_by_user_id,
+                o.created_at
+            ORDER BY o.organization_name ASC
+            """
+        )
+
+        organizations = cursor.fetchall()
+
+        return {
+            "organizations": organizations,
+            "count": len(organizations),
+        }
+
+    except MySQLError as error:
+        raise database_error(error) from error
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+
+@app.get("/api/admin/organizations/{organization_id}/members")
+def get_organization_members(
+    organization_id: int = Path(gt=0),
+    account=Depends(require_role("admin")),
+):
+    connection = None
+    cursor = None
+
+    try:
+        connection = importer.connect_database(use_database=True)
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            """
+            SELECT organization_id
+            FROM organizations
+            WHERE organization_id = %s
+            """,
+            (organization_id,),
+        )
+
+        if cursor.fetchone() is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Organization not found.",
+            )
+
+        cursor.execute(
+            """
+            SELECT
+                om.organization_id,
+                om.user_id,
+                u.username,
+                u.email,
+                om.organization_email,
+                om.membership_role,
+                om.affiliation_status,
+                om.requested_at,
+                om.reviewed_at,
+                om.reviewed_by_user_id
+            FROM organization_memberships om
+            JOIN users u
+                ON u.user_id = om.user_id
+            WHERE om.organization_id = %s
+            ORDER BY om.requested_at ASC
+            """,
+            (organization_id,),
+        )
+
+        members = cursor.fetchall()
+
+        return {
+            "organization_id": organization_id,
+            "members": members,
+            "count": len(members),
+        }
+
+    except HTTPException:
+        raise
+
+    except MySQLError as error:
+        raise database_error(error) from error
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+
+@app.get("/api/admin/organizations/{organization_id}/games")
+def get_organization_game_relationships(
+    organization_id: int = Path(gt=0),
+    account=Depends(require_role("admin")),
+):
+    connection = None
+    cursor = None
+
+    try:
+        connection = importer.connect_database(use_database=True)
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            """
+            SELECT organization_id
+            FROM organizations
+            WHERE organization_id = %s
+            """,
+            (organization_id,),
+        )
+
+        if cursor.fetchone() is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Organization not found.",
+            )
+
+        cursor.execute(
+            """
+            SELECT
+                og.organization_id,
+                og.game_id,
+                g.app_id,
+                g.game_name,
+                og.relationship,
+                og.relationship_status,
+                og.added_by_user_id,
+                added.username AS submitted_by,
+                og.added_at,
+                og.reviewed_by_user_id,
+                reviewed.username AS reviewed_by,
+                og.reviewed_at
+            FROM organization_games og
+            JOIN games g
+                ON g.game_id = og.game_id
+            LEFT JOIN users added
+                ON added.user_id = og.added_by_user_id
+            LEFT JOIN users reviewed
+                ON reviewed.user_id = og.reviewed_by_user_id
+            WHERE og.organization_id = %s
+            ORDER BY og.added_at DESC
+            """,
+            (organization_id,),
+        )
+
+        games = cursor.fetchall()
+
+        return {
+            "organization_id": organization_id,
+            "games": games,
+            "count": len(games),
+        }
+
+    except HTTPException:
+        raise
+
+    except MySQLError as error:
+        raise database_error(error) from error
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+
+@app.post("/api/admin/organizations", status_code=201)
+def create_organization(
+    request: OrganizationCreateRequest,
+    account=Depends(require_role("admin")),
+):
+    organization_name = request.organization_name.strip()
+
+    if not organization_name:
+        raise HTTPException(
+            status_code=400,
+            detail="Organization name is required.",
+        )
+
+    connection = None
+    cursor = None
+
+    try:
+        connection = importer.connect_database(use_database=True)
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            SELECT organization_id
+            FROM organizations
+            WHERE LOWER(organization_name) = LOWER(%s)
+            """,
+            (organization_name,),
+        )
+
+        if cursor.fetchone():
+            raise HTTPException(
+                status_code=409,
+                detail="This organization is already registered.",
+            )
+
+        cursor.execute(
+            """
+            INSERT INTO organizations (
+                organization_name,
+                created_by_user_id
+            )
+            VALUES (%s, %s)
+            """,
+            (organization_name, account["user_id"]),
+        )
+
+        organization_id = cursor.lastrowid
+
+        cursor.execute(
+            """
+            INSERT INTO organization_memberships (
+                organization_id,
+                user_id,
+                membership_role,
+                affiliation_status,
+                email_verified_at,
+                reviewed_at,
+                reviewed_by_user_id
+            )
+            VALUES (
+                %s, %s, 'admin', 'verified',
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP,
+                %s
+            )
+            """,
+            (
+                organization_id,
+                account["user_id"],
+                account["user_id"],
+            ),
+        )
+
+        connection.commit()
+
+        return {
+            "message": "Organization registered successfully.",
+            "organization_id": organization_id,
+            "organization_name": organization_name,
+        }
+
+    except HTTPException:
+        if connection is not None:
+            connection.rollback()
+        raise
+
+    except MySQLError as error:
+        if connection is not None:
+            connection.rollback()
+        raise database_error(error) from error
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+# ==========================================
+# Organization Membership Requests
+# ==========================================
+
+@app.get("/api/admin/organization-requests")
+def get_pending_organization_requests(
+    account=Depends(require_role("admin")),
+):
+    connection = None
+    cursor = None
+
+    try:
+        connection = importer.connect_database(use_database=True)
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            """
+            SELECT
+                om.organization_id,
+                o.organization_name,
+                om.user_id,
+                u.username,
+                u.email AS account_email,
+                om.organization_email,
+                om.requested_at
+            FROM organization_memberships om
+            JOIN organizations o
+                ON o.organization_id = om.organization_id
+            JOIN users u
+                ON u.user_id = om.user_id
+            WHERE om.affiliation_status = 'pending'
+            ORDER BY om.requested_at ASC
+            """
+        )
+
+        requests = cursor.fetchall()
+
+        return {
+            "requests": requests,
+            "count": len(requests),
+        }
+
+    except MySQLError as error:
+        raise database_error(error) from error
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+@app.get("/api/organizations/membership")
+def get_organization_membership(
+    account=Depends(get_current_account),
+):
+    connection = None
+    cursor = None
+
+    try:
+        connection = importer.connect_database(use_database=True)
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            """
+            SELECT
+                om.organization_id,
+                o.organization_name,
+                om.organization_email,
+                om.membership_role,
+                om.affiliation_status,
+                om.requested_at,
+                om.reviewed_at
+            FROM organization_memberships om
+            JOIN organizations o
+                ON o.organization_id = om.organization_id
+            WHERE om.user_id = %s
+            ORDER BY om.requested_at DESC
+            """,
+            (account["user_id"],),
+        )
+
+        memberships = cursor.fetchall()
+
+        return {
+            "memberships": memberships,
+            "count": len(memberships),
+        }
+
+    except MySQLError as error:
+        raise database_error(error) from error
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+@app.patch("/api/admin/organizations/membership")
+def review_organization_membership(
+    request: OrganizationMembershipReviewRequest,
+    account=Depends(require_role("admin")),
+):
+    connection = None
+    cursor = None
+
+    try:
+        connection = importer.connect_database(use_database=True)
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            UPDATE organization_memberships
+            SET
+                affiliation_status = %s,
+                reviewed_at = CURRENT_TIMESTAMP,
+                reviewed_by_user_id = %s
+            WHERE organization_id = %s
+                AND user_id = %s
+                AND affiliation_status = 'pending'
+            """,
+            (
+                request.decision,
+                account["user_id"],
+                request.organization_id,
+                request.user_id,
+            ),
+        )
+
+        if cursor.rowcount == 0:
+            raise HTTPException(
+                status_code=404,
+                detail="No pending membership request was found.",
+            )
+
+        connection.commit()
+
+        return {
+            "message": (
+                "Membership request approved."
+                if request.decision == "verified"
+                else "Membership request rejected."
+            ),
+            "organization_id": request.organization_id,
+            "user_id": request.user_id,
+            "status": request.decision,
+        }
+
+    except HTTPException:
+        if connection is not None:
+            connection.rollback()
+        raise
+
+    except MySQLError as error:
+        if connection is not None:
+            connection.rollback()
+        raise database_error(error) from error
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+
+@app.patch("/api/admin/organization-games")
+def review_organization_game(
+    request: OrganizationGameReviewRequest,
+    account=Depends(require_role("admin")),
+):
+    connection = None
+    cursor = None
+
+    try:
+        connection = importer.connect_database(use_database=True)
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            UPDATE organization_games
+            SET
+                relationship_status = %s,
+                reviewed_by_user_id = %s,
+                reviewed_at = CURRENT_TIMESTAMP
+            WHERE organization_id = %s
+                AND game_id = %s
+                AND relationship = %s
+                AND relationship_status = 'pending'
+            """,
+            (
+                request.decision,
+                account["user_id"],
+                request.organization_id,
+                request.game_id,
+                request.relationship,
+            ),
+        )
+
+        if cursor.rowcount == 0:
+            raise HTTPException(
+                status_code=404,
+                detail="No pending game submission was found.",
+            )
+
+        connection.commit()
+
+        return {
+            "message": (
+                "Organization game relationship approved."
+                if request.decision == "verified"
+                else "Organization game relationship rejected."
+            ),
+            "organization_id": request.organization_id,
+            "game_id": request.game_id,
+            "relationship": request.relationship,
+            "status": request.decision,
+        }
+
+    except HTTPException:
+        if connection is not None:
+            connection.rollback()
+        raise
+
+    except MySQLError as error:
+        if connection is not None:
+            connection.rollback()
+        raise database_error(error) from error
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+@app.get("/api/admin/organization-games")
+def get_pending_organization_games(
+    account=Depends(require_role("admin")),
+):
+    connection = None
+    cursor = None
+
+    try:
+        connection = importer.connect_database(use_database=True)
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            """
+            SELECT
+                og.organization_id,
+                o.organization_name,
+                og.game_id,
+                g.app_id,
+                g.game_name,
+                og.relationship,
+                og.relationship_status,
+                og.added_by_user_id,
+                u.username AS submitted_by,
+                u.email AS submitter_email,
+                og.added_at
+            FROM organization_games og
+            JOIN organizations o
+                ON o.organization_id = og.organization_id
+            JOIN games g
+                ON g.game_id = og.game_id
+            LEFT JOIN users u
+                ON u.user_id = og.added_by_user_id
+            WHERE og.relationship_status = 'pending'
+            ORDER BY og.added_at ASC
+            """
+        )
+
+        submissions = cursor.fetchall()
+
+        return {
+            "submissions": submissions,
+            "count": len(submissions),
+        }
+
+    except MySQLError as error:
+        raise database_error(error) from error
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+
+@app.post("/api/organizations/games", status_code=201)
+def add_organization_game(
+    request: OrganizationGameRequest,
+    account=Depends(require_role("developer")),
+):
+    connection = None
+    cursor = None
+
+    try:
+        connection = importer.connect_database(use_database=True)
+        cursor = connection.cursor(dictionary=True)
+
+        # Confirm verified membership in the requested organization.
+        cursor.execute(
+            """
+            SELECT organization_id
+            FROM organization_memberships
+            WHERE organization_id = %s
+                AND user_id = %s
+                AND affiliation_status = 'verified'
+            """,
+            (
+                request.organization_id,
+                account["user_id"],
+            ),
+        )
+
+        membership = cursor.fetchone()
+
+        if membership is None:
+            raise HTTPException(
+                status_code=403,
+                detail="You are not a verified member of this organization.",
+            )
+
+        # Retrieve the game from Steam.
+        steam_response = requests.get(
+            "https://store.steampowered.com/api/appdetails",
+            params={"appids": request.app_id},
+            timeout=15,
+        )
+        steam_response.raise_for_status()
+
+        steam_data = steam_response.json().get(
+            str(request.app_id)
+        )
+
+        if not steam_data or not steam_data.get("success"):
+            raise HTTPException(
+                status_code=404,
+                detail="The requested Steam game could not be found.",
+            )
+
+        details = steam_data["data"]
+
+        game_name = details.get("name")
+
+        if not game_name:
+            raise HTTPException(
+                status_code=404,
+                detail="Steam did not return a valid game name.",
+            )
+
+        release_date = None
+        release_date_text = details.get(
+            "release_date", {}
+        ).get("date")
+
+        if release_date_text:
+            try:
+                from datetime import datetime
+
+                release_date = datetime.strptime(
+                    release_date_text,
+                    "%d %b, %Y",
+                ).date()
+            except ValueError:
+                release_date = None
+
+        developers = details.get("developers") or []
+        publishers = details.get("publishers") or []
+
+        game_developer = (
+            ", ".join(developers) if developers else None
+        )
+
+        game_publisher = (
+            ", ".join(publishers) if publishers else None
+        )
+
+        # Check whether the game already exists.
+        cursor.execute(
+            """
+            SELECT game_id
+            FROM games
+            WHERE app_id = %s
+            """,
+            (request.app_id,),
+        )
+
+        existing_game = cursor.fetchone()
+
+        if existing_game:
+            game_id = existing_game["game_id"]
+        else:
+            cursor.execute(
+                """
+                INSERT INTO games (
+                    app_id,
+                    game_name,
+                    game_release_date,
+                    game_developer,
+                    game_publisher
+                )
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (
+                    request.app_id,
+                    game_name,
+                    release_date,
+                    game_developer,
+                    game_publisher,
+                ),
+            )
+
+            game_id = cursor.lastrowid
+
+        # Check for an existing organization-game relationship.
+        cursor.execute(
+            """
+            SELECT relationship_status
+            FROM organization_games
+            WHERE organization_id = %s
+                AND game_id = %s
+                AND relationship = %s
+            """,
+            (
+                request.organization_id,
+                game_id,
+                request.relationship,
+            ),
+        )
+
+        existing_relationship = cursor.fetchone()
+
+        if existing_relationship:
+            raise HTTPException(
+                status_code=409,
+                detail="This game relationship has already been submitted.",
+            )
+
+        # Submit the relationship for administrator verification.
+        cursor.execute(
+            """
+            INSERT INTO organization_games (
+                organization_id,
+                game_id,
+                relationship,
+                relationship_status,
+                added_by_user_id
+            )
+            VALUES (%s, %s, %s, 'pending', %s)
+            """,
+            (
+                request.organization_id,
+                game_id,
+                request.relationship,
+                account["user_id"],
+            ),
+        )
+
+        connection.commit()
+
+        return {
+            "message": "Game submitted for organization verification.",
+            "organization_id": request.organization_id,
+            "game_id": game_id,
+            "app_id": request.app_id,
+            "game_name": game_name,
+            "relationship": request.relationship,
+            "status": "pending",
+        }
+
+    except HTTPException:
+        if connection is not None:
+            connection.rollback()
+        raise
+
+    except MySQLError as error:
+        if connection is not None:
+            connection.rollback()
+        raise database_error(error) from error
+
+    except requests.RequestException as error:
+        if connection is not None:
+            connection.rollback()
+        raise HTTPException(
+            status_code=502,
+            detail="Unable to retrieve game details from Steam.",
+        ) from error
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+
+@app.get("/api/organizations/games")
+def get_organization_games(
+    account=Depends(get_current_account),
+):
+    connection = None
+    cursor = None
+
+    try:
+        connection = importer.connect_database(use_database=True)
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            """
+            SELECT
+                o.organization_id,
+                o.organization_name,
+                g.game_id,
+                g.app_id,
+                g.game_name,
+                g.game_release_date,
+                g.game_developer,
+                g.game_publisher,
+                og.relationship,
+                og.relationship_status,
+                og.added_at
+            FROM organization_memberships om
+            JOIN organizations o
+                ON o.organization_id = om.organization_id
+            JOIN organization_games og
+                ON og.organization_id = o.organization_id
+            JOIN games g
+                ON g.game_id = og.game_id
+            WHERE om.user_id = %s
+                AND om.affiliation_status = 'verified'
+            ORDER BY o.organization_name, g.game_name
+            """,
+            (account["user_id"],),
+        )
+
+        games = cursor.fetchall()
+
+        return {
+            "games": games,
+            "count": len(games),
+        }
+
+    except MySQLError as error:
+        raise database_error(error) from error
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+@app.post("/api/organizations/request", status_code=201)
+def request_organization_membership(
+    request: OrganizationRequest,
+    account=Depends(get_current_account),
+):
+    organization_name = request.organization_name.strip()
+    organization_email = request.organization_email.strip().lower()
+
+    if not organization_name or not organization_email:
+        raise HTTPException(
+            status_code=400,
+            detail="Organization name and email are required.",
+        )
+
+    if not re.fullmatch(
+        r"[^@\s]+@[^@\s]+\.[^@\s]+",
+        organization_email,
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Enter a valid organization email address.",
+        )
+
+    connection = None
+    cursor = None
+
+    try:
+        connection = importer.connect_database(use_database=True)
+        cursor = connection.cursor(dictionary=True)
+
+        cursor.execute(
+            """
+            SELECT organization_id
+            FROM organizations
+            WHERE LOWER(organization_name) = LOWER(%s)
+            """,
+            (organization_name,),
+        )
+
+        organization = cursor.fetchone()
+
+        if organization is None:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    "This organization has not been registered yet. "
+                    "Contact the GameScope administrator."
+                ),
+            )
+
+        organization_id = organization["organization_id"]
+        user_id = account["user_id"]
+
+        cursor.execute(
+            """
+            SELECT affiliation_status
+            FROM organization_memberships
+            WHERE organization_id = %s
+                AND user_id = %s
+            """,
+            (organization_id, user_id),
+        )
+
+        existing = cursor.fetchone()
+
+        if existing and existing["affiliation_status"] == "verified":
+            raise HTTPException(
+                status_code=409,
+                detail="You are already a verified member of this organization.",
+            )
+
+        if existing and existing["affiliation_status"] == "pending":
+            raise HTTPException(
+                status_code=409,
+                detail="Your membership request is already pending.",
+            )
+
+        cursor.execute(
+            """
+            INSERT INTO organization_memberships (
+                organization_id,
+                user_id,
+                organization_email,
+                membership_role,
+                affiliation_status
+            )
+            VALUES (%s, %s, %s, 'member', 'pending')
+            ON DUPLICATE KEY UPDATE
+                organization_email = VALUES(organization_email),
+                affiliation_status = 'pending',
+                requested_at = CURRENT_TIMESTAMP,
+                reviewed_at = NULL,
+                reviewed_by_user_id = NULL
+            """,
+            (organization_id, user_id, organization_email),
+        )
+
+        connection.commit()
+
+        return {
+            "message": (
+                "Organization membership request submitted. "
+                "Developer access will be available after administrator approval."
+            ),
+            "status": "pending",
+        }
+
+    except HTTPException:
+        if connection is not None:
+            connection.rollback()
+        raise
+
+    except MySQLError as error:
+        if connection is not None:
+            connection.rollback()
+        raise database_error(error) from error
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
 # ==========================================
 # Authentication Routes
 # ==========================================
@@ -1348,34 +2513,82 @@ class IssueStatusUpdate(BaseModel):
         "In Progress",
         "Resolved",
     ]
-@app.patch(
-    "/api/games/{app_id}/issues/{topic}/status",
-    dependencies=[Depends(require_role("developer"))],
-)
+@app.patch("/api/games/{app_id}/issues/{topic}/status")
 def update_issue_status(
     update: IssueStatusUpdate,
     app_id: int = Path(gt=0, le=MAX_APP_ID),
     topic: str = Path(max_length=50),
+    account=Depends(require_role("developer")),
 ):
     if topic not in TOPIC_PATTERNS:
         raise HTTPException(
             status_code=404,
             detail="Unknown issue topic.",
         )
+
+    connection = None
+    cursor = None
+
     try:
         game_id = pipeline.find_game_id(app_id)
+
         if game_id is None:
             raise HTTPException(
                 status_code=404,
                 detail=f"App ID {app_id} hasn't been analyzed yet.",
             )
+
+        connection = importer.connect_database(use_database=True)
+        cursor = connection.cursor(dictionary=True)
+
+        # Verify that the developer belongs to an
+        # organization with an approved relationship to this game.
+        cursor.execute(
+            """
+            SELECT EXISTS (
+                SELECT 1
+                FROM organization_memberships om
+                JOIN organization_games og
+                    ON og.organization_id = om.organization_id
+                WHERE om.user_id = %s
+                    AND om.affiliation_status = 'verified'
+                    AND og.game_id = %s
+                    AND og.relationship_status = 'verified'
+            ) AS can_manage_game
+            """,
+            (
+                account["user_id"],
+                game_id,
+            ),
+        )
+
+        permission = cursor.fetchone()
+
+        if not permission["can_manage_game"]:
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "You do not have permission to manage "
+                    "this game's issues."
+                ),
+            )
+
         pipeline.save_issue_status(
             game_id,
             topic,
             update.status,
         )
+
     except MySQLError as error:
         raise database_error(error) from error
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+
+        if connection is not None and connection.is_connected():
+            connection.close()
+
     return {
         "topic": topic,
         "status": update.status,

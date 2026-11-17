@@ -13,8 +13,9 @@ export type Page =
   | "signup"
   | "forgot-password"
   | "reset-password"
-  | "compare";
+  | "compare"
+  | "admin-organizations";
 
-export type Mode = "player" | "developer";
+export type Mode = "player" | "developer" | "admin";
 
 export type AccentColor = "purple" | "blue" | "green";

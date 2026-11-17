@@ -18,9 +18,6 @@ import type {
   SteamLibraryImportGame,
 } from "../api";
 
-// Chrome extension ID for the locally installed GameScope Steam Connector.
-const GAMESCOPE_EXTENSION_ID = "nbplhnnmbkilpfbjmhkefeklneloklaa";
-
 type SteamExtensionStatus = "checking" | "installed" | "not-installed";
 
 type SteamImportStatus =
@@ -147,6 +144,10 @@ function Profile({
 }: ProfileProps) {
   const isPlayer = mode === "player";
 
+  // GameScope Chrome extension configuration.
+  const [gamescopeExtensionId, setGamescopeExtensionId] = useState("");
+  const [extensionConfigLoading, setExtensionConfigLoading] = useState(true);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const emailKey = accountEmail.toLowerCase();
@@ -231,8 +232,76 @@ function Profile({
   // Incremented when the user manually retries an import.
   const [steamImportRetry, setSteamImportRetry] = useState(0);
 
+  // Load the Chrome extension ID from the backend.
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadExtensionConfig = async () => {
+      setExtensionConfigLoading(true);
+
+      try {
+        const response = await fetch("/api/config", {
+          credentials: "include",
+        });
+
+        if (!response.ok) {
+          throw new Error(
+            "Unable to load the GameScope extension configuration."
+          );
+        }
+
+        const config: { steamExtensionId?: string } =
+          await response.json();
+
+        if (
+          typeof config.steamExtensionId !== "string" ||
+          !config.steamExtensionId.trim()
+        ) {
+          throw new Error("The Steam extension ID is missing from the backend configuration.");
+        }
+
+        if (!cancelled) {
+          setGamescopeExtensionId(config.steamExtensionId.trim());
+        }
+      } catch (error) {
+        console.error(
+          "GameScope extension configuration error:",
+          error
+        );
+
+        if (!cancelled) {
+          setGamescopeExtensionId("");
+          setSteamExtensionStatus("not-installed");
+          setSteamImportStatus("extension-required");
+          setSteamImportMessage(
+            "Unable to load the GameScope Steam Connector configuration. Please try again later."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setExtensionConfigLoading(false);
+        }
+      }
+    };
+
+    void loadExtensionConfig();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Check whether the GameScope Chrome extension is installed.
   const checkSteamExtension = useCallback(() => {
+    if (extensionConfigLoading) {
+      return;
+    }
+
+    if (!gamescopeExtensionId) {
+      setSteamExtensionStatus("not-installed");
+      return;
+    }
+
     setSteamExtensionStatus("checking");
 
     const runtime = (window as Window & {
@@ -246,7 +315,7 @@ function Profile({
 
     try {
       runtime.sendMessage(
-        GAMESCOPE_EXTENSION_ID,
+        gamescopeExtensionId,
         { type: "GAMESCOPE_PING" },
         (response) => {
           if (
@@ -264,11 +333,14 @@ function Profile({
     } catch {
       setSteamExtensionStatus("not-installed");
     }
-  }, []);
+  }, [gamescopeExtensionId, extensionConfigLoading]);
 
+  // Check the extension after its configuration has loaded.
   useEffect(() => {
-    checkSteamExtension();
-  }, [checkSteamExtension]);
+    if (!extensionConfigLoading) {
+      checkSteamExtension();
+    }
+  }, [checkSteamExtension, extensionConfigLoading]);
 
   const loadSessions = async () => {
     setSessionsLoading(true);
@@ -379,7 +451,8 @@ function Profile({
       params.get("steam") === "linked" ||
       sessionStorage.getItem("gamescope-steam-link-return") === "true";
 
-    if (!steamWasJustLinked ||
+    if (
+      !steamWasJustLinked ||
       !isLoggedIn ||
       steamLoading ||
       !linkedSteamAccount
@@ -387,7 +460,19 @@ function Profile({
       return;
     }
 
-    if (steamExtensionStatus === "checking") {
+    // Wait until the backend extension configuration is available.
+    if (
+      extensionConfigLoading ||
+      steamExtensionStatus === "checking"
+    ) {
+      return;
+    }
+
+    if (!gamescopeExtensionId) {
+      setSteamImportStatus("extension-required");
+      setSteamImportMessage(
+        "Unable to load the GameScope Steam Connector configuration. Please try again later."
+      );
       return;
     }
 
@@ -439,7 +524,7 @@ function Profile({
     );
 
     runtime.sendMessage(
-      GAMESCOPE_EXTENSION_ID,
+      gamescopeExtensionId,
       { type: "GAMESCOPE_IMPORT_STEAM_LIBRARY" },
       (response) => {
         if (runtime.lastError) {
@@ -510,6 +595,8 @@ function Profile({
     linkedSteamAccount,
     steamExtensionStatus,
     steamImportRetry,
+    gamescopeExtensionId,
+    extensionConfigLoading,
   ]);
 
   // Retry a failed Steam library import.
@@ -1403,11 +1490,14 @@ function Profile({
             <div>
               <strong>GameScope Steam Connector</strong>
               <p className="profile-upload-hint">
-                {steamExtensionStatus === "checking"
+                {extensionConfigLoading ||
+                steamExtensionStatus === "checking"
                   ? "Checking whether the browser extension is installed..."
                   : steamExtensionStatus === "installed"
                     ? "Extension detected. Your Steam library can be imported through this connector."
-                    : "Extension not detected. Install the GameScope Steam Connector in Chrome to use browser-based Steam library importing."}
+                    : !gamescopeExtensionId
+                      ? "Unable to load the extension configuration from GameScope."
+                      : "Extension not detected. Install the GameScope Steam Connector in Chrome to use browser-based Steam library importing."}
               </p>
             </div>
 
@@ -1420,7 +1510,8 @@ function Profile({
                 }`}
                 role="status"
               >
-                {steamExtensionStatus === "checking"
+                {extensionConfigLoading ||
+                steamExtensionStatus === "checking"
                   ? "Checking"
                   : steamExtensionStatus === "installed"
                     ? "Extension detected"
@@ -1431,9 +1522,13 @@ function Profile({
                 type="button"
                 className="profile-refresh-button"
                 onClick={checkSteamExtension}
-                disabled={steamExtensionStatus === "checking"}
+                disabled={
+                  extensionConfigLoading ||
+                  steamExtensionStatus === "checking"
+                }
               >
-                {steamExtensionStatus === "checking"
+                {extensionConfigLoading ||
+                steamExtensionStatus === "checking"
                   ? "Checking..."
                   : "Check Again"}
               </button>

@@ -28,7 +28,21 @@ function withParams(path: string, ...params: string[]): string {
 // AUTHENTICATION TYPES
 // =========================================================
 
+/*
+ * AccountMode represents the modes users can select
+ * during registration.
+ *
+ * Admin is intentionally excluded.
+ */
 export type AccountMode = "player" | "developer";
+
+/*
+ * AccountRole represents roles returned by the backend.
+ *
+ * Admin accounts are assigned by GameScope administrators,
+ * not selected during registration.
+ */
+export type AccountRole = "player" | "developer" | "admin";
 
 export interface SignUpRequest {
   username: string;
@@ -46,7 +60,7 @@ export interface AuthUser {
   user_id: number;
   username: string;
   email: string;
-  roles: AccountMode[];
+  roles: AccountRole[];
 }
 
 export interface SignUpResponse {
@@ -107,6 +121,188 @@ export interface SteamAccount {
 export interface SteamAccountResponse {
   linked: boolean;
   steam_account: SteamAccount | null;
+}
+
+
+// =========================================================
+// ORGANIZATION TYPES
+// =========================================================
+
+export interface AdminOrganization {
+  organization_id: number;
+  organization_name: string;
+  created_by_user_id: number;
+  created_at: string;
+  verified_members: number;
+  verified_game_relationships: number;
+}
+
+export interface AdminOrganizationsResponse {
+  organizations: AdminOrganization[];
+  count: number;
+}
+
+export function getAdminOrganizations(): Promise<AdminOrganizationsResponse> {
+  return request<AdminOrganizationsResponse>(
+    "/api/admin/organizations"
+  );
+}
+
+export interface AdminOrganizationMember {
+  organization_id: number;
+  user_id: number;
+  username: string;
+  email: string;
+  organization_email: string | null;
+  membership_role: "admin" | "member";
+  affiliation_status: "pending" | "verified" | "rejected";
+  requested_at: string;
+  reviewed_at: string | null;
+  reviewed_by_user_id: number | null;
+}
+
+export interface AdminOrganizationMembersResponse {
+  organization_id: number;
+  members: AdminOrganizationMember[];
+  count: number;
+}
+
+export function getAdminOrganizationMembers(
+  organizationId: number
+): Promise<AdminOrganizationMembersResponse> {
+  return request<AdminOrganizationMembersResponse>(
+    `/api/admin/organizations/${organizationId}/members`
+  );
+}
+export type OrganizationGameRelationship =
+  | "developed"
+  | "published"
+  | "owned";
+
+export type OrganizationGameStatus =
+  | "pending"
+  | "verified"
+  | "rejected";
+
+export interface AdminOrganizationGame {
+  organization_id: number;
+  game_id: number;
+  app_id: number;
+  game_name: string;
+  relationship: OrganizationGameRelationship;
+  relationship_status: OrganizationGameStatus;
+  added_by_user_id: number;
+  submitted_by: string | null;
+  added_at: string;
+  reviewed_by_user_id: number | null;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+}
+
+export interface AdminOrganizationGamesResponse {
+  organization_id: number;
+  games: AdminOrganizationGame[];
+  count: number;
+}
+
+export function getAdminOrganizationGames(
+  organizationId: number
+): Promise<AdminOrganizationGamesResponse> {
+  return request<AdminOrganizationGamesResponse>(
+    `/api/admin/organizations/${organizationId}/games`
+  );
+}
+
+export interface AdminOrganizationCreateRequest {
+  organization_name: string;
+}
+
+export interface AdminOrganizationCreateResponse {
+  message: string;
+  organization_id: number;
+  organization_name: string;
+}
+
+
+export interface AdminOrganizationRequest {
+  organization_id: number;
+  organization_name: string;
+  user_id: number;
+  username: string;
+  account_email: string;
+  organization_email: string;
+  requested_at: string;
+}
+
+export interface AdminOrganizationRequestsResponse {
+  requests: AdminOrganizationRequest[];
+  count: number;
+}
+
+export interface AdminOrganizationGameSubmission {
+  organization_id: number;
+  organization_name: string;
+  game_id: number;
+  app_id: number;
+  game_name: string;
+  relationship: OrganizationGameRelationship;
+  relationship_status: OrganizationGameStatus;
+  added_by_user_id: number;
+  submitted_by: string | null;
+  submitter_email: string | null;
+  added_at: string;
+}
+
+export interface AdminOrganizationGameSubmissionsResponse {
+  submissions: AdminOrganizationGameSubmission[];
+  count: number;
+}
+
+export type OrganizationMembershipDecision = "verified" | "rejected";
+
+export interface AdminOrganizationMembershipReviewRequest {
+  organization_id: number;
+  user_id: number;
+  decision: OrganizationMembershipDecision;
+}
+
+export interface AdminOrganizationMembershipReviewResponse {
+  message: string;
+  organization_id: number;
+  user_id: number;
+  status: OrganizationMembershipDecision;
+}
+
+
+export interface AdminOrganizationGameReviewRequest {
+  organization_id: number;
+  game_id: number;
+  relationship: OrganizationGameRelationship;
+  decision: OrganizationGameDecision;
+}
+
+export type OrganizationGameDecision = "verified" | "rejected";
+
+export interface AdminOrganizationGameReviewResponse {
+  message: string;
+  organization_id: number;
+  game_id: number;
+  relationship: OrganizationGameRelationship;
+  status: OrganizationGameDecision;
+}
+
+
+export interface AdminOrganizationMembershipRemovalResponse {
+  message: string;
+  organization_id: number;
+  user_id: number;
+}
+
+export interface AdminOrganizationGameRemovalResponse {
+  message: string;
+  organization_id: number;
+  game_id: number;
+  relationship: OrganizationGameRelationship;
 }
 
 // =========================================================
@@ -452,7 +648,7 @@ async function request<T>(
  * Register a new GameScope account.
  *
  * Every account receives the player role.
- * Developer accounts additionally receive the developer role.
+ * Developer access is granted through verified organization membership.
  */
 export function signUp(data: SignUpRequest) {
   return request<SignUpResponse>("/api/auth/signup", {
@@ -587,7 +783,6 @@ export function unlinkSteamAccount() {
 // STEAM LIBRARY API
 // =========================================================
 
-
 /*
  * Retrieve the owned games using the original Steam Web API.
  *
@@ -639,7 +834,6 @@ export function importSteamLibrary(
     }
   );
 }
-
 
 // =========================================================
 // STEAM GAME API
@@ -863,5 +1057,123 @@ export function getPatchImpact(
       daysParam()
     ),
     { signal }
+  );
+}
+
+
+// =========================================================
+// ORGANIZATION API
+// =========================================================
+
+export function createAdminOrganization(
+  organizationName: string
+): Promise<AdminOrganizationCreateResponse> {
+  return request<AdminOrganizationCreateResponse>(
+    "/api/admin/organizations",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        organization_name: organizationName,
+      }),
+    }
+  );
+}
+
+export function getAdminOrganizationRequests(): Promise<AdminOrganizationRequestsResponse> {
+  return request<AdminOrganizationRequestsResponse>(
+    "/api/admin/organization-requests"
+  );
+}
+
+export function getAdminOrganizationGameSubmissions(): Promise<AdminOrganizationGameSubmissionsResponse> {
+  return request<AdminOrganizationGameSubmissionsResponse>(
+    "/api/admin/organization-games"
+  );
+}
+
+export function reviewAdminOrganizationMembership(
+  organizationId: number,
+  userId: number,
+  decision: OrganizationMembershipDecision
+): Promise<AdminOrganizationMembershipReviewResponse> {
+  return request<AdminOrganizationMembershipReviewResponse>(
+    "/api/admin/organizations/membership",
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        organization_id: organizationId,
+        user_id: userId,
+        decision,
+      }),
+    }
+  );
+}
+
+export function reviewAdminOrganizationGame(
+  organizationId: number,
+  gameId: number,
+  relationship: OrganizationGameRelationship,
+  decision: OrganizationGameDecision
+): Promise<AdminOrganizationGameReviewResponse> {
+  return request<AdminOrganizationGameReviewResponse>(
+    "/api/admin/organization-games",
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        organization_id: organizationId,
+        game_id: gameId,
+        relationship,
+        decision,
+      }),
+    }
+  );
+}
+
+export function removeAdminOrganizationMembership(
+  organizationId: number,
+  userId: number
+): Promise<AdminOrganizationMembershipRemovalResponse> {
+  return request<AdminOrganizationMembershipRemovalResponse>(
+    "/api/admin/organizations/membership",
+    {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        organization_id: organizationId,
+        user_id: userId,
+      }),
+    }
+  );
+}
+
+export function removeAdminOrganizationGame(
+  organizationId: number,
+  gameId: number,
+  relationship: OrganizationGameRelationship
+): Promise<AdminOrganizationGameRemovalResponse> {
+  return request<AdminOrganizationGameRemovalResponse>(
+    "/api/admin/organizations/games",
+    {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        organization_id: organizationId,
+        game_id: gameId,
+        relationship,
+      }),
+    }
   );
 }

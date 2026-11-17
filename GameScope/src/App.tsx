@@ -16,6 +16,7 @@ import SignUp from "./components/SignUp";
 import ForgotPassword from "./components/ForgotPassword";
 import ResetPassword from "./components/ResetPassword";
 import Profile from "./components/Profile";
+import AdminOrganizations from "./components/AdminOrganizations";
 
 import {
   analyzeGame,
@@ -134,7 +135,6 @@ function App() {
   const [accentColor, setAccentColor] =
     useState<AccentColor>(getSavedAccentColor);
 
- 
   // ------------------------------------------
   // AUTHENTICATION / SERVER SESSION
   // ------------------------------------------
@@ -202,24 +202,17 @@ function App() {
 
   const isLoggedIn = account !== null;
 
-  const isPlayer =
-    account?.roles.includes("player") ?? false;
+  const isPlayer = account?.roles.includes("player") ?? false;
 
   const isDeveloper =
     account?.roles.includes("developer") ?? false;
+
+  const isAdmin = account?.roles.includes("admin") ?? false;
 
   // ------------------------------------------
   // STEAM CALLBACK NAVIGATION
   // ------------------------------------------
 
-  /*
-   * Steam redirects to /?steam=linked after a successful
-   * OpenID connection.
-   *
-   * Wait for the GameScope session to be restored before
-   * navigating to Profile. Profile then handles the extension
-   * detection and automatic library import.
-   */
   useEffect(() => {
     if (!steamWasLinked || authLoading) {
       return;
@@ -255,10 +248,6 @@ function App() {
   const [steamConnected, setSteamConnected] =
     useState(false);
 
-  /*
-   * The backend is the source of truth for Steam linking.
-   * Do not use localStorage to simulate a Steam connection.
-   */
   useEffect(() => {
     if (!account?.email || !isPlayer) {
       setSteamConnected(false);
@@ -295,20 +284,12 @@ function App() {
     };
   }, [account?.email, isPlayer]);
 
-  /*
-   * Starting the connection redirects the browser to Steam.
-   * The backend verifies the OpenID response and stores the link.
-   */
   const handleSteamConnect = () => {
     if (!account?.email || !isPlayer) return;
 
     startSteamLink();
   };
 
-  /*
-   * Profile calls this after the backend successfully disconnects
-   * the Steam account.
-   */
   const handleSteamDisconnect = () => {
     setSteamConnected(false);
   };
@@ -840,7 +821,8 @@ function App() {
       currentPage !== "signup" &&
       currentPage !== "forgot-password" &&
       currentPage !== "reset-password" &&
-      currentPage !== "profile" ? (
+      currentPage !== "profile" &&
+      currentPage !== "admin-organizations" ? (
         <Intro
           darkMode={darkMode}
           setDarkMode={setDarkMode}
@@ -1026,6 +1008,13 @@ function App() {
                 analysis={developerAnalysis}
                 onOpenGame={openDeveloperGame}
               />
+            )}
+
+          {/* ADMIN: ORGANIZATION MANAGEMENT */}
+          {currentPage === "admin-organizations" &&
+            isLoggedIn &&
+            isAdmin && (
+              <AdminOrganizations {...sharedProps} />
             )}
 
           {/* PROFILE */}

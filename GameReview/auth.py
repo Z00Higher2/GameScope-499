@@ -52,6 +52,48 @@ def hash_password_reset_token(token):
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
+
+def get_effective_roles(cursor, user_id):
+    """
+    Return the user's effective permissions.
+
+    Player and admin roles come from user_roles.
+    Developer access requires at least one verified
+    organization membership.
+    """
+
+    cursor.execute(
+        """
+        SELECT role
+        FROM user_roles
+        WHERE user_id = %s
+            AND role IN ('player', 'admin')
+        """,
+        (user_id,),
+    )
+
+    roles = [row["role"] for row in cursor.fetchall()]
+
+    cursor.execute(
+        """
+        SELECT EXISTS (
+            SELECT 1
+            FROM organization_memberships
+            WHERE user_id = %s
+                AND affiliation_status = 'verified'
+        ) AS is_verified_developer
+        """,
+        (user_id,),
+    )
+
+    membership = cursor.fetchone()
+
+    if membership["is_verified_developer"]:
+        roles.append("developer")
+
+    return roles
+
+
 # ============================================================
 # REGISTRATION
 # ============================================================
@@ -119,9 +161,6 @@ def register_user(username, email, password, selected_mode):
         user_id = cursor.lastrowid
 
         roles = ["player"]
-
-        if selected_mode == "developer":
-            roles.append("developer")
 
         for role in roles:
             cursor.execute(
@@ -219,16 +258,10 @@ def login_user(email, password):
         if not password_valid:
             raise ValueError("Invalid email or password.")
 
-        cursor.execute(
-            """
-            SELECT role
-            FROM user_roles
-            WHERE user_id = %s
-            """,
-            (user["user_id"],),
-        )
-
-        roles = [row["role"] for row in cursor.fetchall()]
+        roles = get_effective_roles(
+                cursor,
+                user["user_id"],
+    )
 
         return {
             "user_id": user["user_id"],
@@ -372,16 +405,10 @@ def validate_session(token):
             (session["session_id"],),
         )
 
-        cursor.execute(
-            """
-            SELECT role
-            FROM user_roles
-            WHERE user_id = %s
-            """,
-            (session["user_id"],),
-        )
-
-        roles = [row["role"] for row in cursor.fetchall()]
+        roles = get_effective_roles(
+                    cursor,
+                    session["user_id"],
+                )
 
         connection.commit()
 
