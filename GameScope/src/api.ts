@@ -44,12 +44,16 @@ export type AccountMode = "player" | "developer";
  */
 export type AccountRole = "player" | "developer" | "admin";
 
+
 export interface SignUpRequest {
   username: string;
   email: string;
   password: string;
   mode: AccountMode;
+  organization_name?: string;
+  organization_email?: string;
 }
+
 
 export interface LoginRequest {
   email: string;

@@ -25,6 +25,7 @@ interface IssuesProps {
   accountEmail?: string;
   onLogout?: () => void;
   onOpenGame: (appId: string) => Promise<void>;
+  isAdmin?: boolean;
 }
 
 type Issue = IssuesReport["issues"][number];
@@ -76,6 +77,7 @@ function Issues({
   accountEmail = "",
   onLogout,
   onOpenGame,
+  isAdmin = false,
 }: IssuesProps) {
   const hasGame = analyzed && analyzedAppId !== "";
 
@@ -297,6 +299,7 @@ function Issues({
         isLoggedIn={isLoggedIn}
         accountEmail={accountEmail}
         onLogout={onLogout}
+        isAdmin={isAdmin}
       />
 
       <main className="issues-main">

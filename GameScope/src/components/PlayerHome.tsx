@@ -30,6 +30,7 @@ interface PlayerHomeProps {
   accountEmail: string;
   onLogout: () => void;
   steamConnected: boolean;
+  isAdmin?: boolean;
 }
 
 // ==================================================
@@ -454,6 +455,7 @@ function PlayerHome({
   steamConnected = false,
   accountEmail = "",
   onLogout,
+  isAdmin = false,
 }: PlayerHomeProps) {
   const revealRef = useScrollReveal();
 
@@ -727,6 +729,7 @@ function PlayerHome({
           steamConnected={steamConnected}
           accountEmail={accountEmail}
           onLogout={onLogout}
+          isAdmin={isAdmin}
         />
 
       <ReviewHero

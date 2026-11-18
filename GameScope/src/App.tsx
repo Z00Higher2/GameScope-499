@@ -29,7 +29,7 @@ import {
 
 import type {
   GameAnalysis,
-  AccountMode,
+  AccountRole,
 } from "./api";
 
 import { loadPreferences } from "./preferences";
@@ -56,7 +56,7 @@ interface DemoAccount {
   email: string;
   username: string;
   userId: number;
-  roles: AccountMode[];
+  roles: AccountRole[];
 }
 
 interface RecentActivity {
@@ -182,7 +182,10 @@ function App() {
     };
   }, []);
 
-  // Handle returning from Steam account linking.
+  // ------------------------------------------
+  // STEAM CALLBACK RETURN
+  // ------------------------------------------
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
 
@@ -200,20 +203,25 @@ function App() {
     window.history.replaceState({}, "", "/");
   }, [account, authLoading]);
 
+  // ------------------------------------------
+  // ACCOUNT ROLES
+  // ------------------------------------------
+
   const isLoggedIn = account !== null;
 
-  const isPlayer = account?.roles.includes("player") ?? false;
+  const isPlayer =
+    account?.roles.includes("player") ?? false;
 
   const isDeveloper =
     account?.roles.includes("developer") ?? false;
 
-<<<<<<< HEAD
-  const isAdmin = account?.roles.includes("admin") ?? false;
-=======
-  // Guests can browse either side; a logged-in account keeps to its roles
+  const isAdmin =
+    account?.roles.includes("admin") ?? false;
+
+  // Guests can browse either side; logged-in accounts
+  // can only access features allowed by their roles.
   const canUsePlayer = !isLoggedIn || isPlayer;
   const canUseDeveloper = !isLoggedIn || isDeveloper;
->>>>>>> 2f78cbece99b91b2c6ba859aaf846fe67479f800
 
   // ------------------------------------------
   // STEAM CALLBACK NAVIGATION
@@ -404,11 +412,11 @@ function App() {
   const [loginFromIntro, setLoginFromIntro] =
     useState(false);
 
-  // Role picked on the Sign In card, so Forgot Password keeps its color
+  // Role picked on the Sign In card, so Forgot Password keeps its color.
   const [recoveryMode, setRecoveryMode] =
     useState<Mode>("player");
 
-  // Account-only pages send guests to Login instead of a blank page
+  // Account-only pages send guests to Login instead of a blank page.
   useEffect(() => {
     if (
       !authLoading &&
@@ -418,6 +426,17 @@ function App() {
       setCurrentPage("login");
     }
   }, [authLoading, isLoggedIn, currentPage]);
+
+  // Admin-only pages send unauthorized accounts away.
+  useEffect(() => {
+    if (
+      !authLoading &&
+      currentPage === "admin-organizations" &&
+      !isAdmin
+    ) {
+      setCurrentPage(isLoggedIn ? "player" : "login");
+    }
+  }, [authLoading, currentPage, isAdmin, isLoggedIn]);
 
   // ------------------------------------------
   // DEVELOPER ANALYSIS STATE
@@ -799,6 +818,7 @@ function App() {
     steamConnected,
     onSteamConnect: handleSteamConnect,
     onSteamDisconnect: handleSteamDisconnect,
+    isAdmin,
   };
 
   const accentValues = ACCENT_VALUES[accentColor];
@@ -1033,7 +1053,11 @@ function App() {
           {currentPage === "admin-organizations" &&
             isLoggedIn &&
             isAdmin && (
-              <AdminOrganizations {...sharedProps} />
+              <AdminOrganizations
+                {...sharedProps}
+                accentColor={accentColor}
+                setAccentColor={setAccentColor}
+              />
             )}
 
           {/* PROFILE */}
@@ -1049,12 +1073,12 @@ function App() {
 
           {/* SETTINGS */}
           {currentPage === "settings" && (
-              <Settings
-                {...sharedProps}
-                accentColor={accentColor}
-                setAccentColor={setAccentColor}
-              />
-            )}
+            <Settings
+              {...sharedProps}
+              accentColor={accentColor}
+              setAccentColor={setAccentColor}
+            />
+          )}
         </>
       )}
     </div>

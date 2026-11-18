@@ -1,0 +1,869 @@
+
+/* =========================================================
+   GAMESCOPE — ADMIN ORGANIZATIONS
+   Refined terminal-inspired management dashboard.
+========================================================= */
+
+.admin-organizations-page {
+  --t-accent: #afa9ec;
+  --t-ink: #26215c;
+  --t-dim: rgba(175, 169, 236, 0.65);
+  --t-faint: rgba(175, 169, 236, 0.08);
+  --t-glow: rgba(175, 169, 236, 0.16);
+  --t-bg: #0d0c13;
+  --t-panel: rgba(175, 169, 236, 0.035);
+  --t-border: rgba(175, 169, 236, 0.18);
+  --t-mono: "Share Tech Mono", Consolas, monospace;
+
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 12% 8%, var(--t-glow), transparent 35%),
+    radial-gradient(ellipse at 90% 85%, rgba(112, 101, 238, 0.07), transparent 35%),
+    var(--t-bg);
+  color: var(--t-accent);
+  font-family: var(--t-mono);
+  transition: background 0.25s ease, color 0.25s ease;
+}
+
+/* Accent colors */
+
+.admin-organizations-accent-purple {
+  --t-accent: #afa9ec;
+  --t-ink: #26215c;
+  --t-dim: rgba(175, 169, 236, 0.65);
+  --t-faint: rgba(175, 169, 236, 0.08);
+  --t-glow: rgba(175, 169, 236, 0.16);
+  --t-border: rgba(175, 169, 236, 0.2);
+}
+
+.admin-organizations-accent-blue {
+  --t-accent: #70a5ff;
+  --t-ink: #172e5c;
+  --t-dim: rgba(112, 165, 255, 0.65);
+  --t-faint: rgba(112, 165, 255, 0.08);
+  --t-glow: rgba(112, 165, 255, 0.16);
+  --t-border: rgba(112, 165, 255, 0.2);
+}
+
+.admin-organizations-accent-green {
+  --t-accent: #5dcaa5;
+  --t-ink: #04342c;
+  --t-dim: rgba(93, 202, 165, 0.65);
+  --t-faint: rgba(93, 202, 165, 0.08);
+  --t-glow: rgba(93, 202, 165, 0.16);
+  --t-border: rgba(93, 202, 165, 0.2);
+}
+
+/* Theme variants */
+
+.admin-organizations-dark {
+  --t-bg: #0d0c13;
+  --t-panel: rgba(255, 255, 255, 0.028);
+}
+
+.admin-organizations-light {
+  --t-bg: #f3f2f9;
+  --t-panel: rgba(255, 255, 255, 0.8);
+  --t-accent: #51478f;
+  --t-ink: #ffffff;
+  --t-dim: rgba(81, 71, 143, 0.68);
+  --t-faint: rgba(81, 71, 143, 0.06);
+  --t-glow: rgba(81, 71, 143, 0.1);
+  --t-border: rgba(81, 71, 143, 0.17);
+}
+
+.admin-organizations-light.admin-organizations-accent-blue {
+  --t-accent: #2865b8;
+  --t-dim: rgba(40, 101, 184, 0.68);
+  --t-faint: rgba(40, 101, 184, 0.06);
+  --t-glow: rgba(40, 101, 184, 0.1);
+  --t-border: rgba(40, 101, 184, 0.17);
+}
+
+.admin-organizations-light.admin-organizations-accent-green {
+  --t-accent: #167c5b;
+  --t-dim: rgba(22, 124, 91, 0.68);
+  --t-faint: rgba(22, 124, 91, 0.06);
+  --t-glow: rgba(22, 124, 91, 0.1);
+  --t-border: rgba(22, 124, 91, 0.17);
+}
+
+/* Screen texture */
+
+.admin-organizations-page::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--t-border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--t-border) 1px, transparent 1px);
+  background-size: 54px 54px;
+  opacity: 0.07;
+  content: "";
+  pointer-events: none;
+}
+
+.admin-organizations-page::after {
+  position: fixed;
+  z-index: 1;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.012) 0 1px,
+    transparent 1px 4px
+  );
+  content: "";
+  pointer-events: none;
+}
+
+/* Main layout */
+
+.admin-organizations-main {
+  position: relative;
+  z-index: 2;
+  box-sizing: border-box;
+  width: min(1440px, 100%);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 126px 56px 70px;
+}
+
+.admin-organizations-main *,
+.admin-organizations-main *::before,
+.admin-organizations-main *::after {
+  box-sizing: border-box;
+}
+
+/* Header */
+
+.admin-organizations-header {
+  margin-bottom: 52px;
+  animation: admin-org-enter 0.5s ease both;
+}
+
+.admin-organizations-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 16px;
+  color: var(--t-dim);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.admin-organizations-eyebrow span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--t-accent);
+  box-shadow: 0 0 12px var(--t-glow);
+  animation: admin-org-pulse 2s ease-in-out infinite;
+}
+
+.admin-organizations-header h1 {
+  margin: 0;
+  color: var(--t-accent);
+  font-size: clamp(36px, 5vw, 62px);
+  font-weight: 400;
+  letter-spacing: 2px;
+  line-height: 1.12;
+  text-shadow: 0 0 22px var(--t-glow);
+  overflow-wrap: anywhere;
+}
+
+.admin-organizations-header h1 span {
+  color: var(--t-dim);
+}
+
+.admin-organizations-header p {
+  max-width: 680px;
+  margin: 18px 0 0;
+  color: var(--t-dim);
+  font-size: 14px;
+  line-height: 1.9;
+}
+
+/* Sections */
+
+.admin-organizations-section {
+  animation: admin-org-enter 0.55s ease both;
+  animation-delay: 0.08s;
+}
+
+.admin-organizations-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--t-border);
+}
+
+.admin-organizations-section-heading h2 {
+  margin: 0;
+  color: var(--t-accent);
+  font-size: 17px;
+  font-weight: 400;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+}
+
+.admin-organizations-section-heading p {
+  margin: 9px 0 0;
+  color: var(--t-dim);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+/* Count indicator */
+
+.admin-organizations-count {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--t-border);
+  border-radius: 5px;
+  background: var(--t-faint);
+  color: var(--t-accent);
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  white-space: nowrap;
+}
+
+/* Organization grid */
+
+.admin-organizations-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+/* Organization cards */
+
+.admin-organization-card {
+  position: relative;
+  min-width: 0;
+  padding: 25px;
+  overflow: hidden;
+  border: 1px solid var(--t-border);
+  border-radius: 9px;
+  background: var(--t-panel);
+  backdrop-filter: blur(12px);
+  transition:
+    border-color 0.25s ease,
+    background 0.25s ease,
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+.admin-organization-card::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: var(--t-accent);
+  opacity: 0.65;
+  content: "";
+}
+
+.admin-organization-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--t-accent);
+  background: var(--t-faint);
+  box-shadow: 0 12px 32px var(--t-glow);
+}
+
+.admin-organization-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 23px;
+}
+
+.admin-organization-icon {
+  display: flex;
+  flex: 0 0 46px;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border: 1px solid var(--t-border);
+  border-radius: 9px;
+  background: var(--t-faint);
+  color: var(--t-accent);
+  font-size: 21px;
+  font-weight: 700;
+  text-shadow: 0 0 12px var(--t-glow);
+}
+
+.admin-organization-id {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid var(--t-border);
+  border-radius: 5px;
+  background: var(--t-faint);
+  color: var(--t-dim);
+  font-size: 10px;
+  letter-spacing: 1px;
+}
+
+.admin-organization-card h3 {
+  margin: 0 0 23px;
+  color: var(--t-accent);
+  font-size: clamp(19px, 2vw, 23px);
+  font-weight: 400;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  text-shadow: 0 0 10px var(--t-glow);
+}
+
+/* Organization statistics */
+
+.admin-organization-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.admin-organization-stats > div {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--t-border);
+  border-radius: 7px;
+  background: var(--t-faint);
+  transition: background 0.2s ease;
+}
+
+.admin-organization-stats > div:hover {
+  background: var(--t-glow);
+}
+
+.admin-organization-stats strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--t-accent);
+  font-size: 29px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-organization-stats span {
+  display: block;
+  color: var(--t-dim);
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  line-height: 1.6;
+  text-transform: uppercase;
+}
+
+/* Card footer */
+
+.admin-organization-card-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--t-border);
+  color: var(--t-dim);
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+/* =========================================================
+   PENDING MEMBERSHIP REQUESTS
+========================================================= */
+
+.admin-membership-requests {
+  display: grid;
+  gap: 15px;
+  margin-top: 22px;
+}
+
+/* Individual request */
+
+.admin-membership-request {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 26px;
+  min-width: 0;
+  padding: 23px 25px;
+  overflow: hidden;
+  border: 1px solid var(--t-border);
+  border-radius: 9px;
+  background: var(--t-panel);
+  backdrop-filter: blur(12px);
+  transition:
+    border-color 0.25s ease,
+    background 0.25s ease,
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+.admin-membership-request::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: #e6b65c;
+  box-shadow: 0 0 12px rgba(230, 182, 92, 0.2);
+  content: "";
+}
+
+.admin-membership-request:hover {
+  transform: translateY(-3px);
+  border-color: rgba(230, 182, 92, 0.55);
+  background: rgba(230, 182, 92, 0.045);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.15);
+}
+
+/* Request information */
+
+.admin-membership-request-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-membership-request-info h3 {
+  margin: 0 0 12px;
+  color: var(--t-accent);
+  font-size: 17px;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.admin-membership-request-info p {
+  margin: 6px 0;
+  color: var(--t-dim);
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.admin-membership-request-info strong {
+  color: var(--t-accent);
+  font-weight: 400;
+}
+
+/* Request status */
+
+.admin-membership-request-info > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 13px;
+  padding: 6px 10px;
+  border: 1px solid rgba(230, 182, 92, 0.25);
+  border-radius: 5px;
+  background: rgba(230, 182, 92, 0.08);
+  color: #e6b65c;
+  font-size: 10px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.admin-membership-request-info > span::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+  content: "";
+}
+
+/* Request action buttons */
+
+.admin-membership-request-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.admin-membership-request-actions button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 112px;
+  min-height: 40px;
+  padding: 10px 16px;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.admin-membership-request-actions button:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.admin-membership-request-actions button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.admin-membership-request-actions button:focus-visible {
+  outline: 2px solid var(--t-accent);
+  outline-offset: 4px;
+}
+
+.admin-membership-request-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Approve */
+
+.admin-membership-approve {
+  border-color: rgba(55, 190, 137, 0.4) !important;
+  background: rgba(55, 190, 137, 0.12);
+  color: #5dcaa5;
+}
+
+.admin-membership-approve:hover:not(:disabled) {
+  border-color: #5dcaa5 !important;
+  background: #20a878;
+  color: #ffffff;
+  box-shadow: 0 5px 18px rgba(32, 168, 120, 0.22);
+}
+
+/* Reject */
+
+.admin-membership-reject {
+  border-color: rgba(224, 82, 100, 0.35) !important;
+  background: rgba(224, 82, 100, 0.07);
+  color: #e77c8a;
+}
+
+.admin-membership-reject:hover:not(:disabled) {
+  border-color: #e77c8a !important;
+  background: rgba(224, 82, 100, 0.17);
+  color: #ff9aa6;
+  box-shadow: 0 5px 18px rgba(224, 82, 100, 0.12);
+}
+
+/* Light theme request cards */
+
+.admin-organizations-light .admin-membership-request {
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 5px 20px rgba(50, 40, 100, 0.035);
+}
+
+.admin-organizations-light .admin-membership-request:hover {
+  background: #ffffff;
+  box-shadow: 0 10px 28px rgba(50, 40, 100, 0.09);
+}
+
+.admin-organizations-light .admin-membership-request-info h3,
+.admin-organizations-light .admin-membership-request-info strong {
+  color: var(--t-accent);
+}
+
+/* =========================================================
+   LOADING / EMPTY / ERROR STATES
+========================================================= */
+
+.admin-organizations-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 13px;
+  min-height: 230px;
+  padding: 40px 24px;
+  border: 1px dashed var(--t-border);
+  border-radius: 9px;
+  background: var(--t-panel);
+  color: var(--t-dim);
+  font-size: 13px;
+  line-height: 1.8;
+  text-align: center;
+}
+
+.admin-organizations-state strong {
+  color: var(--t-accent);
+  font-size: 17px;
+  font-weight: 400;
+}
+
+.admin-organizations-state p {
+  max-width: 420px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.admin-organizations-loader {
+  width: 30px;
+  height: 30px;
+  border: 2px solid var(--t-border);
+  border-top-color: var(--t-accent);
+  border-radius: 50%;
+  animation: admin-org-spin 0.8s linear infinite;
+}
+
+.admin-organizations-empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  margin-bottom: 3px;
+  border: 1px solid var(--t-border);
+  border-radius: 12px;
+  background: var(--t-faint);
+  color: var(--t-accent);
+}
+
+.admin-organizations-empty-icon svg {
+  width: 29px;
+  height: 29px;
+}
+
+.admin-organizations-error {
+  padding: 20px 22px;
+  border: 1px solid rgba(235, 105, 120, 0.4);
+  border-radius: 7px;
+  background: rgba(235, 105, 120, 0.07);
+  color: #e78b9a;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.admin-organizations-error strong {
+  display: block;
+  margin-bottom: 5px;
+}
+
+.admin-organizations-error p {
+  margin: 0;
+}
+
+/* =========================================================
+   ANIMATIONS
+========================================================= */
+
+@keyframes admin-org-enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes admin-org-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes admin-org-pulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 12px var(--t-glow);
+  }
+
+  50% {
+    opacity: 0.55;
+    box-shadow: 0 0 4px var(--t-glow);
+  }
+}
+
+/* =========================================================
+   RESPONSIVE DESIGN
+========================================================= */
+
+@media (max-width: 1000px) {
+  .admin-organizations-main {
+    padding-right: 32px;
+    padding-left: 32px;
+  }
+
+  .admin-organizations-grid {
+    gap: 15px;
+  }
+
+  .admin-organization-card {
+    padding: 20px;
+  }
+
+  .admin-membership-request {
+    gap: 18px;
+    padding: 20px;
+  }
+
+  .admin-membership-request-actions button {
+    min-width: 96px;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-organizations-main {
+    padding-top: 100px;
+  }
+
+  .admin-organizations-header h1 {
+    font-size: clamp(32px, 6vw, 46px);
+  }
+
+  .admin-organizations-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-membership-request {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-membership-request-actions {
+    width: 100%;
+  }
+
+  .admin-membership-request-actions button {
+    flex: 1;
+  }
+}
+
+@media (max-width: 600px) {
+  .admin-organizations-main {
+    padding: 94px 16px 36px;
+  }
+
+  .admin-organizations-header {
+    margin-bottom: 38px;
+  }
+
+  .admin-organizations-header h1 {
+    font-size: 34px;
+    letter-spacing: 1px;
+  }
+
+  .admin-organizations-header p {
+    font-size: 12px;
+  }
+
+  .admin-organizations-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 13px;
+  }
+
+  .admin-organizations-section-heading h2 {
+    font-size: 15px;
+  }
+
+  .admin-organization-card {
+    padding: 18px;
+  }
+
+  .admin-organization-stats {
+    gap: 8px;
+  }
+
+  .admin-organization-stats > div {
+    padding: 11px;
+  }
+
+  .admin-organization-stats strong {
+    font-size: 24px;
+  }
+
+  .admin-organization-stats span {
+    font-size: 9px;
+  }
+
+  .admin-organization-card-footer {
+    font-size: 9px;
+  }
+
+  .admin-membership-request {
+    padding: 18px;
+  }
+
+  .admin-membership-request-info h3 {
+    font-size: 15px;
+  }
+
+  .admin-membership-request-info p {
+    font-size: 11px;
+  }
+
+  .admin-membership-request-actions {
+    gap: 8px;
+  }
+
+  .admin-membership-request-actions button {
+    min-width: 0;
+    min-height: 42px;
+    padding: 10px 8px;
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 380px) {
+  .admin-membership-request-actions {
+    flex-direction: column;
+  }
+
+  .admin-membership-request-actions button {
+    width: 100%;
+  }
+
+  .admin-organization-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Accessibility */
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-organizations-page *,
+  .admin-organizations-page *::before,
+  .admin-organizations-page *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+
+/* Separate membership requests from the next section */
+.admin-membership-requests {
+  margin-bottom: 55px;
+}
+
+@media (max-width: 600px) {
+  .admin-membership-requests {
+    margin-bottom: 38px;
+  }
+}

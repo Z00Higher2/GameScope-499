@@ -574,7 +574,10 @@ SELECT * FROM organizations;
 SELECT * FROM organization_memberships;
 SELECT * FROM organization_games;
 
-
+SHOW CREATE TABLE users;
+SHOW CREATE TABLE organizations;
+SHOW CREATE TABLE organization_memberships;
+SHOW CREATE TABLE user_roles;
 
 
 

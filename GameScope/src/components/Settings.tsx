@@ -99,6 +99,7 @@ interface SettingsProps {
   steamConnected: boolean;
   onSteamConnect: () => void;
   onSteamDisconnect: () => void;
+  isAdmin?: boolean;
 }
 
 function Settings({
@@ -114,6 +115,7 @@ function Settings({
   isLoggedIn = false,
   accountEmail = "",
   onLogout,
+  isAdmin = false,
 }: SettingsProps) {
   const [preferences, setPreferences] =
     useState<Preferences>(loadPreferences);
@@ -853,6 +855,7 @@ function Settings({
         isLoggedIn={isLoggedIn}
         accountEmail={accountEmail}
         onLogout={onLogout}
+        isAdmin={isAdmin}
       />
 
       <main className="term-main">

@@ -431,6 +431,19 @@ class SignUpRequest(BaseModel):
     email: str
     password: str
     mode: Literal["player", "developer"]
+
+    organization_name: str | None = Field(
+        default=None,
+        min_length=2,
+        max_length=255,
+    )
+
+    organization_email: str | None = Field(
+        default=None,
+        min_length=5,
+        max_length=255,
+    )
+
 class LoginRequest(BaseModel):
     email: str
     password: str
@@ -1600,11 +1613,13 @@ def request_organization_membership(
 def signup(request: SignUpRequest):
     try:
         account = auth.register_user(
-            username=request.username,
-            email=request.email,
-            password=request.password,
-            selected_mode=request.mode,
-        )
+        username=request.username,
+        email=request.email,
+        password=request.password,
+        selected_mode=request.mode,
+        organization_name=request.organization_name,
+        organization_email=request.organization_email,
+    )
         return {
             "message": "Account created successfully.",
             "user": account,
@@ -1616,6 +1631,7 @@ def signup(request: SignUpRequest):
         ) from error
     except MySQLError as error:
         raise database_error(error) from error
+    
 @app.post("/api/auth/login")
 def login(request: LoginRequest, response: Response):
     try:
@@ -1645,6 +1661,7 @@ def login(request: LoginRequest, response: Response):
         )
     except MySQLError as error:
         raise database_error(error) from error
+    
 @app.get("/api/auth/me")
 def current_user(request: Request):
     token = request.cookies.get(SESSION_COOKIE_NAME)

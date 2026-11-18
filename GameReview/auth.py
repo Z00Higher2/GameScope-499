@@ -126,12 +126,21 @@ def validate_registration(username, email, password, selected_mode):
     return username, email
 
 
-def register_user(username, email, password, selected_mode):
+
+def register_user(
+    username,
+    email,
+    password,
+    selected_mode,
+    organization_name=None,
+    organization_email=None,
+):
     """
     Create a user and assign their roles in one transaction.
 
     Every account receives the player role.
-    Developer accounts additionally receive the developer role.
+    Developer applicants receive a pending organization membership.
+    Developer access is granted only after admin approval.
     """
 
     username, email = validate_registration(
@@ -140,6 +149,19 @@ def register_user(username, email, password, selected_mode):
         password,
         selected_mode,
     )
+
+    if selected_mode == "developer":
+        organization_name = (organization_name or "").strip()
+        organization_email = (organization_email or "").strip().lower()
+
+        if not organization_name or not organization_email:
+            raise ValueError(
+                "Organization name and organization email are required "
+                "for developer registration."
+            )
+
+        if "@" not in organization_email or "." not in organization_email.split("@")[-1]:
+            raise ValueError("Please provide a valid organization email.")
 
     hashed_password = password_hasher.hash(password)
 
@@ -160,25 +182,76 @@ def register_user(username, email, password, selected_mode):
 
         user_id = cursor.lastrowid
 
+        # Every account receives the player role.
         roles = ["player"]
 
-        for role in roles:
+        cursor.execute(
+            """
+            INSERT INTO user_roles (user_id, role)
+            VALUES (%s, %s)
+            """,
+            (user_id, "player"),
+        )
+
+        if selected_mode == "developer":
+            # Only allow registration with an existing organization.
             cursor.execute(
                 """
-                INSERT INTO user_roles (user_id, role)
-                VALUES (%s, %s)
+                SELECT organization_id
+                FROM organizations
+                WHERE LOWER(organization_name) = LOWER(%s)
+                LIMIT 1
                 """,
-                (user_id, role),
+                (organization_name,),
+            )
+
+            organization = cursor.fetchone()
+
+            if not organization:
+                raise ValueError(
+                    "That organization does not exist. "
+                    "Please check the organization name."
+                )
+
+            organization_id = organization[0]
+            # Create a pending membership for admin review.
+            cursor.execute(
+                """
+                INSERT INTO organization_memberships (
+                    organization_id,
+                    user_id,
+                    organization_email,
+                    membership_role,
+                    affiliation_status
+                )
+                VALUES (%s, %s, %s, 'member', 'pending')
+                """,
+                (
+                    organization_id,
+                    user_id,
+                    organization_email,
+                ),
             )
 
         connection.commit()
 
-        return {
+        result = {
             "user_id": user_id,
             "username": username,
             "email": email,
             "roles": roles,
         }
+
+        if selected_mode == "developer":
+            result["membership_status"] = "pending"
+            result["organization_name"] = organization_name
+
+        return result
+
+    except ValueError:
+        if connection:
+            connection.rollback()
+        raise
 
     except IntegrityError as error:
         if connection:

@@ -34,6 +34,7 @@ interface DashboardProps {
   onLogout?: () => void;
 
   onAnalysisComplete?: (result: GameAnalysis) => void;
+  isAdmin?: boolean;
 }
 
 // ==================================================
@@ -103,7 +104,7 @@ function Dashboard({
   accountEmail = "",
   onLogout,
   onAnalysisComplete,
-  
+  isAdmin = false
 }: DashboardProps) {
   // ==================================================
   // GAME SEARCH
@@ -305,6 +306,7 @@ function Dashboard({
         isLoggedIn={isLoggedIn}
         accountEmail={accountEmail}
         onLogout={onLogout}
+        isAdmin={isAdmin}
       />
 
 

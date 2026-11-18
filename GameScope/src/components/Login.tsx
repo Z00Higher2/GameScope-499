@@ -63,11 +63,22 @@ function Login({
         password,
       });
 
-      // Verify that the account has the selected role.
-      if (!response.user.roles.includes(selectedMode)) {
-        setErrorMessage(
-          `This account does not have the ${selectedMode} role.`
+      // Pending developers can sign in as players.
+      // App.tsx determines the permissions granted to the account.
+      if (
+        selectedMode === "developer" &&
+        !response.user.roles.includes("developer")
+      ) {
+        setNotice(
+          "Your organization membership is still awaiting verification and admin approval. You can sign in as a player while you wait."
         );
+
+        await onLogin(
+          cleanEmail,
+          password,
+          "player"
+        );
+
         return;
       }
 

@@ -18,6 +18,7 @@ interface MyLibraryProps {
   steamConnected: boolean;
   accountEmail: string;
   onLogout: () => void;
+  isAdmin?: boolean;
 }
 
 /*
@@ -177,6 +178,7 @@ function MyLibrary({
   steamConnected,
   accountEmail,
   onLogout,
+  isAdmin = false,
 }: MyLibraryProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [games, setGames] = useState<SteamLibraryGame[]>([]);
@@ -336,6 +338,7 @@ function MyLibrary({
       steamConnected={steamConnected}
       accountEmail={accountEmail}
       onLogout={onLogout}
+      isAdmin={isAdmin}
     />
   );
 

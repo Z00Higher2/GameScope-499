@@ -55,6 +55,8 @@ interface AnalyticsProps {
   analyzedAppId: string;
   analysis: GameAnalysis | null;
   onLogoClick: () => void;
+  isAdmin?: boolean;
+
 
 }
 
@@ -404,6 +406,7 @@ function Analytics({
   isLoggedIn = false,
   accountEmail = "",
   onLogout,
+  isAdmin = false,
 }: AnalyticsProps) {
   /* =========================================================
      DATA
@@ -429,6 +432,7 @@ function Analytics({
           isLoggedIn={isLoggedIn}
           accountEmail={accountEmail}
           onLogout={onLogout}
+          isAdmin={isAdmin}
         />
 
 

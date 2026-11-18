@@ -22,6 +22,7 @@ interface ReviewsProps {
   steamConnected?: boolean;
   accountEmail?: string;
   onLogout?: () => void;
+  isAdmin?: boolean;
 }
 
 type Review = ReviewCard;
@@ -115,6 +116,7 @@ function Reviews({
   steamConnected = false,
   accountEmail = "",
   onLogout,
+  isAdmin = false,
 }: ReviewsProps) {
   const [preferences] = useState(loadPreferences);
   const [sentimentFilter, setSentimentFilter] = useState<string>(
@@ -349,6 +351,7 @@ function Reviews({
           steamConnected={steamConnected}
           accountEmail={accountEmail}
           onLogout={onLogout}
+          isAdmin={isAdmin}
         />
 
         <section className="reviews-loading" aria-live="polite">
@@ -391,6 +394,7 @@ function Reviews({
         steamConnected={steamConnected}
         accountEmail={accountEmail}
         onLogout={onLogout}
+        isAdmin={isAdmin}
       />
 
       {!analyzed ? (

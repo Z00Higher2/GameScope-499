@@ -26,6 +26,8 @@ function SignUp({
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [selectedMode, setSelectedMode] = useState<Mode>(mode);
+  const [organizationName, setOrganizationName] = useState("");
+  const [organizationEmail, setOrganizationEmail] = useState("");
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -90,17 +92,40 @@ function SignUp({
       return;
     }
 
+    if (selectedMode === "developer") {
+  if (!organizationName.trim()) {
+    setError("Please enter your organization name.");
+    return;
+  }
+
+  if (!organizationEmail.trim()) {
+    setError("Please enter your organization email.");
+    return;
+  }
+
+  if (
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(organizationEmail.trim())
+  ) {
+    setError("Please enter a valid organization email.");
+    return;
+  }
+ }
+
     setError("");
     setIsSubmitting(true);
 
     try {
       // Create the account in MySQL through FastAPI.
       await signUp({
-        username: cleanUsername,
-        email: cleanEmail,
-        password,
-        mode: selectedMode,
-      });
+      username: cleanUsername,
+      email: cleanEmail,
+      password,
+      mode: selectedMode === "developer" ? "developer" : "player", 
+      ...(selectedMode === "developer" && {
+    organization_name: organizationName.trim(),
+    organization_email: organizationEmail.trim(),
+  }),
+  });
 
       // Continue into the existing GameScope app flow.
       onSignUp(cleanEmail, password, selectedMode);
@@ -200,6 +225,69 @@ function SignUp({
               </button>
             </div>
           </div>
+
+
+{selectedMode === "developer" && (
+  <>
+    {/* Organization name */}
+    <div className="login-field-group">
+      <label htmlFor="signup-organization-name">
+        Organization Name
+      </label>
+
+      <div className="login-input-wrapper">
+        <span className="login-input-icon">🏢</span>
+
+        <input
+          id="signup-organization-name"
+          type="text"
+          placeholder="Enter your registered organization"
+          value={organizationName}
+          onChange={(event) => {
+            setOrganizationName(event.target.value);
+            setError("");
+          }}
+          minLength={2}
+          maxLength={255}
+          required
+          disabled={isSubmitting}
+        />
+      </div>
+    </div>
+
+    {/* Organization email */}
+    <div className="login-field-group">
+      <label htmlFor="signup-organization-email">
+        Organization Email
+      </label>
+
+      <div className="login-input-wrapper">
+        <span className="login-input-icon">✉</span>
+
+        <input
+          id="signup-organization-email"
+          type="email"
+          placeholder="you@yourcompany.com"
+          value={organizationEmail}
+          onChange={(event) => {
+            setOrganizationEmail(event.target.value);
+            setError("");
+          }}
+          maxLength={255}
+          required
+          disabled={isSubmitting}
+        />
+      </div>
+
+      <small className="login-footer-text">
+        Your organization membership will be reviewed by a GameScope administrator.
+      </small>
+    </div>
+  </>
+)}
+
+
+
 
           {/* Username */}
           <div className="login-field-group">
@@ -425,8 +513,10 @@ function SignUp({
           </button>
 
           <p className="login-footer-text">
-            Your gaming journey starts here.
-          </p>
+          {selectedMode === "developer"
+            ? "Your developer access will be available after organization verification and admin approval."
+            : "Your gaming journey starts here."}
+        </p>
         </form>
       </section>
     </main>

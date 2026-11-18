@@ -16,6 +16,7 @@ interface CompareGamesProps {
   steamConnected?: boolean;
   accountEmail?: string;
   onLogout?: () => void;
+  isAdmin?: boolean;
 }
 
 interface Game {
@@ -453,6 +454,7 @@ function CompareGames({
   steamConnected = false,
   accountEmail = "",
   onLogout,
+  isAdmin = false,
 }: CompareGamesProps) {
   const [search, setSearch] = useState("");
   const [searchResults, setSearchResults] = useState<Game[]>([]);
@@ -616,6 +618,7 @@ function CompareGames({
     steamConnected,
     accountEmail,
     onLogout,
+    isAdmin,
   };
 
   return (

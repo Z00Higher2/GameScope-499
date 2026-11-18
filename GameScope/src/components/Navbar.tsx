@@ -18,6 +18,7 @@ interface NavbarProps {
   steamConnected?: boolean;
   accountEmail?: string;
   onLogout?: () => void;
+  isAdmin?: boolean;
 }
 
 function Navbar({
@@ -32,6 +33,7 @@ function Navbar({
   steamConnected = false,
   accountEmail = "",
   onLogout,
+  isAdmin = false,
 }: NavbarProps) {
   const [mobileExpanded, setMobileExpanded] = React.useState(false);
   const [accountDropdownOpen, setAccountDropdownOpen] =
@@ -367,6 +369,36 @@ function Navbar({
           )}
         </div>
 
+        {/* Admin navigation - Admin only */}
+        {isAdmin && isLoggedIn && (
+          <div className="navbar-admin">
+            <span className="navbar-admin-label">ADMIN</span>
+
+            <button
+              type="button"
+              className={`nav-item ${
+                currentPage === "admin-organizations" ? "active" : ""
+              }`}
+              onClick={() => navigateTo("admin-organizations")}
+              aria-label="Go to Admin Organizations"
+            >
+              <span className="nav-icon">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M3 21h18" />
+                  <path d="M5 21V7l7-4 7 4v14" />
+                  <path d="M9 9h.01" />
+                  <path d="M15 9h.01" />
+                  <path d="M9 13h.01" />
+                  <path d="M15 13h.01" />
+                  <path d="M10 21v-4h4v4" />
+                </svg>
+              </span>
+              <span className="nav-text">Organizations</span>
+            </button>
+          </div>
+        )}
+
+        
         {/* Theme, Settings and Account */}
         <div className="navbar-bottom">
           {/* Theme toggle */}

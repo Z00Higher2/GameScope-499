@@ -16,6 +16,7 @@ import type {
   ActiveSession,
   SteamAccount,
   SteamLibraryImportGame,
+  AccountRole,
 } from "../api";
 
 type SteamExtensionStatus = "checking" | "installed" | "not-installed";
@@ -58,7 +59,8 @@ interface ProfileProps {
   steamConnected: boolean;
   onSteamConnect: () => void;
   onSteamDisconnect: () => void;
-  roles: AccountMode[];
+  roles: AccountRole[];
+  isAdmin: boolean;
 
   activityHistory: {
     appId: string;
@@ -140,6 +142,7 @@ function Profile({
   onSteamConnect,
   onSteamDisconnect,
   roles,
+  isAdmin = false,
   activityHistory,
 }: ProfileProps) {
   const isPlayer = mode === "player";
@@ -906,6 +909,7 @@ function Profile({
         steamConnected={steamConnected}
         accountEmail={accountEmail}
         onLogout={onLogout}
+        isAdmin={isAdmin}
       />
 
       <main className="profile-content">

@@ -19,6 +19,7 @@ interface MyGamesProps {
 
   // Opens and analyzes the selected game in the Developer Dashboard.
   onOpenGame: (appId: string) => void;
+  isAdmin?: boolean;
 }
 
 interface ManagedGame {
@@ -98,6 +99,7 @@ function MyGames({
   accountEmail,
   onLogout,
   onOpenGame,
+  isAdmin = false,
 }: MyGamesProps) {
   // =========================================================
   // STATE
@@ -302,6 +304,7 @@ function MyGames({
         steamConnected={steamConnected}
         accountEmail={accountEmail}
         onLogout={onLogout}
+        isAdmin={isAdmin}
       />
 
       <section className="my-games-content">
