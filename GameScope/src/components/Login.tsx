@@ -2,7 +2,9 @@
 import React, { useState } from "react";
 import type { Mode } from "../type";
 import { login } from "../api";
-import "./Login.css";
+import logo from "../img/gamescope-logo-light.png";
+import PongLogo from "./PongLogo";
+import "./SignIn.css";
 
 interface LoginProps {
   darkMode: boolean;
@@ -14,11 +16,10 @@ interface LoginProps {
   onBack: () => void;
   mode: Mode;
   onSignUpClick: () => void;
-  onForgotPasswordClick: () => void;
+  onForgotPasswordClick: (selectedMode: Mode) => void;
 }
 
 function Login({
-  darkMode,
   onLogin,
   onBack,
   onSignUpClick,
@@ -30,10 +31,12 @@ function Login({
   const [selectedMode, setSelectedMode] =
     useState<Mode>(mode);
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [notice, setNotice] = useState("");
+
+  const isDeveloper = selectedMode === "developer";
 
   const handleSubmit = async (
     event: React.FormEvent<HTMLFormElement>
@@ -87,254 +90,170 @@ function Login({
   };
 
   return (
+    // Green for players, purple for developers, from the role picked below
     <main
-      className={`login-page ${
-        darkMode
-          ? "login-dark-mode"
-          : "login-light-mode"
+      className={`signin-page ${
+        isDeveloper ? "signin-dev" : "signin-player"
       }`}
     >
-      {/* Animated background */}
-      <div className="login-background">
-        <div className="login-glow login-glow-one" />
-        <div className="login-glow login-glow-two" />
-        <div className="login-grid" />
-      </div>
-
-      <section className="login-card">
-        {/* Back navigation */}
+      <section className="signin-card" aria-labelledby="signin-title">
         <button
           type="button"
-          className="login-back-button"
+          className="signin-back"
           onClick={onBack}
           disabled={isSubmitting}
         >
-          <span className="login-back-arrow">←</span>
-          Back to{" "}
-          {mode === "player"
-            ? "Player Home"
-            : "Dashboard"}
+          ← Back
         </button>
 
-        {/* Branding */}
-        <div className="login-heading">
-          <div className="login-brand-icon">G</div>
+        <PongLogo src={logo} />
 
-          <span className="login-eyebrow">
-            GAMESCOPE ACCOUNT
-          </span>
+        <h1 id="signin-title">SIGN IN TO GAMESCOPE</h1>
 
-          <h1>
-            Welcome Back<span>.</span>
-          </h1>
+        <p className="signin-subtitle">
+          {isDeveloper
+            ? "Sign in to track issue statuses and manage your games."
+            : "Sign in to save games, link your Steam library, and keep track of what you've analyzed."}
+        </p>
 
-          <p>
-            Sign in to continue your gaming journey.
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmit}>
-          {/* Account type */}
-          <div className="login-field-group">
-            <label className="login-section-label">
-              CONTINUE AS
-            </label>
-
-            <div className="login-role-selector">
-              <button
-                type="button"
-                className={`login-role-option ${
-                  selectedMode === "player"
-                    ? "selected"
-                    : ""
-                }`}
-                onClick={() =>
-                  setSelectedMode("player")
-                }
-                aria-pressed={
-                  selectedMode === "player"
-                }
-                disabled={isSubmitting}
-              >
-                <span className="login-role-icon">
-                  🎮
-                </span>
-
-                <span className="login-role-text">
-                  <strong>Player</strong>
-                  <small>Discover games</small>
-                </span>
-              </button>
-
-              <button
-                type="button"
-                className={`login-role-option ${
-                  selectedMode === "developer"
-                    ? "selected"
-                    : ""
-                }`}
-                onClick={() =>
-                  setSelectedMode("developer")
-                }
-                aria-pressed={
-                  selectedMode === "developer"
-                }
-                disabled={isSubmitting}
-              >
-                <span className="login-role-icon">
-                  📊
-                </span>
-
-                <span className="login-role-text">
-                  <strong>Developer</strong>
-                  <small>Analyze feedback</small>
-                </span>
-              </button>
-            </div>
-          </div>
-
-          {/* Email */}
-          <div className="login-field-group">
-            <label htmlFor="login-email">
-              Email Address
-            </label>
-
-            <div className="login-input-wrapper">
-              <span className="login-input-icon">
-                ✉
-              </span>
-
-              <input
-                id="login-email"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(event) => {
-                  setEmail(event.target.value);
-                  setErrorMessage("");
-                }}
-                autoComplete="email"
-                required
-                disabled={isSubmitting}
-              />
-            </div>
-          </div>
-
-          {/* Password */}
-          <div className="login-field-group">
-            <label htmlFor="login-password">
-              Password
-            </label>
-
-            <div className="login-input-wrapper">
-              <span className="login-input-icon">
-                🔒
-              </span>
-
-              <input
-                id="login-password"
-                type={
-                  showPassword ? "text" : "password"
-                }
-                placeholder="Enter your password"
-                value={password}
-                onChange={(event) => {
-                  setPassword(event.target.value);
-                  setErrorMessage("");
-                }}
-                autoComplete="current-password"
-                required
-                disabled={isSubmitting}
-              />
-
-              <button
-                type="button"
-                className="login-password-toggle"
-                onClick={() =>
-                  setShowPassword(
-                    (current) => !current
-                  )
-                }
-                aria-label={
-                  showPassword
-                    ? "Hide password"
-                    : "Show password"
-                }
-                disabled={isSubmitting}
-              >
-                {showPassword ? "Hide" : "Show"}
-              </button>
-            </div>
-          </div>
-
-          {/* Remember me and Forgot Password */}
-          <div className="login-options-row">
-            <label className="login-remember">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(event) =>
-                  setRememberMe(event.target.checked)
-                }
-                disabled={isSubmitting}
-              />
-
-              <span>Remember me</span>
-            </label>
-
-            <button
-              type="button"
-              className="login-password-toggle"
-              onClick={onForgotPasswordClick}
-              disabled={isSubmitting}
-            >
-              Forgot Password?
-            </button>
-          </div>
-
-          {/* Login error */}
-          {errorMessage && (
-            <div
-              className="login-error-message"
-              role="alert"
-            >
-              {errorMessage}
-            </div>
-          )}
-
-          {/* Submit */}
+        <div
+          className="signin-roles"
+          role="group"
+          aria-label="Sign in as"
+        >
           <button
-            type="submit"
-            className="login-submit-button"
+            type="button"
+            className={!isDeveloper ? "active" : ""}
+            onClick={() => setSelectedMode("player")}
+            aria-pressed={!isDeveloper}
             disabled={isSubmitting}
           >
-            <span>
-              {isSubmitting
-                ? "Signing In..."
-                : "Sign In"}
-            </span>
-
-            <span className="login-submit-arrow">
-              {isSubmitting ? "..." : "→"}
-            </span>
+            PLAYER
           </button>
 
-          {/* Footer */}
-          <p className="login-footer-text">
-            Your gaming insights start here.
-          </p>
+          <button
+            type="button"
+            className={isDeveloper ? "active" : ""}
+            onClick={() => setSelectedMode("developer")}
+            aria-pressed={isDeveloper}
+            disabled={isSubmitting}
+          >
+            DEVELOPER
+          </button>
+        </div>
 
-          <p className="login-footer-text">
-            Don't have an account?{" "}
+        <form className="signin-form" onSubmit={handleSubmit}>
+          <div className="signin-field">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 21a8 8 0 0 1 16 0" />
+            </svg>
+
+            <input
+              type="email"
+              placeholder="Email"
+              aria-label="Email"
+              value={email}
+              onChange={(event) => {
+                setEmail(event.target.value);
+                setErrorMessage("");
+              }}
+              autoComplete="email"
+              required
+              disabled={isSubmitting}
+            />
+          </div>
+
+          <div className="signin-field">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="5" y="11" width="14" height="10" rx="2" />
+              <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+            </svg>
+
+            <input
+              type={showPassword ? "text" : "password"}
+              placeholder="Password"
+              aria-label="Password"
+              value={password}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                setErrorMessage("");
+              }}
+              autoComplete="current-password"
+              required
+              disabled={isSubmitting}
+            />
+
             <button
               type="button"
-              onClick={onSignUpClick}
+              className="signin-show"
+              onClick={() => setShowPassword((current) => !current)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
               disabled={isSubmitting}
             >
-              Sign Up
+              {showPassword ? "HIDE" : "SHOW"}
             </button>
-          </p>
+          </div>
+
+          <button
+            type="button"
+            className="signin-forgot"
+            onClick={() => onForgotPasswordClick(selectedMode)}
+            disabled={isSubmitting}
+          >
+            Forgot password?
+          </button>
+
+          {errorMessage && (
+            <p className="signin-error" role="alert">
+              {errorMessage}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            className="signin-submit"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "SIGNING IN..." : "SIGN IN"}
+          </button>
         </form>
+
+        <div className="signin-divider">
+          <span>or</span>
+        </div>
+
+        {/* Hooked up to Steam OpenID on the backend later */}
+        <button
+          type="button"
+          className="signin-steam"
+          onClick={() => setNotice("Sign in with Steam is coming soon.")}
+          disabled={isSubmitting}
+        >
+          Sign in with Steam
+        </button>
+
+        {notice && (
+          <p className="signin-notice" role="status">
+            {notice}
+          </p>
+        )}
+
+        <p className="signin-signup">
+          Don&apos;t have an account?{" "}
+          <button
+            type="button"
+            onClick={onSignUpClick}
+            disabled={isSubmitting}
+          >
+            Create Account
+          </button>
+        </p>
+
+        <p className="signin-fineprint">
+          Steam sign-in only reads your public profile. No passwords are
+          shared.
+        </p>
       </section>
     </main>
   );

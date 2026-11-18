@@ -78,8 +78,8 @@ function Navbar({
       return;
     }
 
-    // Compare is available only to logged-in Players.
-    if (page === "compare" && (!isLoggedIn || !isPlayer)) {
+    // Compare is for Player mode (guests included).
+    if (page === "compare" && !isPlayer) {
       setCurrentPage("login");
       setMobileExpanded(false);
       setAccountDropdownOpen(false);
@@ -168,8 +168,8 @@ function Navbar({
       <nav
         id="gamescope-navbar"
         className={`navbar ${darkMode ? "dark-navbar" : ""} ${
-          mobileExpanded ? "mobile-expanded" : "mobile-collapsed"
-        }`}
+          isDeveloper ? "navbar-dev" : "navbar-player"
+        } ${mobileExpanded ? "mobile-expanded" : "mobile-collapsed"}`}
         aria-label="Main navigation"
       >
         {/* Desktop logo */}
@@ -372,9 +372,7 @@ function Navbar({
           {/* Theme toggle */}
           <button
             type="button"
-            className={`nav-item theme-toggle ${
-              darkMode ? "active" : ""
-            }`}
+            className="nav-item theme-toggle"
             onClick={() => setDarkMode((previous) => !previous)}
             aria-label={
               darkMode ? "Switch to light mode" : "Switch to dark mode"

@@ -48,6 +48,15 @@
   }
 }
 
+/* Until a game is picked, the page is just the hero (no scrolling) */
+.player-home:not(:has(.player-overview)) {
+  padding-bottom: 0;
+}
+
+.player-home:not(:has(.player-overview)) .player-footer {
+  display: none;
+}
+
 .ph-hero.ph-hero-dev {
   --ph-accent: #afa9ec;
   --ph-accent-strong: #7f77dd;

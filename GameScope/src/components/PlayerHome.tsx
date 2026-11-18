@@ -760,16 +760,13 @@ function PlayerHome({
         }
         buttonDisabled={analysisLoading || refreshing || notReleased}
         links={[
-          {
-            label: "COMPARE GAMES",
-            // Compare is for logged-in players, like the navbar link
-            onClick: () => setCurrentPage(isLoggedIn ? "compare" : "login"),
-          },
+          { label: "COMPARE GAMES", onClick: () => setCurrentPage("compare") },
           { label: "REVIEW SETTINGS", onClick: () => setCurrentPage("settings") },
         ]}
       />
 
       {/* SELECTED GAME DETAILS */}
+      {detailsAppId && (
       <section className="player-overview scroll-reveal">
         <div className="player-section-heading">
           <div>
@@ -842,20 +839,9 @@ function PlayerHome({
               and personalized game-fit insights.
             </p>
           </article>
-        ) : (
-          <article className="player-game-card player-empty-overview">
-            <div className="player-empty-overview-content">
-              <span className="player-eyebrow">READY TO EXPLORE?</span>
-              <h3>No game selected yet</h3>
-
-              <p className="player-game-description">
-                Search for a Steam game above or enter its App ID to view
-                its details and explore player feedback.
-              </p>
-            </div>
-          </article>
-        )}
+        ) : null}
       </section>
+      )}
 
       {/* ANALYSIS LOADING */}
       {analysisLoading && (

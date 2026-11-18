@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Navbar from "./Navbar";
 import "./Settings.css";
 import type { AccentColor } from "../App";
@@ -23,6 +23,15 @@ import type { SteamAccount } from "../api";
 
 const FAVORITES_KEY = "gamescope-favorite-games";
 
+const GENRES = [
+  "Action",
+  "RPG",
+  "Strategy",
+  "Indie",
+  "Simulation",
+  "Adventure",
+];
+
 function loadFavorites(): string[] {
   try {
     const stored = localStorage.getItem(FAVORITES_KEY);
@@ -33,6 +42,42 @@ function loadFavorites(): string[] {
     return [];
   }
 }
+
+type CategoryId =
+  | "appearance"
+  | "reviews"
+  | "analysis"
+  | "dashboard"
+  | "data"
+  | "exports"
+  | "steam"
+  | "players"
+  | "privacy"
+  | "about";
+
+const CATEGORIES: {
+  id: CategoryId;
+  label: string;
+  help: string;
+  playerOnly?: boolean;
+}[] = [
+  { id: "appearance", label: "Appearance", help: "Personalize the interface." },
+  { id: "reviews", label: "Reviews", help: "Set your default review browsing options." },
+  { id: "analysis", label: "Analysis", help: "Configure review and issue-detection thresholds." },
+  { id: "dashboard", label: "Dashboard", help: "Choose your preferred starting point and display options." },
+  { id: "data", label: "Data", help: "Set preferences for collecting game reviews." },
+  { id: "exports", label: "Export", help: "Choose what the Issues page's exported report includes." },
+  { id: "steam", label: "Steam", help: "Connect your Steam account to GameScope.", playerOnly: true },
+  { id: "players", label: "Player", help: "Save games and personalize future discovery features.", playerOnly: true },
+  { id: "privacy", label: "Privacy", help: "Manage locally stored GameScope preferences." },
+  { id: "about", label: "About", help: "Project and data source information." },
+];
+
+const SENTIMENT_OPTIONS: [string, string][] = [
+  ["all", "All reviews"],
+  ["positive", "Positive"],
+  ["negative", "Negative"],
+];
 
 interface SettingsProps {
   darkMode: boolean;
@@ -77,6 +122,12 @@ function Settings({
   const [favoriteInput, setFavoriteInput] = useState("");
   const [savedMessage, setSavedMessage] = useState("");
 
+  const [category, setCategory] = useState<CategoryId>("appearance");
+  const [help, setHelp] = useState("");
+  const listRef = useRef<HTMLDivElement>(null);
+  const [canScrollUp, setCanScrollUp] = useState(false);
+  const [canScrollDown, setCanScrollDown] = useState(false);
+
   // Real Steam account connection
   const [linkedSteamAccount, setLinkedSteamAccount] =
     useState<SteamAccount | null>(null);
@@ -85,6 +136,13 @@ function Settings({
   const [steamError, setSteamError] = useState("");
   const [steamDisconnecting, setSteamDisconnecting] = useState(false);
   const [steamMessage, setSteamMessage] = useState("");
+
+  const isPlayer = mode === "player";
+  const categories = CATEGORIES.filter(
+    (item) => isPlayer || !item.playerOnly
+  );
+  const active =
+    categories.find((item) => item.id === category) ?? categories[0];
 
   useEffect(() => {
     localStorage.setItem(
@@ -99,6 +157,13 @@ function Settings({
       JSON.stringify(favorites)
     );
   }, [favorites]);
+
+  useEffect(() => {
+    if (!savedMessage) return;
+
+    const timer = window.setTimeout(() => setSavedMessage(""), 3000);
+    return () => window.clearTimeout(timer);
+  }, [savedMessage]);
 
   // Load the linked Steam account from the backend.
   useEffect(() => {
@@ -142,6 +207,31 @@ function Settings({
       cancelled = true;
     };
   }, [isLoggedIn, accountEmail]);
+
+  // Up/down chevrons beside the list show when there's more to scroll to
+  const updateScrollHints = useCallback(() => {
+    const list = listRef.current;
+    if (!list) return;
+
+    setCanScrollUp(list.scrollTop > 2);
+    setCanScrollDown(
+      list.scrollTop + list.clientHeight < list.scrollHeight - 2
+    );
+  }, []);
+
+  useEffect(() => {
+    listRef.current?.scrollTo({ top: 0 });
+    updateScrollHints();
+  }, [active.id, updateScrollHints]);
+
+  useEffect(() => {
+    updateScrollHints();
+  }, [favorites.length, linkedSteamAccount, steamLoading, updateScrollHints]);
+
+  useEffect(() => {
+    window.addEventListener("resize", updateScrollHints);
+    return () => window.removeEventListener("resize", updateScrollHints);
+  }, [updateScrollHints]);
 
   // Disconnect the actual Steam account.
   const handleDisconnectSteam = async () => {
@@ -260,178 +350,94 @@ function Settings({
     setSavedMessage("Genre preferences updated.");
   };
 
-  return (
-    <div
-      className={`settings-page ${
-        darkMode ? "settings-dark" : "settings-light"
-      } ${
-        !preferences.animations ? "settings-reduced-motion" : ""
-      } settings-accent-${preferences.accentColor} ${
-        preferences.compactLayout ? "settings-compact" : ""
-      }`}
-    >
-      <Navbar
-        darkMode={darkMode}
-        setDarkMode={setDarkMode}
-        currentPage={currentPage}
-        setCurrentPage={setCurrentPage}
-        onLogoClick={onLogoClick}
-        mode={mode}
-        setMode={setMode}
-        isLoggedIn={isLoggedIn}
-        accountEmail={accountEmail}
-        onLogout={onLogout}
-      />
+  const showHelp = (event: React.SyntheticEvent) => {
+    const row = (event.target as HTMLElement).closest<HTMLElement>(
+      "[data-help]"
+    );
+    setHelp(row?.dataset.help ?? "");
+  };
 
-      <main className="settings-main">
-        <header className="settings-header">
-          <div className="settings-eyebrow">
-            <span className="settings-eyebrow-dot" />
-            WORKSPACE CONFIGURATION
-          </div>
+  // Up/down arrow keys move between rows, like a game menu
+  const moveSelection = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
 
-          <h1>
-            Settings<span>.</span>
-          </h1>
+    const controls = Array.from(
+      event.currentTarget.querySelectorAll<HTMLElement>(
+        ".term-control:not(:disabled)"
+      )
+    );
+    const current = controls.indexOf(document.activeElement as HTMLElement);
+    if (current === -1) return;
 
-          <p>
-            Configure your workspace, review analysis, and
-            GameScope experience.
-          </p>
-        </header>
+    event.preventDefault();
+    controls[current + (event.key === "ArrowDown" ? 1 : -1)]?.focus();
+  };
 
-        {savedMessage && (
-          <div className="settings-save-message" role="status">
-            <span>✓</span> {savedMessage}
-          </div>
-        )}
+  const scrollList = (direction: -1 | 1) => {
+    listRef.current?.scrollBy({ top: direction * 160, behavior: "smooth" });
+  };
 
-        {/* 1. APPEARANCE */}
-
-        <section className="settings-section" id="appearance">
-          <div className="settings-section-heading">
-            <div className="settings-section-icon">◐</div>
-            <div>
-              <h2>Appearance</h2>
-              <p>Personalize the interface.</p>
-            </div>
-          </div>
-
-          <div className="settings-card">
-            <div className="settings-row">
-              <div className="settings-row-copy">
-                <h3>Interface theme</h3>
-                <p>Choose a light or dark workspace.</p>
-              </div>
-
-              <div className="settings-inline-actions">
-                <button
-                  type="button"
-                  className={`settings-choice ${
-                    darkMode ? "selected" : ""
-                  }`}
-                  onClick={() => setDarkMode(true)}
-                  aria-pressed={darkMode}
-                >
-                  Dark
-                </button>
-
-                <button
-                  type="button"
-                  className={`settings-choice ${
-                    !darkMode ? "selected" : ""
-                  }`}
-                  onClick={() => setDarkMode(false)}
-                  aria-pressed={!darkMode}
-                >
-                  Light
-                </button>
-              </div>
-            </div>
-
-            <div className="settings-divider" />
-
-            <div className="settings-row">
-              <div className="settings-row-copy">
-                <h3>Accent color</h3>
-                <p>Choose your interface highlight color.</p>
-              </div>
-
-              <select
-                className="settings-select"
-                value={accentColor}
-                onChange={(event) => {
-                  const color = event.target.value as AccentColor;
-
-                  setAccentColor(color);
-                  updatePreference("accentColor", color);
-                }}
-                aria-label="Accent color"
-              >
-                <option value="purple">Purple</option>
-                <option value="blue">Blue</option>
-                <option value="green">Green</option>
-              </select>
-            </div>
-
-            <div className="settings-divider" />
-
-            <SettingToggle
-              title="Animations"
-              description="Enable interface transitions and motion effects."
-              checked={preferences.animations}
-              onChange={(value) =>
-                updatePreference("animations", value)
-              }
-            />
-
-            <div className="settings-divider" />
-
-            <SettingToggle
-              title="Compact layout"
-              description="Reduce spacing between settings and controls."
-              checked={preferences.compactLayout}
-              onChange={(value) =>
-                updatePreference("compactLayout", value)
-              }
-            />
-          </div>
-        </section>
-
-        {/* 2. REVIEW PREFERENCES */}
-
-        <section className="settings-section" id="reviews">
-          <div className="settings-section-heading">
-            <div className="settings-section-icon">≡</div>
-            <div>
-              <h2>Review Preferences</h2>
-              <p>Set your default review browsing options.</p>
-            </div>
-          </div>
-
-          <div className="settings-card">
-            <SettingSelect
-              title="Default sentiment"
-              description="Which review sentiment the Reviews page selects first."
-              value={preferences.defaultSentiment}
+  const renderRows = () => {
+    switch (active.id) {
+      case "appearance":
+        return (
+          <>
+            <ChoiceRow
+              label="Interface theme"
+              help="Choose a light or dark workspace."
+              value={darkMode ? "dark" : "light"}
               options={[
-                ["all", "All reviews"],
-                ["positive", "Positive reviews"],
-                ["negative", "Negative reviews"],
+                ["dark", "Dark"],
+                ["light", "Light"],
               ]}
+              onChange={(value) => setDarkMode(value === "dark")}
+            />
+            <ChoiceRow
+              label="Accent color"
+              help="Choose your interface highlight color."
+              value={accentColor}
+              options={[
+                ["purple", "Purple"],
+                ["blue", "Blue"],
+                ["green", "Green"],
+              ]}
+              onChange={(value) => {
+                const color = value as AccentColor;
+
+                setAccentColor(color);
+                updatePreference("accentColor", color);
+              }}
+            />
+            <ToggleRow
+              label="Animations"
+              help="Enable interface transitions and motion effects."
+              checked={preferences.animations}
+              onChange={(value) => updatePreference("animations", value)}
+            />
+            <ToggleRow
+              label="Compact layout"
+              help="Reduce spacing between settings and controls."
+              checked={preferences.compactLayout}
+              onChange={(value) => updatePreference("compactLayout", value)}
+            />
+          </>
+        );
+
+      case "reviews":
+        return (
+          <>
+            <ChoiceRow
+              label="Default sentiment"
+              help="Which review sentiment the Reviews page selects first."
+              value={preferences.defaultSentiment}
+              options={SENTIMENT_OPTIONS}
               onChange={(value) =>
-                updatePreference(
-                  "defaultSentiment",
-                  value as Sentiment
-                )
+                updatePreference("defaultSentiment", value as Sentiment)
               }
             />
-
-            <div className="settings-divider" />
-
-            <SettingSelect
-              title="Default sorting"
-              description="The order the Reviews page starts in."
+            <ChoiceRow
+              label="Default sorting"
+              help="The order the Reviews page starts in."
               value={preferences.defaultSort}
               options={[
                 ["helpful", "Most helpful"],
@@ -444,114 +450,70 @@ function Settings({
                 updatePreference("defaultSort", value as ReviewSort)
               }
             />
-
-            <div className="settings-divider" />
-
-            <SettingToggle
-              title="Hide low-quality reviews"
-              description="Hide reviews rated low quality on the Reviews page."
+            <ToggleRow
+              label="Hide low-quality reviews"
+              help="Hide reviews rated low quality on the Reviews page."
               checked={preferences.hideLowQuality}
-              onChange={(value) =>
-                updatePreference("hideLowQuality", value)
-              }
+              onChange={(value) => updatePreference("hideLowQuality", value)}
             />
-          </div>
-        </section>
+          </>
+        );
 
-        {/* 3. ANALYSIS CONFIGURATION */}
-
-        <section className="settings-section" id="analysis">
-          <div className="settings-section-heading">
-            <div className="settings-section-icon">⌁</div>
-            <div>
-              <h2>Analysis Configuration</h2>
-              <p>
-                Configure proposed review and issue-detection thresholds.
-              </p>
-            </div>
-          </div>
-
-          <div className="settings-card">
-            <SettingNumber
-              title="Minimum review length"
-              description="Hide reviews shorter than this many words on the Reviews page."
+      case "analysis":
+        return (
+          <>
+            <SliderRow
+              label="Minimum review length"
+              help="Hide reviews shorter than this many words on the Reviews page."
               value={preferences.minimumReviewLength}
               min={1}
               max={500}
+              barMax={100}
+              unit="words"
               onChange={(value) =>
                 updatePreference("minimumReviewLength", value)
               }
             />
-
-            <div className="settings-divider" />
-
-            <SettingNumber
-              title="Minimum playtime"
-              description="Hide reviews written with fewer hours played than this on the Reviews page."
+            <SliderRow
+              label="Minimum playtime"
+              help="Hide reviews written with fewer hours played than this on the Reviews page."
               value={preferences.minimumPlaytime}
               min={0}
               max={10000}
-              onChange={(value) =>
-                updatePreference("minimumPlaytime", value)
-              }
-              suffix="hours"
+              barMax={100}
+              unit="hrs"
+              onChange={(value) => updatePreference("minimumPlaytime", value)}
             />
-
-            <div className="settings-divider" />
-
-            <SettingNumber
-              title="Issue mention threshold"
-              description="Minimum reviews complaining about a topic before it appears on the Issues page."
+            <SliderRow
+              label="Issue mention threshold"
+              help="Minimum reviews complaining about a topic before it appears on the Issues page."
               value={preferences.minimumIssueMentions}
               min={1}
               max={100000}
+              barMax={50}
+              unit="mentions"
               onChange={(value) =>
                 updatePreference("minimumIssueMentions", value)
               }
-              suffix="mentions"
             />
-
-            <div className="settings-divider" />
-
-            <SettingSelect
-              title="Sentiment used for issue detection"
-              description="Choose which sentiment should be considered by the analysis pipeline."
+            <ChoiceRow
+              label="Issue detection sentiment"
+              help="Choose which sentiment should be considered by the analysis pipeline."
               value={preferences.issueSentiment}
-              options={[
-                ["all", "All reviews"],
-                ["positive", "Positive reviews"],
-                ["negative", "Negative reviews"],
-              ]}
+              options={SENTIMENT_OPTIONS}
               onChange={(value) =>
                 updatePreference("issueSentiment", value as Sentiment)
               }
             />
-          </div>
+          </>
+        );
 
-          <p className="settings-note">
-            Review length and playtime apply on the Reviews page, and the
-            issue mention threshold applies on the Issues page. The issue
-            detection sentiment is saved as a preference but not applied yet.
-          </p>
-        </section>
-
-        {/* 4. DASHBOARD PREFERENCES */}
-
-        <section className="settings-section" id="dashboard">
-          <div className="settings-section-heading">
-            <div className="settings-section-icon">▦</div>
-            <div>
-              <h2>Dashboard Preferences</h2>
-              <p>
-                Choose your preferred starting point and display options.
-              </p>
-            </div>
-          </div>
-
-          <div className="settings-card">
-            <SettingSelect
-              title="Preferred landing page after entering"
-              description="Choose which analysis page you prefer to open first."
+      case "dashboard":
+        return (
+          <>
+            <ChoiceRow
+              label="Preferred landing page"
+              help="Choose which analysis page you prefer to open first."
               value={preferences.defaultPage}
               options={[
                 ["dashboard", "Dashboard"],
@@ -566,705 +528,688 @@ function Settings({
                 )
               }
             />
-
-            <div className="settings-divider" />
-
-            <SettingToggle
-              title="Summary cards"
-              description="Preference for showing top-level game statistics."
+            <ToggleRow
+              label="Summary cards"
+              help="Preference for showing top-level game statistics."
               checked={preferences.showSummaryCards}
-              onChange={(value) =>
-                updatePreference("showSummaryCards", value)
-              }
+              onChange={(value) => updatePreference("showSummaryCards", value)}
             />
-
-            <div className="settings-divider" />
-
-            <SettingToggle
-              title="Charts and visualizations"
-              description="Preference for displaying analytics charts."
+            <ToggleRow
+              label="Charts and visualizations"
+              help="Preference for displaying analytics charts."
               checked={preferences.showCharts}
-              onChange={(value) =>
-                updatePreference("showCharts", value)
-              }
+              onChange={(value) => updatePreference("showCharts", value)}
             />
-          </div>
+          </>
+        );
 
-          <p className="settings-note">
-            Your current navigation still opens the Dashboard after
-            Get Started. The default-page preference must be connected
-            to App.tsx before it changes navigation behavior.
-          </p>
-        </section>
-
-        {/* 5. DATA & REFRESH */}
-
-        <section className="settings-section" id="data">
-          <div className="settings-section-heading">
-            <div className="settings-section-icon">▤</div>
-            <div>
-              <h2>Data & Refresh</h2>
-              <p>Set preferences for collecting game reviews.</p>
-            </div>
-          </div>
-
-          <div className="settings-card">
-            <SettingSelect
-              title="Preferred review collection size"
-              description="How many reviews to collect from Steam when a game is analyzed or re-analyzed."
+      case "data":
+        return (
+          <>
+            <ChoiceRow
+              label="Review collection size"
+              help="How many reviews to collect from Steam when a game is analyzed or re-analyzed."
               value={String(preferences.reviewLimit)}
               options={[
-                ["100", "100 reviews"],
-                ["500", "500 reviews"],
-                ["1000", "1,000 reviews"],
-                ["5000", "5,000 reviews"],
+                ["100", "100"],
+                ["500", "500"],
+                ["1000", "1,000"],
+                ["5000", "5,000"],
               ]}
+              meter
               onChange={(value) =>
                 updatePreference("reviewLimit", Number(value))
               }
             />
-
-            <div className="settings-divider" />
-
-            <div className="settings-row">
-              <div className="settings-row-copy">
-                <h3>Review language</h3>
-                <p>
-                  Topic detection only understands English, so the junk
-                  filter removes reviews in other languages.
-                </p>
-              </div>
-              <span className="settings-status">English</span>
-            </div>
-
-            <div className="settings-divider" />
-
-            <SettingSelect
-              title="Review time range"
-              description="Only use reviews posted in this time range, on every page."
+            <InfoRow
+              label="Review language"
+              help="Topic detection only understands English, so the junk filter removes reviews in other languages."
+              value="English"
+            />
+            <ChoiceRow
+              label="Review time range"
+              help="Only use reviews posted in this time range, on every page."
               value={preferences.reviewTimeRange}
               options={[
-                ["all", "All available time"],
+                ["all", "All time"],
                 ["7", "Last 7 days"],
                 ["30", "Last 30 days"],
                 ["90", "Last 90 days"],
               ]}
-              onChange={(value) =>
-                updatePreference("reviewTimeRange", value)
-              }
+              onChange={(value) => updatePreference("reviewTimeRange", value)}
             />
+            <InfoRow
+              label="Data source"
+              help="GameScope currently targets Steam review data. Collection and refresh status depend on backend integration."
+              value="Steam"
+            />
+          </>
+        );
 
-            <div className="settings-divider" />
-
-            <div className="settings-row">
-              <div className="settings-row-copy">
-                <h3>Data source</h3>
-                <p>
-                  GameScope currently targets Steam review data.
-                  Collection and refresh status depend on backend integration.
-                </p>
-              </div>
-              <span className="settings-status">Steam</span>
-            </div>
-          </div>
-        </section>
-
-        {/* 6. EXPORT & REPORTS */}
-
-        <section className="settings-section" id="exports">
-          <div className="settings-section-heading">
-            <div className="settings-section-icon">⇩</div>
-            <div>
-              <h2>Export & Reports</h2>
-              <p>
-                Choose what the Issues page's exported report includes.
-              </p>
-            </div>
-          </div>
-
-          <div className="settings-card">
-            <SettingToggle
-              title="Include reviews"
-              description="Include review text and available review metadata in exports."
+      case "exports":
+        return (
+          <>
+            <ToggleRow
+              label="Include reviews"
+              help="Include review text and available review metadata in exports."
               checked={preferences.exportReviews}
-              onChange={(value) =>
-                updatePreference("exportReviews", value)
-              }
+              onChange={(value) => updatePreference("exportReviews", value)}
             />
-
-            <div className="settings-divider" />
-
-            <SettingToggle
-              title="Include issue summaries"
-              description="Include detected issue names, counts, and statuses."
+            <ToggleRow
+              label="Include issue summaries"
+              help="Include detected issue names, counts, and statuses."
               checked={preferences.exportIssues}
-              onChange={(value) =>
-                updatePreference("exportIssues", value)
-              }
+              onChange={(value) => updatePreference("exportIssues", value)}
             />
-
-            <div className="settings-divider" />
-
-            <SettingToggle
-              title="Include statistics"
-              description="Include sentiment totals and summary statistics."
+            <ToggleRow
+              label="Include statistics"
+              help="Include sentiment totals and summary statistics."
               checked={preferences.exportStatistics}
-              onChange={(value) =>
-                updatePreference("exportStatistics", value)
+              onChange={(value) => updatePreference("exportStatistics", value)}
+            />
+            <ActionRow
+              label="Export settings"
+              help="Download your saved GameScope preferences as JSON."
+              action="Download"
+              onClick={exportPreferences}
+            />
+          </>
+        );
+
+      case "steam":
+        return (
+          <>
+            <InfoRow
+              label="Connection"
+              help="GameScope uses Steam OpenID to verify your Steam identity."
+              value={
+                steamLoading
+                  ? "Checking..."
+                  : steamError && !linkedSteamAccount
+                    ? "Unable to verify"
+                    : linkedSteamAccount
+                      ? "Connected"
+                      : "Not connected"
               }
             />
 
-            <div className="settings-export-action">
-              <div>
-                <h3>Export settings</h3>
-                <p>Download your saved GameScope preferences as JSON.</p>
-              </div>
-              <button
-                type="button"
-                className="settings-primary-button"
-                onClick={exportPreferences}
-              >
-                Export Preferences
-              </button>
-            </div>
-          </div>
-
-          <p className="settings-note">
-            These choose what goes into Export report on the Issues
-            page. The Export Preferences button above downloads your
-            settings, not the game's reviews.
-          </p>
-        </section>
-
-        {/* REAL STEAM ACCOUNT - PLAYER MODE ONLY */}
-
-        {mode === "player" && (
-          <section className="settings-section" id="steam-account">
-            <div className="steam-account-header">
-              <div>
-                <h2>Steam Account</h2>
-                <p>
-                  Connect your Steam account to prepare for personalized
-                  gaming features and account integration.
-                </p>
-              </div>
-            </div>
-
-            <div className="steam-account-card">
-              <div className="steam-account-info">
-                <div className="steam-account-logo">
-                  <img
-                    src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg"
-                    alt="Steam logo"
+            {linkedSteamAccount ? (
+              <>
+                {linkedSteamAccount.steam_display_name && (
+                  <InfoRow
+                    label="Display name"
+                    help="The name on your linked Steam profile."
+                    value={linkedSteamAccount.steam_display_name}
                   />
-                </div>
-
-                <div>
-                  <h3>Steam</h3>
-
-                  <span
-                    className={`steam-connection-status ${
-                      linkedSteamAccount ? "connected" : "disconnected"
-                    }`}
-                  >
-                    {steamLoading
-                      ? "Checking connection..."
-                      : steamError && !linkedSteamAccount
-                        ? "Unable to verify"
-                        : linkedSteamAccount
-                          ? "Connected"
-                          : "Not Connected"}
-                  </span>
-                </div>
-              </div>
-
-              {steamLoading ? (
-                <span className="settings-note">
-                  Checking your linked Steam account...
-                </span>
-              ) : linkedSteamAccount ? (
-                <div className="steam-linked-content">
-                  <div className="steam-linked-details">
-                    {linkedSteamAccount.steam_display_name && (
-                      <p>
-                        <strong>Display Name:</strong>{" "}
-                        {linkedSteamAccount.steam_display_name}
-                      </p>
-                    )}
-
-                    <p>
-                      <strong>Steam ID:</strong>{" "}
-                      {linkedSteamAccount.steam_id}
-                    </p>
-
-                    {linkedSteamAccount.profile_url && (
-                      <a
-                        href={linkedSteamAccount.profile_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        View Steam Profile
-                      </a>
-                    )}
-                  </div>
-
-                  <div
-                    className="steam-linked-actions"
-                    style={{
-                      display: "flex",
-                      justifyContent: "flex-start",
-                      alignItems: "flex-start",
-                      width: "100%",
-                      marginTop: "12px",
-                    }}
-                  >
-                    <button
-                      type="button"
-                      className="steam-disconnect-button"
-                      onClick={handleDisconnectSteam}
-                      disabled={steamDisconnecting}
-                    >
-                      {steamDisconnecting
-                        ? "Disconnecting..."
-                        : "Disconnect Steam"}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  className="steam-connect-button"
-                  onClick={startSteamLink}
-                  disabled={!isLoggedIn || steamLoading}
-                >
-                  Connect Steam
-                </button>
-              )}
-            </div>
-
-            {steamError && (
-              <p className="settings-note" role="alert">
-                {steamError}
-              </p>
-            )}
-
-            {steamMessage && (
-              <p className="settings-save-message" role="status">
-                {steamMessage}
-              </p>
-            )}
-
-            <p className="steam-demo-note">
-              GameScope uses Steam OpenID to verify your Steam identity.
-              You will be redirected to Steam to authorize the connection.
-              GameScope never asks for your Steam password.
-            </p>
-          </section>
-        )}
-
-        {/* 7. PLAYER PREFERENCES - PLAYER MODE ONLY */}
-
-        {mode === "player" && (
-          <section className="settings-section" id="players">
-            <div className="settings-section-heading">
-              <div className="settings-section-icon">◇</div>
-              <div>
-                <h2>Player Preferences</h2>
-                <p>
-                  Save games and personalize future discovery features.
-                </p>
-              </div>
-            </div>
-
-            <div className="settings-card">
-              <div className="settings-row">
-                <div className="settings-row-copy">
-                  <h3>Favorite games</h3>
-                  <p>Add a game name to your locally saved list.</p>
-                </div>
-              </div>
-
-              <div className="settings-favorite-form">
-                <input
-                  className="settings-input"
-                  value={favoriteInput}
-                  onChange={(event) =>
-                    setFavoriteInput(event.target.value)
-                  }
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") addFavorite();
-                  }}
-                  placeholder="Enter a game name..."
-                  aria-label="Game name"
+                )}
+                <InfoRow
+                  label="Steam ID"
+                  help="The ID of your linked Steam account."
+                  value={linkedSteamAccount.steam_id}
                 />
-                <button
-                  type="button"
-                  className="settings-primary-button"
-                  onClick={addFavorite}
-                >
-                  Add Game
-                </button>
-              </div>
-
-              {favorites.length > 0 ? (
-                <div className="settings-favorite-list">
-                  {favorites.map((game) => (
-                    <div className="settings-favorite-item" key={game}>
-                      <span>🎮</span>
-                      <strong>{game}</strong>
-                      <button
-                        type="button"
-                        onClick={() => removeFavorite(game)}
-                        aria-label={`Remove ${game}`}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="settings-empty">
-                  No saved games yet. Add a game above to get started.
-                </p>
-              )}
-
-              <div className="settings-divider" />
-
-              <SettingToggle
-                title="Hide games I already own"
-                description="Preference for future game discovery and recommendations."
-                checked={preferences.hideOwnedGames}
-                onChange={(value) =>
-                  updatePreference("hideOwnedGames", value)
+                {linkedSteamAccount.profile_url && (
+                  <ActionRow
+                    label="Steam profile"
+                    help="Open your Steam profile in a new tab."
+                    action="Open"
+                    href={linkedSteamAccount.profile_url}
+                  />
+                )}
+                <ActionRow
+                  label="Disconnect Steam"
+                  help="Unlink this Steam account from GameScope."
+                  action={steamDisconnecting ? "Disconnecting..." : "Disconnect"}
+                  onClick={handleDisconnectSteam}
+                  disabled={steamDisconnecting}
+                />
+              </>
+            ) : (
+              <ActionRow
+                label="Connect Steam"
+                help={
+                  isLoggedIn
+                    ? "You will be redirected to Steam to authorize the connection."
+                    : "Log in to connect a Steam account."
                 }
+                action="Connect"
+                onClick={startSteamLink}
+                disabled={!isLoggedIn || steamLoading}
               />
+            )}
+          </>
+        );
 
-              <div className="settings-divider" />
-
-              <SettingSelect
-                title="Recommendation priority"
-                description="Choose what future game recommendations should emphasize."
-                value={preferences.recommendationPriority}
-                options={[
-                  ["quality", "Review quality"],
-                  ["sentiment", "Player sentiment"],
-                  ["issues", "Common player issues"],
-                ]}
-                onChange={(value) =>
-                  updatePreference(
-                    "recommendationPriority",
-                    value as Preferences["recommendationPriority"]
-                  )
-                }
+      case "players":
+        return (
+          <>
+            <Row
+              label="Add a favorite game"
+              help="Add a game name to your locally saved list."
+            >
+              <input
+                className="term-control term-input"
+                value={favoriteInput}
+                onChange={(event) => setFavoriteInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") addFavorite();
+                }}
+                placeholder="Game name..."
+                aria-label="Game name"
               />
-
-              <div className="settings-divider" />
-
-              <div className="settings-row settings-genres-row">
-                <div className="settings-row-copy">
-                  <h3>Preferred genres</h3>
-                  <p>Select genres for future discovery features.</p>
-                </div>
-
-                <div className="settings-genre-options">
-                  {[
-                    "Action",
-                    "RPG",
-                    "Strategy",
-                    "Indie",
-                    "Simulation",
-                    "Adventure",
-                  ].map((genre) => (
-                    <button
-                      key={genre}
-                      type="button"
-                      className={`settings-genre ${
-                        preferences.preferredGenres.includes(genre)
-                          ? "selected"
-                          : ""
-                      }`}
-                      aria-pressed={preferences.preferredGenres.includes(
-                        genre
-                      )}
-                      onClick={() => toggleGenre(genre)}
-                    >
-                      {genre}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <p className="settings-note">
-              Favorite games and genres are saved in this browser.
-              They are not synced across devices or user accounts.
-            </p>
-          </section>
-        )}
-
-        {/* 8. PRIVACY & DATA */}
-
-        <section className="settings-section" id="privacy">
-          <div className="settings-section-heading">
-            <div className="settings-section-icon">◇</div>
-            <div>
-              <h2>Privacy & Data</h2>
-              <p>Manage locally stored GameScope preferences.</p>
-            </div>
-          </div>
-
-          <div className="settings-card">
-            <div className="settings-row">
-              <div className="settings-row-copy">
-                <h3>Local preferences</h3>
-                <p>
-                  Theme, review preferences, and saved games may be
-                  stored in this browser.
-                </p>
-              </div>
-              <span className="settings-status">Local</span>
-            </div>
-
-            <div className="settings-divider" />
-
-            <div className="settings-row">
-              <div className="settings-row-copy">
-                <h3>Clear recent game history</h3>
-                <p>
-                  Remove the recent-game history key if your app uses it.
-                  This does not remove your saved favorites.
-                </p>
-              </div>
               <button
                 type="button"
-                className="settings-secondary-button"
-                onClick={clearRecentHistory}
+                className="term-action"
+                onClick={addFavorite}
               >
-                Clear History
+                Add
               </button>
-            </div>
+            </Row>
 
-            <div className="settings-divider" />
+            {favorites.length > 0 ? (
+              favorites.map((game) => (
+                <ActionRow
+                  key={game}
+                  label={game}
+                  help="Saved in this browser."
+                  action="Remove"
+                  actionLabel={`Remove ${game}`}
+                  onClick={() => removeFavorite(game)}
+                />
+              ))
+            ) : (
+              <InfoRow
+                label="Saved games"
+                help="No saved games yet. Add a game above to get started."
+                value="None yet"
+              />
+            )}
 
-            <div className="settings-row">
-              <div className="settings-row-copy">
-                <h3>Export your preferences</h3>
-                <p>
-                  Download a JSON copy of your settings and saved games.
-                </p>
-              </div>
-              <button
-                type="button"
-                className="settings-secondary-button"
-                onClick={exportPreferences}
-              >
-                Export Data
-              </button>
-            </div>
-
-            <div className="settings-divider" />
-
-            <SettingToggle
-              title="Notifications"
-              description="Save your preference for future in-app notifications."
-              checked={preferences.notifications}
+            <ToggleRow
+              label="Hide games I already own"
+              help="Preference for future game discovery and recommendations."
+              checked={preferences.hideOwnedGames}
+              onChange={(value) => updatePreference("hideOwnedGames", value)}
+            />
+            <ChoiceRow
+              label="Recommendation priority"
+              help="Choose what future game recommendations should emphasize."
+              value={preferences.recommendationPriority}
+              options={[
+                ["quality", "Review quality"],
+                ["sentiment", "Sentiment"],
+                ["issues", "Common issues"],
+              ]}
               onChange={(value) =>
-                updatePreference("notifications", value)
+                updatePreference(
+                  "recommendationPriority",
+                  value as Preferences["recommendationPriority"]
+                )
               }
             />
+
+            <p className="term-group">Preferred genres</p>
+
+            {GENRES.map((genre) => (
+              <ToggleRow
+                key={genre}
+                label={genre}
+                help="Select genres for future discovery features."
+                checked={preferences.preferredGenres.includes(genre)}
+                onChange={() => toggleGenre(genre)}
+              />
+            ))}
+          </>
+        );
+
+      case "privacy":
+        return (
+          <>
+            <InfoRow
+              label="Local preferences"
+              help="Theme, review preferences, and saved games may be stored in this browser."
+              value="Local"
+            />
+            <ActionRow
+              label="Clear recent game history"
+              help="Remove the recent-game history key if your app uses it. This does not remove your saved favorites."
+              action="Clear"
+              onClick={clearRecentHistory}
+            />
+            <ActionRow
+              label="Export your preferences"
+              help="Download a JSON copy of your settings and saved games."
+              action="Download"
+              onClick={exportPreferences}
+            />
+            <ToggleRow
+              label="Notifications"
+              help="Save your preference for future in-app notifications."
+              checked={preferences.notifications}
+              onChange={(value) => updatePreference("notifications", value)}
+            />
+          </>
+        );
+
+      case "about":
+        return (
+          <>
+            <InfoRow
+              label="Application"
+              help="GameScope, the player feedback analyzer."
+              value="Web app"
+            />
+            <InfoRow
+              label="Review source"
+              help="Reviews are collected from Steam."
+              value="Steam"
+            />
+            <InfoRow
+              label="Focus"
+              help="What GameScope looks at in every review."
+              value="Reviews · sentiment · issues"
+            />
+          </>
+        );
+    }
+  };
+
+  const notes: Partial<Record<CategoryId, React.ReactNode>> = {
+    analysis:
+      "Review length and playtime apply on the Reviews page, and the issue mention threshold applies on the Issues page. The issue detection sentiment is saved as a preference but not applied yet.",
+    dashboard:
+      "Your current navigation still opens the Dashboard after Get Started. The default-page preference must be connected to App.tsx before it changes navigation behavior.",
+    exports:
+      "These choose what goes into Export report on the Issues page. Export settings downloads your settings, not the game's reviews.",
+    steam: (
+      <>
+        {steamError && <span role="alert">{steamError} </span>}
+        {steamMessage && <span role="status">{steamMessage} </span>}
+        GameScope never asks for your Steam password.
+      </>
+    ),
+    players:
+      "Favorite games and genres are saved in this browser. They are not synced across devices or user accounts.",
+    privacy:
+      "Notifications are a saved preference only. This frontend does not currently send notifications or manage account data.",
+    about:
+      "GameScope helps players understand community feedback before purchasing a game and helps developers identify player sentiment, recurring issues, and areas for improvement.",
+  };
+
+  return (
+    // Green for players, purple for developers
+    <div
+      className={`settings-page ${isPlayer ? "term-player" : "term-dev"} ${
+        !preferences.animations ? "settings-reduced-motion" : ""
+      } ${preferences.compactLayout ? "settings-compact" : ""}`}
+    >
+      <Navbar
+        darkMode={darkMode}
+        setDarkMode={setDarkMode}
+        currentPage={currentPage}
+        setCurrentPage={setCurrentPage}
+        onLogoClick={onLogoClick}
+        mode={mode}
+        setMode={setMode}
+        isLoggedIn={isLoggedIn}
+        accountEmail={accountEmail}
+        onLogout={onLogout}
+      />
+
+      <main className="term-main">
+        <header className="term-title">
+          <span>GameScope</span>
+          <h1>SETTINGS</h1>
+          <span>{isPlayer ? "Player mode" : "Developer mode"}</span>
+        </header>
+
+        <section className="term-panel" aria-label={`${active.label} settings`}>
+          <div className="term-list-wrap">
+            <button
+              type="button"
+              className={`term-scroll term-scroll-up ${canScrollUp ? "show" : ""}`}
+              onClick={() => scrollList(-1)}
+              tabIndex={-1}
+              aria-hidden="true"
+            >
+              <svg viewBox="0 0 16 10">
+                <path d="M1 9 8 2l7 7" />
+              </svg>
+            </button>
+
+            <div
+              ref={listRef}
+              className="term-list"
+              onScroll={updateScrollHints}
+              onMouseOver={showHelp}
+              onFocus={showHelp}
+              onMouseLeave={() => setHelp("")}
+              onKeyDown={moveSelection}
+            >
+              {renderRows()}
+            </div>
+
+            <button
+              type="button"
+              className={`term-scroll term-scroll-down ${canScrollDown ? "show" : ""}`}
+              onClick={() => scrollList(1)}
+              tabIndex={-1}
+              aria-hidden="true"
+            >
+              <svg viewBox="0 0 16 10">
+                <path d="M1 1l7 7 7-7" />
+              </svg>
+            </button>
           </div>
 
-          <p className="settings-note">
-            Notifications are a saved preference only. This frontend
-            does not currently send notifications or manage account data.
-          </p>
+          <p className="term-help">{help || active.help}</p>
+
+          {notes[active.id] && (
+            <p className="term-note">{notes[active.id]}</p>
+          )}
         </section>
 
-        {/* 9. ABOUT */}
+        <nav className="term-menu" aria-label="Settings categories">
+          {categories.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={item.id === active.id ? "active" : ""}
+              aria-current={item.id === active.id ? "true" : undefined}
+              onClick={() => {
+                setCategory(item.id);
+                setHelp("");
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
 
-        <section className="settings-section" id="about">
-          <div className="settings-section-heading">
-            <div className="settings-section-icon">ⓘ</div>
-            <div>
-              <h2>About GameScope</h2>
-              <p>Project and data source information.</p>
-            </div>
+        <footer className="term-footer">
+          <span className="term-status" role="status">
+            {savedMessage || "Saved in this browser"}
+          </span>
+
+          <div className="term-footer-actions">
+            <button type="button" onClick={resetPreferences}>
+              Defaults
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentPage(isPlayer ? "player" : "dashboard")}
+            >
+              Back
+            </button>
           </div>
-
-          <div className="settings-card settings-about-card">
-            <div className="settings-about-brand">
-              <div className="settings-about-logo">G</div>
-              <div>
-                <h3>GameScope</h3>
-                <p>Player Feedback Analyzer</p>
-              </div>
-              <span className="settings-status">Web App</span>
-            </div>
-
-            <div className="settings-divider" />
-
-            <p className="settings-about-description">
-              GameScope helps players understand community feedback
-              before purchasing a game and helps developers identify
-              player sentiment, recurring issues, and areas for
-              improvement.
-            </p>
-
-            <div className="settings-info-grid">
-              <div>
-                <span>REVIEW SOURCE</span>
-                <strong>Steam</strong>
-              </div>
-              <div>
-                <span>APPLICATION</span>
-                <strong>Web application</strong>
-              </div>
-              <div>
-                <span>FOCUS</span>
-                <strong>Reviews, sentiment, and issues</strong>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* RESET */}
-
-        <footer className="settings-footer">
-          <div>
-            <h3>Restore default preferences</h3>
-            <p>
-              Reset saved configuration options. Your theme and
-              favorite-game list will remain unchanged.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            className="settings-reset-button"
-            onClick={resetPreferences}
-          >
-            Restore Defaults
-          </button>
         </footer>
-
-        <div className="settings-bottom-note">
-          GAMESCOPE <span>·</span> PLAYER FEEDBACK ANALYZER
-        </div>
       </main>
     </div>
   );
 }
 
-/* Reusable setting controls */
+/* Menu rows: the label on the left, the value on the right. The arrows
+   beside a value only show on the selected row. */
 
-function SettingToggle({
-  title,
-  description,
-  checked,
-  onChange,
+function Row({
+  label,
+  help,
+  children,
 }: {
-  title: string;
-  description: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
+  label: string;
+  help: string;
+  children: React.ReactNode;
 }) {
   return (
-    <div className="settings-row">
-      <div className="settings-row-copy">
-        <h3>{title}</h3>
-        <p>{description}</p>
-      </div>
-
-      <button
-        type="button"
-        className={`settings-switch ${checked ? "switch-on" : ""}`}
-        role="switch"
-        aria-checked={checked}
-        aria-label={title}
-        onClick={() => onChange(!checked)}
-      >
-        <span />
-      </button>
+    <div className="term-row" data-help={help}>
+      <span className="term-label">{label}</span>
+      <div className="term-value">{children}</div>
     </div>
   );
 }
 
-function SettingSelect({
-  title,
-  description,
+const SEGMENTS = 16;
+
+function Meter({ filled }: { filled: number }) {
+  const count = Math.round(Math.min(1, Math.max(0, filled)) * SEGMENTS);
+
+  return (
+    <span className="term-meter" aria-hidden="true">
+      {Array.from({ length: SEGMENTS }, (_, index) => (
+        <span key={index} className={index < count ? "on" : ""} />
+      ))}
+    </span>
+  );
+}
+
+function StepArrow({
+  direction,
+  onClick,
+  disabled = false,
+}: {
+  direction: -1 | 1;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className="term-arrow"
+      onClick={onClick}
+      disabled={disabled}
+      tabIndex={-1}
+      aria-hidden="true"
+    >
+      <svg viewBox="0 0 10 12">
+        <path d={direction < 0 ? "M9 1 2 6l7 5Z" : "M1 1l7 5-7 5Z"} />
+      </svg>
+    </button>
+  );
+}
+
+const onStepKeys =
+  (step: (direction: -1 | 1) => void) =>
+  (event: React.KeyboardEvent) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+
+    event.preventDefault();
+    step(event.key === "ArrowLeft" ? -1 : 1);
+  };
+
+function ChoiceRow({
+  label,
+  help,
   value,
   options,
   onChange,
+  meter = false,
 }: {
-  title: string;
-  description: string;
+  label: string;
+  help: string;
   value: string;
   options: [string, string][];
   onChange: (value: string) => void;
+  meter?: boolean;
 }) {
-  return (
-    <div className="settings-row">
-      <div className="settings-row-copy">
-        <h3>{title}</h3>
-        <p>{description}</p>
-      </div>
+  const index = Math.max(
+    0,
+    options.findIndex(([optionValue]) => optionValue === value)
+  );
 
-      <select
-        className="settings-select"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
+  const step = (direction: -1 | 1) => {
+    const next = (index + direction + options.length) % options.length;
+    onChange(options[next][0]);
+  };
+
+  return (
+    <Row label={label} help={help}>
+      <StepArrow direction={-1} onClick={() => step(-1)} />
+      <button
+        type="button"
+        className={`term-control ${meter ? "term-slider" : "term-choice"}`}
+        onClick={() => step(1)}
+        onKeyDown={onStepKeys(step)}
+        aria-label={`${label}: ${options[index][1]}`}
       >
-        {options.map(([optionValue, label]) => (
-          <option key={optionValue} value={optionValue}>
-            {label}
-          </option>
-        ))}
-      </select>
-    </div>
+        {meter ? <Meter filled={(index + 1) / options.length} /> : options[index][1]}
+      </button>
+      <StepArrow direction={1} onClick={() => step(1)} />
+      {meter && <span className="term-readout">{options[index][1]}</span>}
+    </Row>
   );
 }
 
-function SettingNumber({
-  title,
-  description,
+function ToggleRow({
+  label,
+  help,
+  checked,
+  onChange,
+}: {
+  label: string;
+  help: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  const flip = () => onChange(!checked);
+
+  return (
+    <Row label={label} help={help}>
+      <StepArrow direction={-1} onClick={flip} />
+      <button
+        type="button"
+        className="term-control term-choice"
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
+        onClick={flip}
+        onKeyDown={onStepKeys(flip)}
+      >
+        {checked ? "On" : "Off"}
+      </button>
+      <StepArrow direction={1} onClick={flip} />
+    </Row>
+  );
+}
+
+function SliderRow({
+  label,
+  help,
   value,
   min,
   max,
+  barMax,
+  unit,
   onChange,
-  suffix,
 }: {
-  title: string;
-  description: string;
+  label: string;
+  help: string;
   value: number;
   min: number;
   max: number;
+  barMax: number;
+  unit: string;
   onChange: (value: number) => void;
-  suffix?: string;
+}) {
+  const set = (next: number) =>
+    onChange(Math.min(max, Math.max(min, Math.round(next))));
+
+  return (
+    <Row label={label} help={help}>
+      <StepArrow
+        direction={-1}
+        onClick={() => set(value - 1)}
+        disabled={value <= min}
+      />
+      <div
+        className="term-control term-slider"
+        role="slider"
+        tabIndex={0}
+        aria-label={label}
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuenow={value}
+        aria-valuetext={`${value} ${unit}`}
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+
+          event.preventDefault();
+          const size = event.shiftKey ? 10 : 1;
+          set(value + (event.key === "ArrowLeft" ? -size : size));
+        }}
+        onClick={(event) => {
+          const box = event.currentTarget.getBoundingClientRect();
+          set(min + ((event.clientX - box.left) / box.width) * (barMax - min));
+        }}
+      >
+        <Meter filled={(value - min) / (barMax - min)} />
+      </div>
+      <StepArrow
+        direction={1}
+        onClick={() => set(value + 1)}
+        disabled={value >= max}
+      />
+      <span className="term-readout">
+        {value.toLocaleString()} {unit}
+      </span>
+    </Row>
+  );
+}
+
+function InfoRow({
+  label,
+  help,
+  value,
+}: {
+  label: string;
+  help: string;
+  value: string;
 }) {
   return (
-    <div className="settings-row">
-      <div className="settings-row-copy">
-        <h3>{title}</h3>
-        <p>{description}</p>
-      </div>
+    <Row label={label} help={help}>
+      <span className="term-static">{value}</span>
+    </Row>
+  );
+}
 
-      <label className="settings-number-control">
-        <input
-          type="number"
-          min={min}
-          max={max}
-          value={value}
-          onChange={(event) => {
-            const parsed = Number(event.target.value);
-            if (!Number.isFinite(parsed)) return;
-
-            onChange(Math.min(max, Math.max(min, parsed)));
-          }}
-          aria-label={title}
-        />
-        {suffix && <span>{suffix}</span>}
-      </label>
-    </div>
+function ActionRow({
+  label,
+  help,
+  action,
+  actionLabel,
+  onClick,
+  href,
+  disabled = false,
+}: {
+  label: string;
+  help: string;
+  action: string;
+  actionLabel?: string;
+  onClick?: () => void;
+  href?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <Row label={label} help={help}>
+      {href ? (
+        <a
+          className="term-control term-action"
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {action}
+        </a>
+      ) : (
+        <button
+          type="button"
+          className="term-control term-action"
+          onClick={onClick}
+          disabled={disabled}
+          aria-label={actionLabel}
+        >
+          {action}
+        </button>
+      )}
+    </Row>
   );
 }
 
