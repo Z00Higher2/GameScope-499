@@ -1069,6 +1069,83 @@ export function getPatchImpact(
 // ORGANIZATION API
 // =========================================================
 
+export interface AddOrganizationGameRequest {
+  organization_id: number;
+  app_id: number;
+  relationship: OrganizationGameRelationship;
+}
+
+export interface AddOrganizationGameResponse {
+  message: string;
+  organization_id: number;
+  game_id: number;
+  app_id: number;
+  game_name: string;
+  relationship: OrganizationGameRelationship;
+  status: OrganizationGameStatus;
+}
+
+export function addOrganizationGame(
+  data: AddOrganizationGameRequest
+): Promise<AddOrganizationGameResponse> {
+  return request<AddOrganizationGameResponse>(
+    "/api/organizations/games",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    }
+  );
+}
+
+export interface OrganizationMembership {
+  organization_id: number;
+  organization_name: string;
+  organization_email: string;
+  membership_role: "admin" | "member";
+  affiliation_status: "pending" | "verified" | "rejected";
+  requested_at: string | null;
+  reviewed_at: string | null;
+}
+
+export interface OrganizationMembershipResponse {
+  memberships: OrganizationMembership[];
+  count: number;
+}
+
+export interface OrganizationGame {
+  organization_id: number;
+  organization_name: string;
+  game_id: number;
+  app_id: number;
+  game_name: string;
+  game_release_date: string | null;
+  game_developer: string | null;
+  game_publisher: string | null;
+  relationship: OrganizationGameRelationship;
+  relationship_status: OrganizationGameStatus;
+  added_at: string | null;
+}
+
+export interface OrganizationGamesResponse {
+  games: OrganizationGame[];
+  count: number;
+}
+
+export function getOrganizationMembership() {
+  return request<OrganizationMembershipResponse>(
+    "/api/organizations/membership"
+  );
+}
+
+export function getOrganizationGames() {
+  return request<OrganizationGamesResponse>(
+    "/api/organizations/games"
+  );
+}
+
 export function createAdminOrganization(
   organizationName: string
 ): Promise<AdminOrganizationCreateResponse> {

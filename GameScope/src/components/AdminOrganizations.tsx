@@ -9,12 +9,15 @@ import type { Page, Mode } from "../type";
 import {
   getAdminOrganizations,
   getAdminOrganizationRequests,
+  getAdminOrganizationGameSubmissions,
   reviewAdminOrganizationMembership,
+  reviewAdminOrganizationGame,
 } from "../api";
 
 import type {
   AdminOrganization,
   AdminOrganizationRequest,
+  AdminOrganizationGameSubmission,
 } from "../api";
 
 interface AdminOrganizationsProps {
@@ -73,9 +76,15 @@ function AdminOrganizations({
     AdminOrganizationRequest[]
   >([]);
 
+  const [gameSubmissions, setGameSubmissions] = useState<
+    AdminOrganizationGameSubmission[]
+  >([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [requestError, setRequestError] = useState("");
+  const [gameRequestError, setGameRequestError] = useState("");
+
   const [processingRequest, setProcessingRequest] =
     useState<string | null>(null);
 
@@ -83,16 +92,22 @@ function AdminOrganizations({
     setLoading(true);
     setError("");
     setRequestError("");
+    setGameRequestError("");
 
     try {
-      const [organizationResponse, requestResponse] =
-        await Promise.all([
-          getAdminOrganizations(),
-          getAdminOrganizationRequests(),
-        ]);
+      const [
+        organizationResponse,
+        requestResponse,
+        gameSubmissionResponse,
+      ] = await Promise.all([
+        getAdminOrganizations(),
+        getAdminOrganizationRequests(),
+        getAdminOrganizationGameSubmissions(),
+      ]);
 
       setOrganizations(organizationResponse.organizations);
       setRequests(requestResponse.requests);
+      setGameSubmissions(gameSubmissionResponse.submissions);
     } catch (err) {
       setError(
         err instanceof Error
@@ -108,12 +123,16 @@ function AdminOrganizations({
     void loadAdminData();
   }, []);
 
+  // =========================================================
+  // MEMBERSHIP APPROVALS
+  // =========================================================
+
   const handleMembershipReview = async (
     request: AdminOrganizationRequest,
     decision: "verified" | "rejected"
   ) => {
     const requestKey =
-      `${request.organization_id}-${request.user_id}`;
+      `membership-${request.organization_id}-${request.user_id}`;
 
     if (processingRequest) return;
 
@@ -135,7 +154,6 @@ function AdminOrganizations({
         )
       );
 
-      // Refresh organization counts after the decision.
       const response = await getAdminOrganizations();
       setOrganizations(response.organizations);
     } catch (err) {
@@ -143,6 +161,51 @@ function AdminOrganizations({
         err instanceof Error
           ? err.message
           : "Unable to review this membership request."
+      );
+    } finally {
+      setProcessingRequest(null);
+    }
+  };
+
+  // =========================================================
+  // GAME SUBMISSION APPROVALS
+  // =========================================================
+
+  const handleGameReview = async (
+    submission: AdminOrganizationGameSubmission,
+    decision: "verified" | "rejected"
+  ) => {
+    const requestKey =
+      `game-${submission.organization_id}-${submission.game_id}`;
+
+    if (processingRequest) return;
+
+    setProcessingRequest(requestKey);
+    setGameRequestError("");
+
+    try {
+      await reviewAdminOrganizationGame(
+        submission.organization_id,
+        submission.game_id,
+        submission.relationship,
+        decision
+      );
+
+      setGameSubmissions((previous) =>
+        previous.filter(
+          (item) =>
+            item.organization_id !== submission.organization_id ||
+            item.game_id !== submission.game_id
+        )
+      );
+
+      const response = await getAdminOrganizations();
+      setOrganizations(response.organizations);
+    } catch (err) {
+      setGameRequestError(
+        err instanceof Error
+          ? err.message
+          : "Unable to review this game submission."
       );
     } finally {
       setProcessingRequest(null);
@@ -189,7 +252,10 @@ function AdminOrganizations({
           </p>
         </header>
 
-        {/* Pending membership requests */}
+        {/* =====================================================
+            PENDING MEMBERSHIP REQUESTS
+        ====================================================== */}
+
         <section
           className="admin-organizations-section"
           aria-labelledby="admin-requests-title"
@@ -242,7 +308,7 @@ function AdminOrganizations({
             <div className="admin-membership-requests">
               {requests.map((request) => {
                 const requestKey =
-                  `${request.organization_id}-${request.user_id}`;
+                  `membership-${request.organization_id}-${request.user_id}`;
 
                 const isProcessing =
                   processingRequest === requestKey;
@@ -315,7 +381,142 @@ function AdminOrganizations({
           )}
         </section>
 
-        {/* Registered organizations */}
+        {/* =====================================================
+            PENDING GAME APPROVALS
+        ====================================================== */}
+
+        <section
+          className="admin-organizations-section"
+          aria-labelledby="admin-game-requests-title"
+        >
+          <div className="admin-organizations-section-heading">
+            <div>
+              <h2 id="admin-game-requests-title">
+                Pending Game Approvals
+              </h2>
+
+              <p>
+                Review games submitted by verified organization members.
+              </p>
+            </div>
+
+            <span className="admin-organizations-count">
+              {gameSubmissions.length} pending
+            </span>
+          </div>
+
+          {gameRequestError && (
+            <div className="admin-organizations-error" role="alert">
+              {gameRequestError}
+            </div>
+          )}
+
+          {loading ? (
+            <div className="admin-organizations-state">
+              Loading game submissions...
+            </div>
+          ) : error ? (
+            <div className="admin-organizations-error" role="alert">
+              {error}
+            </div>
+          ) : gameSubmissions.length === 0 ? (
+            <div className="admin-organizations-state">
+              <strong>No pending game approvals</strong>
+              <p>
+                New organization game submissions will appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="admin-membership-requests">
+              {gameSubmissions.map((submission) => {
+                const requestKey =
+                  `game-${submission.organization_id}-${submission.game_id}`;
+
+                const isProcessing =
+                  processingRequest === requestKey;
+
+                return (
+                  <article
+                    className="admin-membership-request"
+                    key={requestKey}
+                  >
+                    <div className="admin-membership-request-info">
+                      <h3>{submission.game_name}</h3>
+
+                      <p>
+                        Organization:{" "}
+                        <strong>
+                          {submission.organization_name}
+                        </strong>
+                      </p>
+
+                      <p>
+                        Steam App ID: {submission.app_id}
+                      </p>
+
+                      <p>
+                        Relationship:{" "}
+                        <strong>
+                          {submission.relationship.charAt(0).toUpperCase() +
+                            submission.relationship.slice(1)}
+                        </strong>
+                      </p>
+
+                      <p>
+                        Submitted by:{" "}
+                        {submission.submitted_by ?? "Unknown user"}
+                      </p>
+
+                      <span>
+                        Submitted:{" "}
+                        {formatOrganizationDate(
+                          submission.added_at
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="admin-membership-request-actions">
+                      <button
+                        type="button"
+                        className="admin-membership-approve"
+                        disabled={processingRequest !== null}
+                        onClick={() =>
+                          void handleGameReview(
+                            submission,
+                            "verified"
+                          )
+                        }
+                      >
+                        {isProcessing
+                          ? "Processing..."
+                          : "Approve"}
+                      </button>
+
+                      <button
+                        type="button"
+                        className="admin-membership-reject"
+                        disabled={processingRequest !== null}
+                        onClick={() =>
+                          void handleGameReview(
+                            submission,
+                            "rejected"
+                          )
+                        }
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* =====================================================
+            REGISTERED ORGANIZATIONS
+        ====================================================== */}
+
         <section
           className="admin-organizations-section"
           aria-labelledby="admin-organizations-title"

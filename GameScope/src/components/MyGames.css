@@ -1454,3 +1454,201 @@
     width: 100%;
   }
 }
+
+/* =========================================================
+   ORGANIZATION GAME DETAILS
+========================================================= */
+
+.my-games-game-organization {
+  margin: 6px 0 0;
+  color: var(--text-muted, #888);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.my-games-game-relationship {
+  margin: 6px 0 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.my-games-game-status {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 10px;
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.my-games-game-status.status-pending {
+  color: #b7791f;
+  background: rgba(237, 180, 75, 0.14);
+}
+
+.my-games-game-status.status-verified {
+  color: #16865c;
+  background: rgba(32, 168, 120, 0.14);
+}
+
+.my-games-game-status.status-rejected {
+  color: #d34d5c;
+  background: rgba(211, 77, 92, 0.14);
+}
+
+/* =========================================================
+   GAME APPROVAL BUTTON STATES
+========================================================= */
+
+.my-games-open-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  filter: grayscale(0.25);
+}
+
+.my-games-open-button:disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+/* =========================================================
+   ADD GAME MODAL — FORM IMPROVEMENTS
+========================================================= */
+
+/* Organization and relationship dropdowns */
+
+.my-games-modal-body select {
+  display: block;
+  width: 100%;
+  min-height: 46px;
+  padding: 0 38px 0 14px;
+  border: 1px solid var(--my-games-border);
+  border-radius: 11px;
+  outline: none;
+  background-color: var(--my-games-input);
+  color: var(--my-games-text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.my-games-modal-body select:focus {
+  border-color: var(--my-games-accent);
+  box-shadow: 0 0 0 3px var(--my-games-accent-soft);
+}
+
+.my-games-modal-body select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.my-games-modal-body select option {
+  background: var(--my-games-card);
+  color: var(--my-games-text);
+}
+
+/* Steam search results */
+
+.my-games-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid var(--my-games-border);
+  border-radius: 12px;
+  background: var(--my-games-bg);
+}
+
+.my-games-search-result {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 12px;
+  width: 100%;
+  padding: 9px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: var(--my-games-card);
+  color: var(--my-games-text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.my-games-search-result:hover:not(:disabled) {
+  border-color: var(--my-games-accent-border);
+  background: var(--my-games-accent-soft);
+}
+
+.my-games-search-result:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.my-games-search-result img {
+  grid-column: 1;
+  grid-row: 1 / 3;
+  width: 76px;
+  height: 43px;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.my-games-search-result span {
+  grid-column: 2;
+  grid-row: 1;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.my-games-search-result small {
+  grid-column: 2;
+  grid-row: 2;
+  margin-top: 4px;
+  color: var(--my-games-muted);
+  font-size: 10px;
+}
+
+/* Scrollbar */
+
+.my-games-search-results::-webkit-scrollbar {
+  width: 6px;
+}
+
+.my-games-search-results::-webkit-scrollbar-thumb {
+  border-radius: 10px;
+  background: var(--my-games-border);
+}
+
+/* Form spacing */
+
+.my-games-modal-body > label:not(:first-child) {
+  margin-top: 5px;
+}
+
+.my-games-modal-body > .my-games-input-hint {
+  margin-top: -5px;
+}
+
+@media (max-width: 540px) {
+  .my-games-search-result {
+    grid-template-columns: 65px minmax(0, 1fr);
+  }
+
+  .my-games-search-result img {
+    width: 65px;
+    height: 38px;
+  }
+}

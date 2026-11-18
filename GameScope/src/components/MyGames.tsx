@@ -1,8 +1,17 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Navbar from "./Navbar";
 import type { Page, Mode } from "../type";
 import "./MyGames.css";
-import { getGameDetails } from "../api";
+import {
+  getGameDetails,
+  searchGames,
+  getOrganizationMembership,
+  getOrganizationGames,
+  addOrganizationGame,
+  type OrganizationMembership,
+  type OrganizationGame,
+  type GameSearchResult,
+} from "../api";
 
 interface MyGamesProps {
   darkMode: boolean;
@@ -28,63 +37,13 @@ interface ManagedGame {
   image: string;
   addedAt: string;
   genre?: string;
+  organizationId: number;
+  organizationName: string;
+  relationship: "developed" | "published" | "owned";
+  status: "pending" | "verified" | "rejected";
+
 }
 
-// =========================================================
-// CAPCOM DEMO PORTFOLIO
-// Sample company games for demonstration purposes.
-// =========================================================
-
-const capcomDemoGames: Omit<ManagedGame, "addedAt">[] = [
-  {
-    appId: "2246340",
-    name: "Monster Hunter Wilds",
-    image:
-      "https://cdn.akamai.steamstatic.com/steam/apps/2246340/header.jpg",
-  },
-  {
-    appId: "2050650",
-    name: "Resident Evil 4",
-    image:
-      "https://cdn.akamai.steamstatic.com/steam/apps/2050650/header.jpg",
-  },
-  {
-    appId: "1364780",
-    name: "Street Fighter 6",
-    image:
-      "https://cdn.akamai.steamstatic.com/steam/apps/1364780/header.jpg",
-  },
-  {
-    appId: "601150",
-    name: "Devil May Cry 5",
-    image:
-      "https://cdn.akamai.steamstatic.com/steam/apps/601150/header.jpg",
-  },
-  {
-    appId: "2054970",
-    name: "Dragon's Dogma 2",
-    image:
-      "https://cdn.akamai.steamstatic.com/steam/apps/2054970/header.jpg",
-  },
-];
-
-function getStorageKey(email: string) {
-  return `gamescope-developer-games-${email.toLowerCase()}`;
-}
-
-function loadGames(email: string): ManagedGame[] {
-  try {
-    const saved = localStorage.getItem(getStorageKey(email));
-
-    if (!saved) return [];
-
-    const games = JSON.parse(saved);
-
-    return Array.isArray(games) ? games : [];
-  } catch {
-    return [];
-  }
-}
 
 function MyGames({
   darkMode,
@@ -105,14 +64,16 @@ function MyGames({
   // STATE
   // =========================================================
 
-  const [games, setGames] = useState<ManagedGame[]>(
-    () => loadGames(accountEmail)
-  );
-
-  const [loadingCapcomDemo, setLoadingCapcomDemo] = useState(false);
+  const [games, setGames] = useState<ManagedGame[]>([]);
+  const [memberships, setMemberships] = useState<OrganizationMembership[]>([]);
+  const [selectedOrganizationId, setSelectedOrganizationId] =useState("");
+  const [selectedRelationship, setSelectedRelationship] = useState<"developed" | "published" | "owned">("developed");
+  const [loadingGames, setLoadingGames] = useState(true);
+  const [loadGamesError, setLoadGamesError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddGame, setShowAddGame] = useState(false);
   const [appIdInput, setAppIdInput] = useState("");
+  const [steamSearchResults, setSteamSearchResults] = useState<GameSearchResult[]>([]);  
   const [addGameError, setAddGameError] = useState("");
   const [addingGame, setAddingGame] = useState(false);
   const [openingGameId, setOpeningGameId] = useState<string | null>(
@@ -125,43 +86,107 @@ function MyGames({
     image: string;
   } | null>(null);
 
-  // =========================================================
-  // SAVE GAMES
-  // =========================================================
 
-  const saveGames = (updatedGames: ManagedGame[]) => {
-    setGames(updatedGames);
+  // =========================================================
+// LOAD VERIFIED ORGANIZATION GAMES
+// =========================================================
 
-    localStorage.setItem(
-      getStorageKey(accountEmail),
-      JSON.stringify(updatedGames)
+useEffect(() => {
+  let cancelled = false;
+
+  const loadOrganizationData = async () => {
+    setLoadingGames(true);
+    setLoadGamesError("");
+
+    try {
+      const [membershipResponse, gamesResponse] =
+        await Promise.all([
+          getOrganizationMembership(),
+          getOrganizationGames(),
+        ]);
+
+      if (cancelled) return;
+
+      const verifiedMemberships =
+        membershipResponse.memberships.filter(
+          (membership) =>
+            membership.affiliation_status === "verified"
+        );
+
+      setMemberships(verifiedMemberships);
+      setSelectedOrganizationId(
+      verifiedMemberships.length > 0
+        ? String(verifiedMemberships[0].organization_id)
+        : ""
     );
+
+      const organizationGames: ManagedGame[] =
+        gamesResponse.games.map((game: OrganizationGame) => ({
+          appId: String(game.app_id),
+          name: game.game_name,
+          image: `https://cdn.akamai.steamstatic.com/steam/apps/${game.app_id}/header.jpg`,
+          addedAt: game.added_at || "",
+          organizationId: game.organization_id,
+          organizationName: game.organization_name,
+          relationship: game.relationship,
+          status: game.relationship_status,
+        }));
+
+      setGames(organizationGames);
+    } catch (error) {
+      if (cancelled) return;
+
+      setLoadGamesError(
+        error instanceof Error
+          ? error.message
+          : "Unable to load your organization's games."
+      );
+    } finally {
+      if (!cancelled) {
+        setLoadingGames(false);
+      }
+    }
   };
 
-  // =========================================================
-  // LOAD CAPCOM DEMO
-  // =========================================================
+  loadOrganizationData();
 
-  const handleLoadCapcomDemo = () => {
-    setLoadingCapcomDemo(true);
-
-    const existingIds = new Set(
-      games.map((game) => game.appId)
-    );
-
-    const newGames: ManagedGame[] = capcomDemoGames
-      .filter((game) => !existingIds.has(game.appId))
-      .map((game) => ({
-        ...game,
-        addedAt: new Date().toISOString(),
-      }));
-
-    saveGames([...games, ...newGames]);
-
-    setSearchTerm("");
-    setLoadingCapcomDemo(false);
+  return () => {
+    cancelled = true;
   };
+}, []);
 
+
+const handleRefreshGames = async () => {
+  setLoadingGames(true);
+  setLoadGamesError("");
+
+  try {
+    const response = await getOrganizationGames();
+
+    setGames(
+      response.games.map((game) => ({
+        appId: String(game.app_id),
+        name: game.game_name,
+        image: `https://cdn.akamai.steamstatic.com/steam/apps/${game.app_id}/header.jpg`,
+        addedAt: game.added_at || "",
+        organizationId: game.organization_id,
+        organizationName: game.organization_name,
+        relationship: game.relationship,
+        status: game.relationship_status,
+      }))
+    );
+  } catch (error) {
+    setLoadGamesError(
+      error instanceof Error
+        ? error.message
+        : "Unable to refresh your organization's games."
+    );
+  } finally {
+    setLoadingGames(false);
+  }
+};
+
+  
   // =========================================================
   // FILTER GAMES
   // =========================================================
@@ -170,83 +195,121 @@ function MyGames({
     game.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const selectedOrganization =
+  memberships.find(
+    (membership) =>
+      String(membership.organization_id) === selectedOrganizationId
+  ) ?? memberships[0] ?? null;
+
   // =========================================================
   // LOOK UP STEAM GAME
   // =========================================================
 
   const handleGameLookup = async () => {
-    const appId = appIdInput.trim();
+  const query = appIdInput.trim();
 
-    if (!/^\d+$/.test(appId)) {
-      setAddGameError("Please enter a valid numeric Steam App ID.");
+  if (!query) {
+    setAddGameError("Please enter a game title.");
+    return;
+  }
+
+  setAddingGame(true);
+  setAddGameError("");
+  setGamePreview(null);
+  setSteamSearchResults([]);
+
+  try {
+    const results = await searchGames(query);
+
+    if (results.length === 0) {
+      setAddGameError("No games found. Try another search.");
       return;
     }
 
-    setAddingGame(true);
-    setAddGameError("");
-    setGamePreview(null);
-
-    try {
-      const details = await getGameDetails(appId);
-
-      setGamePreview({
-        appId: String(details.appId),
-        name: details.name,
-        image:
-          details.headerImage ||
-          `https://cdn.akamai.steamstatic.com/steam/apps/${details.appId}/header.jpg`,
-      });
-    } catch (error) {
-      setAddGameError(
-        error instanceof Error
-          ? error.message
-          : "Unable to find this game on Steam."
-      );
-    } finally {
-      setAddingGame(false);
-    }
-  };
+    setSteamSearchResults(results);
+  } catch (error) {
+    setAddGameError(
+      error instanceof Error
+        ? error.message
+        : "Unable to search Steam."
+    );
+  } finally {
+    setAddingGame(false);
+  }
+};
 
   // =========================================================
   // ADD GAME
   // =========================================================
 
-  const handleAddGame = () => {
-    if (!gamePreview) return;
+  const handleAddGame = async () => {
+  if (!gamePreview) return;
 
-    const alreadyExists = games.some(
-      (game) => game.appId === gamePreview.appId
+  if (!selectedOrganizationId) {
+    setAddGameError(
+      "You need a verified organization before adding games."
     );
+    return;
+  }
 
-    if (alreadyExists) {
-      setAddGameError("This game is already in your organization.");
-      return;
-    }
+  const alreadyExists = games.some(
+    (game) =>
+      game.appId === gamePreview.appId &&
+      game.organizationId === Number(selectedOrganizationId)
+  );
 
-    const newGame: ManagedGame = {
-      ...gamePreview,
-      addedAt: new Date().toISOString(),
-    };
+  if (alreadyExists) {
+    setAddGameError(
+      "This game is already registered with this organization."
+    );
+    return;
+  }
 
-    saveGames([...games, newGame]);
+  setAddingGame(true);
+  setAddGameError("");
+
+  try {
+    const response = await addOrganizationGame({
+      organization_id: Number(selectedOrganizationId),
+      app_id: Number(gamePreview.appId),
+      relationship: selectedRelationship,
+    });
 
     setShowAddGame(false);
     setAppIdInput("");
     setGamePreview(null);
+
     setAddGameError("");
-  };
 
-  // =========================================================
-  // REMOVE GAME
-  // =========================================================
-
-  const handleRemoveGame = (appId: string) => {
-    const updatedGames = games.filter(
-      (game) => game.appId !== appId
+    alert(
+      `${response.game_name} was submitted successfully and is awaiting administrator approval.`
     );
 
-    saveGames(updatedGames);
-  };
+    // Refresh the organization's game list.
+    const gamesResponse = await getOrganizationGames();
+
+    setGames(
+      gamesResponse.games.map((game) => ({
+        appId: String(game.app_id),
+        name: game.game_name,
+        image: `https://cdn.akamai.steamstatic.com/steam/apps/${game.app_id}/header.jpg`,
+        addedAt: game.added_at || "",
+        organizationId: game.organization_id,
+        organizationName: game.organization_name,
+        relationship: game.relationship,
+        status: game.relationship_status,
+      }))
+    );
+  } catch (error) {
+    setAddGameError(
+      error instanceof Error
+        ? error.message
+        : "Unable to submit this game."
+    );
+  } finally {
+    setAddingGame(false);
+  }
+};
 
   // =========================================================
   // OPEN GAME DASHBOARD
@@ -273,6 +336,7 @@ function MyGames({
     setAppIdInput("");
     setAddGameError("");
     setGamePreview(null);
+    setSteamSearchResults([]);
   };
 
   const closeAddGameModal = () => {
@@ -282,6 +346,7 @@ function MyGames({
     setAppIdInput("");
     setAddGameError("");
     setGamePreview(null);
+    setSteamSearchResults([]);
   };
 
   // =========================================================
@@ -340,79 +405,71 @@ function MyGames({
 
         {/* COMPANY PROFILE */}
 
-        <div className="my-games-company-profile">
-          <div className="my-games-company-brand">
-            <div className="my-games-company-logo">C</div>
+       <div className="my-games-company-profile">
+            <div className="my-games-company-brand">
+              <div className="my-games-company-logo">
+                {selectedOrganization
+                  ? selectedOrganization.organization_name.charAt(0).toUpperCase()
+                  : "?"}
+              </div>
 
-            <div>
-              <span>DEMO COMPANY PROFILE</span>
-              <h2>CAPCOM</h2>
-              <p>Game Developer &amp; Publisher</p>
+              <div>
+                <span>VERIFIED ORGANIZATION</span>
+                <h2>
+                  {selectedOrganization
+                    ? selectedOrganization.organization_name
+                    : "No Organization"}
+                </h2>
+                <p>
+                  {selectedOrganization
+                    ? selectedOrganization.membership_role === "admin"
+                      ? "Organization Administrator"
+                      : "Organization Member"
+                    : "No verified organization membership"}
+                </p>
+              </div>
+            </div>
+
+            <div className="my-games-company-description">
+              <p>
+                {selectedOrganization
+                  ? `Manage games associated with ${selectedOrganization.organization_name}.`
+                  : "Your organization profile will appear here once your membership has been verified."}
+              </p>
+
+              <span className="my-games-demo-label">
+                {selectedOrganization
+                  ? "ORGANIZATION VERIFIED"
+                  : "VERIFICATION REQUIRED"}
+              </span>
             </div>
           </div>
-
-          <div className="my-games-company-description">
-            <p>
-              Capcom is a video game developer and publisher known
-              for iconic franchises including Resident Evil,
-              Monster Hunter, Street Fighter, and Devil May Cry.
-            </p>
-
-            <span className="my-games-demo-label">
-              SAMPLE COMPANY DATA
-            </span>
-          </div>
-        </div>
-
-        {/* CAPCOM PORTFOLIO PERFORMANCE */}
-
-        <div className="my-games-company-metrics">
-          <div className="my-games-metric-card">
-            <span>PLAYER SATISFACTION</span>
-            <strong>82%</strong>
-            <p>Sample positive sentiment</p>
-          </div>
-
-          <div className="my-games-metric-card">
-            <span>NEGATIVE FEEDBACK</span>
-            <strong>18%</strong>
-            <p>Sample negative sentiment</p>
-          </div>
-
-          <div className="my-games-metric-card">
-            <span>REVIEWS ANALYZED</span>
-            <strong>5.2K</strong>
-            <p>Illustrative review volume</p>
-          </div>
-
-          <div className="my-games-metric-card">
-            <span>PORTFOLIO TITLES</span>
-            <strong>{games.length}</strong>
-            <p>Games in this workspace</p>
-          </div>
-        </div>
 
         {/* ORGANIZATION STATISTICS */}
 
         <div className="my-games-stats">
-          <div className="my-games-stat-card">
-            <span>MANAGED GAMES</span>
-            <strong>{games.length}</strong>
-            <p>Games in your organization</p>
-          </div>
+            <div className="my-games-stat-card">
+              <span>TOTAL GAMES</span>
+              <strong>{games.length}</strong>
+              <p>Games across your organizations</p>
+            </div>
 
-          <div className="my-games-stat-card">
-            <span>ORGANIZATION</span>
-            <strong>1</strong>
-            <p>Active workspace</p>
-          </div>
+            <div className="my-games-stat-card">
+              <span>VERIFIED GAMES</span>
+              <strong>
+                {games.filter((game) => game.status === "verified").length}
+              </strong>
+              <p>Approved by GameScope</p>
+            </div>
 
-          <div className="my-games-stat-card">
-            <span>GAME PORTFOLIO</span>
-            <strong>{games.length > 0 ? "Active" : "Empty"}</strong>
-            <p>Portfolio status</p>
+            <div className="my-games-stat-card">
+              <span>PENDING APPROVAL</span>
+              <strong>
+                {games.filter((game) => game.status === "pending").length}
+              </strong>
+              <p>Awaiting administrator review</p>
+            </div>
           </div>
-        </div>
 
         {/* GAME PORTFOLIO */}
 
@@ -438,36 +495,59 @@ function MyGames({
                   }
                 />
               </div>
-
+                
               <button
                 type="button"
-                className="my-games-demo-button"
-                onClick={handleLoadCapcomDemo}
-                disabled={loadingCapcomDemo}
+                className="my-games-add-button"
+                onClick={handleRefreshGames}
+                disabled={loadingGames}
               >
-                {loadingCapcomDemo
-                  ? "Loading Demo..."
-                  : "🎮 Load CAPCOM Demo"}
+                {loadingGames ? "Refreshing..." : "↻ Refresh"}
               </button>
 
               <button
                 type="button"
                 className="my-games-add-button"
                 onClick={openAddGameModal}
+                disabled={memberships.length === 0}
               >
                 + Add Game
               </button>
             </div>
           </div>
 
+          {memberships.length === 0 && (
+              <div className="my-games-empty">
+                <div className="my-games-empty-icon">🏢</div>
+                <h3>No Verified Organization</h3>
+                <p>
+                  Your organization membership must be verified by a GameScope
+                  administrator before you can register games.
+                </p>
+              </div>
+            )}
+
           {/* GAME CARDS */}
 
-          {filteredGames.length > 0 ? (
-            <div className="my-games-grid">
+              {loadingGames ? (
+                <div className="my-games-empty">
+                    <div className="my-games-empty-icon">⏳</div>
+                    <h3>Loading Your Portfolio</h3>
+                    <p>Retrieving games from your organization...</p>
+                  </div>
+                ) : loadGamesError ? (
+                  <div className="my-games-empty">
+                    <div className="my-games-empty-icon">⚠️</div>
+                    <h3>Unable to Load Games</h3>
+                    <p>{loadGamesError}</p>
+                  </div>
+                ) : filteredGames.length > 0 ? ( 
+
+              <div className="my-games-grid">
               {filteredGames.map((game) => (
                 <div
                   className="my-games-card"
-                  key={game.appId}
+                  key={`${game.organizationId}-${game.appId}`}
                 >
                   <div className="my-games-card-image">
                     <img
@@ -481,27 +561,39 @@ function MyGames({
                     <h3>{game.name}</h3>
 
                     <p>Steam App ID: {game.appId}</p>
+                    <div className={`my-games-game-status status-${game.status}`}>
+                      <span>
+                        {game.status === "pending"
+                          ? "Awaiting Approval"
+                          : game.status === "verified"
+                            ? "Verified"
+                            : "Rejected"}
+                      </span>
+                    </div>
+
+                    <p className="my-games-game-relationship">
+                      {game.relationship.charAt(0).toUpperCase() + game.relationship.slice(1)}
+                    </p>
+                    <p className="my-games-game-organization">
+                      {game.organizationName}
+                    </p>
 
                     <div className="my-games-card-actions">
                       <button
                         type="button"
                         className="my-games-open-button"
                         onClick={() => handleOpenGame(game.appId)}
-                        disabled={openingGameId !== null}
+                        disabled={openingGameId !== null || game.status !== "verified"}
                       >
                         {openingGameId === game.appId
                           ? "Analyzing..."
-                          : "Open Game Dashboard →"}
+                          : game.status === "pending"
+                            ? "Awaiting Approval"
+                            : game.status === "rejected"
+                              ? "Game Rejected"
+                              : "Open Game Dashboard →"}
                       </button>
 
-                      <button
-                        type="button"
-                        className="my-games-remove-button"
-                        onClick={() => handleRemoveGame(game.appId)}
-                        disabled={openingGameId !== null}
-                      >
-                        Remove
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -558,19 +650,81 @@ function MyGames({
             </div>
 
             <div className="my-games-modal-body">
+              <label htmlFor="organization-select">
+                    SELECT ORGANIZATION
+                  </label>
+
+                  <select
+                    id="organization-select"
+                    value={selectedOrganizationId}
+                    onChange={(event) =>
+                      setSelectedOrganizationId(event.target.value)
+                    }
+                    disabled={addingGame}
+                  >
+                    <option value="">Choose an organization</option>
+
+                    {memberships.map((membership) => (
+                      <option
+                        key={membership.organization_id}
+                        value={String(membership.organization_id)}
+                      >
+                        {membership.organization_name}
+                      </option>
+                    ))}
+                  </select>
+
+                  <label htmlFor="game-relationship">
+                    ORGANIZATION'S RELATIONSHIP TO GAME
+                  </label>
+
+                  <select
+                    id="game-relationship"
+                    value={selectedRelationship}
+                    onChange={(event) =>
+                      setSelectedRelationship(
+                        event.target.value as "developed" | "published" | "owned"
+                      )
+                    }
+                    disabled={addingGame}
+                  >
+                    <option value="developed">Developed</option>
+                    <option value="published">Published</option>
+                    <option value="owned">Owned</option>
+                  </select>
+              <select
+                id="organization-select"
+                value={selectedOrganizationId}
+                onChange={(event) =>
+                  setSelectedOrganizationId(event.target.value)
+                }
+                disabled={addingGame}
+              >
+                <option value="">Choose an organization</option>
+
+                {memberships.map((membership) => (
+                  <option
+                    key={membership.organization_id}
+                    value={String(membership.organization_id)}
+                  >
+                    {membership.organization_name}
+                  </option>
+                ))}
+              </select>
+
               <label htmlFor="steam-app-id">
                 STEAM APPLICATION ID
               </label>
 
-              <div className="my-games-app-id-input">
+             <div className="my-games-app-id-input">
                 <input
                   id="steam-app-id"
                   type="text"
-                  inputMode="numeric"
-                  placeholder="Example: 570"
+                  placeholder="Search for a game..."
                   value={appIdInput}
                   onChange={(event) => {
                     setAppIdInput(event.target.value);
+                    setSteamSearchResults([]);
                     setGamePreview(null);
                     setAddGameError("");
                   }}
@@ -579,17 +733,61 @@ function MyGames({
                 <button
                   type="button"
                   onClick={handleGameLookup}
-                  disabled={
-                    addingGame || !appIdInput.trim()
-                  }
+                  disabled={addingGame || !appIdInput.trim()}
                 >
-                  {addingGame ? "Searching..." : "Find Game"}
+                  {addingGame ? "Searching..." : "Search Steam"}
                 </button>
               </div>
 
               <p className="my-games-input-hint">
-                Enter the game's Steam App ID to retrieve its details.
+                Search Steam by game title, then select the correct game from the results.
               </p>
+
+              {steamSearchResults.length > 0 && (
+                <div className="my-games-search-results">
+                  {steamSearchResults.map((game) => (
+                    <button
+                      type="button"
+                      key={game.appId}
+                      className="my-games-search-result"
+                      onClick={async () => {
+                        setAddingGame(true);
+                        setAddGameError("");
+
+                        try {
+                          const details = await getGameDetails(game.appId);
+
+                          setGamePreview({
+                            appId: String(details.appId),
+                            name: details.name,
+                            image:
+                              details.headerImage ||
+                              `https://cdn.akamai.steamstatic.com/steam/apps/${details.appId}/header.jpg`,
+                          });
+
+                          setSteamSearchResults([]);
+                        } catch (error) {
+                          setAddGameError(
+                            error instanceof Error
+                              ? error.message
+                              : "Unable to load game details."
+                          );
+                        } finally {
+                          setAddingGame(false);
+                        }
+                      }}
+                      disabled={addingGame}
+                    >
+                      {game.image && (
+                        <img src={game.image} alt="" />
+                      )}
+
+                      <span>{game.name}</span>
+                      <small>App ID: {game.appId}</small>
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {addGameError && (
                 <div className="my-games-error">
@@ -629,9 +827,9 @@ function MyGames({
                 type="button"
                 className="my-games-confirm-button"
                 onClick={handleAddGame}
-                disabled={!gamePreview || addingGame}
+                disabled={!gamePreview || addingGame || !selectedOrganizationId}
               >
-                Add to My Games
+                {addingGame ? "Submitting..." : "Submit for Approval"}
               </button>
             </div>
           </div>
