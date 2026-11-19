@@ -174,10 +174,15 @@ def register_user(
 
         cursor.execute(
             """
-            INSERT INTO users (username, email, password_hash)
-            VALUES (%s, %s, %s)
+            INSERT INTO users (
+                username,
+                email,
+                password_hash,
+                display_name
+            )
+            VALUES (%s, %s, %s, %s)
             """,
-            (username, email, hashed_password),
+            (username, email, hashed_password, username),
         )
 
         user_id = cursor.lastrowid
