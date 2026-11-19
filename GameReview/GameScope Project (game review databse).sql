@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(255) NOT NULL,
     email VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
+    display_name VARCHAR(30) NULL,
+    profile_picture_data MEDIUMTEXT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         ON UPDATE CURRENT_TIMESTAMP,
@@ -27,6 +29,11 @@ CREATE TABLE IF NOT EXISTS users (
     UNIQUE KEY uq_users_username (username),
     UNIQUE KEY uq_users_email (email)
 ) ENGINE = InnoDB;
+
+-- Existing accounts start with their current username as the display name.
+UPDATE users
+SET display_name = username
+WHERE display_name IS NULL;
 
 -- ============================================================
 -- PASSWORD RESET TOKENS
@@ -136,6 +143,9 @@ CREATE TABLE IF NOT EXISTS developer_profiles (
         'organization',
         'other'
     ) NULL,
+    company_name VARCHAR(255) NULL,
+    developer_role VARCHAR(100) NULL,
+    company_website VARCHAR(512) NULL,
 
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -145,6 +155,62 @@ CREATE TABLE IF NOT EXISTS developer_profiles (
     PRIMARY KEY (user_id),
 
     CONSTRAINT fk_developer_profiles_user_id
+        FOREIGN KEY (user_id)
+        REFERENCES users(user_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+-- ============================================================
+-- PROFILE FAVORITES AND ACTIVITY
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS user_favorite_genres (
+    user_id INT UNSIGNED NOT NULL,
+    genre VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (user_id, genre),
+
+    CONSTRAINT fk_user_favorite_genres_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(user_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS developer_managed_games (
+    managed_game_id BIGINT UNSIGNED AUTO_INCREMENT NOT NULL,
+    user_id INT UNSIGNED NOT NULL,
+    game_name VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (managed_game_id),
+    UNIQUE KEY uq_developer_managed_games_user_game (user_id, game_name),
+    INDEX idx_developer_managed_games_user_id (user_id),
+
+    CONSTRAINT fk_developer_managed_games_user
+        FOREIGN KEY (user_id)
+        REFERENCES users(user_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS user_analysis_history (
+    activity_id BIGINT UNSIGNED AUTO_INCREMENT NOT NULL,
+    user_id INT UNSIGNED NOT NULL,
+    app_id INT UNSIGNED NOT NULL,
+    game_name VARCHAR(255) NOT NULL,
+    analyzed_at DATETIME NOT NULL,
+    analysis_mode ENUM('player', 'developer') NOT NULL,
+    positive_percentage DECIMAL(5, 2) NOT NULL,
+    negative_percentage DECIMAL(5, 2) NOT NULL,
+    total_reviews INT UNSIGNED NOT NULL,
+
+    PRIMARY KEY (activity_id),
+    INDEX idx_user_analysis_history_user_date (user_id, analyzed_at),
+
+    CONSTRAINT fk_user_analysis_history_user
         FOREIGN KEY (user_id)
         REFERENCES users(user_id)
         ON UPDATE CASCADE
@@ -193,6 +259,10 @@ CREATE TABLE IF NOT EXISTS steam_accounts (
         ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
+-- ============================================================
+-- STEAM LIBRARY GAMES
+-- Snapshot of games returned for a user's linked Steam account.
+-- ============================================================
 
 CREATE TABLE IF NOT EXISTS steam_library_games (
     library_game_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -213,8 +283,7 @@ CREATE TABLE IF NOT EXISTS steam_library_games (
         FOREIGN KEY (user_id)
         REFERENCES users(user_id)
         ON DELETE CASCADE
-) ENGINE=InnoDB;
-
+) ENGINE = InnoDB;
 
 -- ============================================================
 -- STEAM LINK
@@ -545,7 +614,11 @@ DESCRIBE user_sessions;
 DESCRIBE password_reset_tokens;
 DESCRIBE user_priorities;
 DESCRIBE developer_profiles;
+DESCRIBE user_favorite_genres;
+DESCRIBE developer_managed_games;
+DESCRIBE user_analysis_history;
 DESCRIBE steam_accounts;
+DESCRIBE steam_library_games;
 DESCRIBE player_games;
 DESCRIBE organizations;
 DESCRIBE organization_memberships;
@@ -568,7 +641,11 @@ SELECT * FROM user_sessions;
 SELECT * FROM password_reset_tokens;
 SELECT * FROM user_priorities;
 SELECT * FROM developer_profiles;
+SELECT * FROM user_favorite_genres;
+SELECT * FROM developer_managed_games;
+SELECT * FROM user_analysis_history;
 SELECT * FROM steam_accounts;
+SELECT * FROM steam_library_games;
 SELECT * FROM player_games;
 SELECT * FROM organizations;
 SELECT * FROM organization_memberships;
@@ -578,6 +655,3 @@ SHOW CREATE TABLE users;
 SHOW CREATE TABLE organizations;
 SHOW CREATE TABLE organization_memberships;
 SHOW CREATE TABLE user_roles;
-
-
-
