@@ -466,6 +466,40 @@ class SteamLibraryImportRequest(BaseModel):
     games: list[SteamLibraryGameImport] = Field(max_length=1000)
 
 
+class DeveloperProfileUpdate(BaseModel):
+    companyName: str = Field(default="", max_length=255)
+    developerRole: str = Field(default="", max_length=100)
+    companyWebsite: str = Field(default="", max_length=512)
+    managedGames: list[str] = Field(default_factory=list, max_length=50)
+
+
+class ProfileUpdateRequest(BaseModel):
+    displayName: str | None = Field(default=None, max_length=30)
+    profilePictureData: str | None = Field(
+        default=None,
+        max_length=1_000_000,
+    )
+    favoriteGenres: list[str] | None = Field(
+        default=None,
+        max_length=10,
+    )
+    developerProfile: DeveloperProfileUpdate | None = None
+
+
+class ProfileActivity(BaseModel):
+    appId: str = Field(min_length=1, max_length=10)
+    gameName: str = Field(min_length=1, max_length=255)
+    analyzedAt: datetime
+    mode: Literal["player", "developer"]
+    positivePercentage: float = Field(ge=0, le=100)
+    negativePercentage: float = Field(ge=0, le=100)
+    totalReviews: int = Field(ge=0, le=4_294_967_295)
+
+
+class ProfileActivityBatch(BaseModel):
+    activities: list[ProfileActivity] = Field(max_length=50)
+
+
 class OrganizationRequest(BaseModel):
     organization_name: str = Field(
         min_length=2,
@@ -1675,6 +1709,475 @@ def current_user(request: Request):
             detail="Not authenticated.",
         )
     return {"user": account}
+
+
+@app.get("/api/profile")
+def get_profile(account=Depends(get_current_account)):
+    """Return profile data belonging to the authenticated user."""
+    connection = None
+    cursor = None
+
+    try:
+        connection = importer.connect_database(use_database=True)
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT
+                u.username,
+                COALESCE(NULLIF(u.display_name, ''), u.username)
+                    AS display_name,
+                u.profile_picture_data,
+                dp.company_name,
+                dp.developer_role,
+                dp.company_website
+            FROM users AS u
+            LEFT JOIN developer_profiles AS dp
+                ON dp.user_id = u.user_id
+            WHERE u.user_id = %s
+            LIMIT 1
+            """,
+            (account["user_id"],),
+        )
+        profile = cursor.fetchone()
+
+        if profile is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Profile not found.",
+            )
+
+        cursor.execute(
+            """
+            SELECT genre
+            FROM user_favorite_genres
+            WHERE user_id = %s
+            ORDER BY genre
+            """,
+            (account["user_id"],),
+        )
+        favorite_genres = [
+            row["genre"] for row in cursor.fetchall()
+        ]
+
+        cursor.execute(
+            """
+            SELECT game_name
+            FROM developer_managed_games
+            WHERE user_id = %s
+            ORDER BY game_name
+            """,
+            (account["user_id"],),
+        )
+        managed_games = [
+            row["game_name"] for row in cursor.fetchall()
+        ]
+
+        return {
+            "username": profile["username"],
+            "displayName": profile["display_name"],
+            "profilePictureData": profile["profile_picture_data"],
+            "favoriteGenres": favorite_genres,
+            "developerProfile": {
+                "companyName": profile["company_name"] or "",
+                "developerRole": profile["developer_role"] or "",
+                "companyWebsite": profile["company_website"] or "",
+                "managedGames": managed_games,
+            },
+        }
+
+    except MySQLError as error:
+        raise database_error(error) from error
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+
+@app.patch("/api/profile")
+def update_profile(
+    request: ProfileUpdateRequest,
+    account=Depends(get_current_account),
+):
+    """Update profile fields and replace submitted preference lists."""
+    updates = request.model_dump(exclude_unset=True)
+
+    if not updates:
+        raise HTTPException(
+            status_code=400,
+            detail="No profile fields were provided.",
+        )
+
+    display_name = updates.get("displayName")
+    if display_name is not None:
+        display_name = display_name.strip()
+        if not display_name:
+            raise HTTPException(
+                status_code=400,
+                detail="Display name cannot be empty.",
+            )
+        updates["displayName"] = display_name
+
+    profile_picture = updates.get("profilePictureData")
+    if profile_picture is not None and not re.fullmatch(
+        r"data:image/jpeg;base64,[A-Za-z0-9+/]+={0,2}",
+        profile_picture,
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Profile picture must be a JPEG data URL.",
+        )
+
+    favorite_genres = updates.get("favoriteGenres")
+    allowed_genres = {
+        "Action",
+        "Adventure",
+        "RPG",
+        "FPS",
+        "Strategy",
+        "Simulation",
+        "Horror",
+        "Racing",
+        "Sports",
+        "Indie",
+    }
+    if favorite_genres is not None and (
+        len(favorite_genres) != len(set(favorite_genres))
+        or any(genre not in allowed_genres for genre in favorite_genres)
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Favorite genres contain duplicates or unsupported values.",
+        )
+
+    developer_profile = updates.get("developerProfile")
+    if developer_profile is not None:
+        managed_games = [
+            game.strip()
+            for game in developer_profile.get("managedGames", [])
+        ]
+        if any(not game or len(game) > 255 for game in managed_games):
+            raise HTTPException(
+                status_code=400,
+                detail="Managed game names must contain 1 to 255 characters.",
+            )
+        normalized_games = [game.casefold() for game in managed_games]
+        if len(normalized_games) != len(set(normalized_games)):
+            raise HTTPException(
+                status_code=400,
+                detail="Managed games cannot contain duplicates.",
+            )
+        developer_profile["managedGames"] = managed_games
+        developer_profile["companyName"] = (
+            developer_profile.get("companyName", "").strip()
+        )
+        developer_profile["developerRole"] = (
+            developer_profile.get("developerRole", "").strip()
+        )
+        developer_profile["companyWebsite"] = (
+            developer_profile.get("companyWebsite", "").strip()
+        )
+
+    connection = None
+    cursor = None
+    try:
+        connection = importer.connect_database(use_database=True)
+        cursor = connection.cursor()
+
+        user_fields = []
+        user_values = []
+        if "displayName" in updates:
+            user_fields.append("display_name = %s")
+            user_values.append(updates["displayName"])
+        if "profilePictureData" in updates:
+            user_fields.append("profile_picture_data = %s")
+            user_values.append(updates["profilePictureData"])
+        if user_fields:
+            cursor.execute(
+                f"UPDATE users SET {', '.join(user_fields)} "
+                "WHERE user_id = %s",
+                (*user_values, account["user_id"]),
+            )
+
+        if favorite_genres is not None:
+            cursor.execute(
+                "DELETE FROM user_favorite_genres WHERE user_id = %s",
+                (account["user_id"],),
+            )
+            if favorite_genres:
+                cursor.executemany(
+                    """
+                    INSERT INTO user_favorite_genres (user_id, genre)
+                    VALUES (%s, %s)
+                    """,
+                    [
+                        (account["user_id"], genre)
+                        for genre in favorite_genres
+                    ],
+                )
+
+        if developer_profile is not None:
+            cursor.execute(
+                """
+                INSERT INTO developer_profiles (
+                    user_id,
+                    company_name,
+                    developer_role,
+                    company_website
+                )
+                VALUES (%s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE
+                    company_name = VALUES(company_name),
+                    developer_role = VALUES(developer_role),
+                    company_website = VALUES(company_website)
+                """,
+                (
+                    account["user_id"],
+                    developer_profile["companyName"],
+                    developer_profile["developerRole"],
+                    developer_profile["companyWebsite"],
+                ),
+            )
+            cursor.execute(
+                """
+                DELETE FROM developer_managed_games
+                WHERE user_id = %s
+                """,
+                (account["user_id"],),
+            )
+            if developer_profile["managedGames"]:
+                cursor.executemany(
+                    """
+                    INSERT INTO developer_managed_games
+                        (user_id, game_name)
+                    VALUES (%s, %s)
+                    """,
+                    [
+                        (account["user_id"], game)
+                        for game in developer_profile["managedGames"]
+                    ],
+                )
+
+        connection.commit()
+
+    except MySQLError as error:
+        if connection is not None:
+            connection.rollback()
+        raise database_error(error) from error
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+    return get_profile(account)
+
+
+def serialize_profile_activity(row):
+    analyzed_at = row["analyzed_at"]
+    return {
+        "appId": str(row["app_id"]),
+        "gameName": row["game_name"],
+        "analyzedAt": (
+            analyzed_at.isoformat()
+            if isinstance(analyzed_at, datetime)
+            else str(analyzed_at)
+        ),
+        "mode": row["analysis_mode"],
+        "positivePercentage": float(row["positive_percentage"]),
+        "negativePercentage": float(row["negative_percentage"]),
+        "totalReviews": int(row["total_reviews"]),
+    }
+
+
+@app.get("/api/profile/activity")
+def get_profile_activity(account=Depends(get_current_account)):
+    """Return the latest 50 analyses for the authenticated user."""
+    connection = None
+    cursor = None
+    try:
+        connection = importer.connect_database(use_database=True)
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute(
+            """
+            SELECT
+                app_id,
+                game_name,
+                analyzed_at,
+                analysis_mode,
+                positive_percentage,
+                negative_percentage,
+                total_reviews
+            FROM user_analysis_history
+            WHERE user_id = %s
+            ORDER BY analyzed_at DESC, activity_id DESC
+            LIMIT 50
+            """,
+            (account["user_id"],),
+        )
+        return {
+            "activities": [
+                serialize_profile_activity(row)
+                for row in cursor.fetchall()
+            ],
+        }
+
+    except MySQLError as error:
+        raise database_error(error) from error
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+
+@app.post("/api/profile/activity")
+def save_profile_activity(
+    request: ProfileActivityBatch,
+    account=Depends(get_current_account),
+):
+    """Save analysis events, skipping duplicate imports from old local data."""
+    connection = None
+    cursor = None
+    try:
+        connection = importer.connect_database(use_database=True)
+        cursor = connection.cursor(dictionary=True)
+
+        for activity in request.activities:
+            app_id_text = activity.appId.strip()
+            if not app_id_text.isdigit():
+                raise HTTPException(
+                    status_code=400,
+                    detail="Analysis history contains an invalid App ID.",
+                )
+            app_id = int(app_id_text)
+            if app_id < 1 or app_id > MAX_APP_ID:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Analysis history contains an invalid App ID.",
+                )
+
+            game_name = activity.gameName.strip()
+            if not game_name:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Analysis history contains an empty game name.",
+                )
+
+            analyzed_at = activity.analyzedAt
+            if analyzed_at.tzinfo is not None:
+                analyzed_at = analyzed_at.astimezone(
+                    timezone.utc
+                ).replace(tzinfo=None)
+            analyzed_at = analyzed_at.replace(microsecond=0)
+
+            cursor.execute(
+                """
+                SELECT activity_id
+                FROM user_analysis_history
+                WHERE user_id = %s
+                    AND app_id = %s
+                    AND analyzed_at = %s
+                    AND analysis_mode = %s
+                LIMIT 1
+                """,
+                (
+                    account["user_id"],
+                    app_id,
+                    analyzed_at,
+                    activity.mode,
+                ),
+            )
+            if cursor.fetchone():
+                continue
+
+            cursor.execute(
+                """
+                INSERT INTO user_analysis_history (
+                    user_id,
+                    app_id,
+                    game_name,
+                    analyzed_at,
+                    analysis_mode,
+                    positive_percentage,
+                    negative_percentage,
+                    total_reviews
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    account["user_id"],
+                    app_id,
+                    game_name,
+                    analyzed_at,
+                    activity.mode,
+                    activity.positivePercentage,
+                    activity.negativePercentage,
+                    activity.totalReviews,
+                ),
+            )
+
+        cursor.execute(
+            """
+            DELETE FROM user_analysis_history
+            WHERE user_id = %s
+                AND activity_id NOT IN (
+                    SELECT activity_id
+                    FROM (
+                        SELECT activity_id
+                        FROM user_analysis_history
+                        WHERE user_id = %s
+                        ORDER BY analyzed_at DESC, activity_id DESC
+                        LIMIT 50
+                    ) AS recent_activity
+                )
+            """,
+            (account["user_id"], account["user_id"]),
+        )
+        cursor.execute(
+            """
+            SELECT
+                app_id,
+                game_name,
+                analyzed_at,
+                analysis_mode,
+                positive_percentage,
+                negative_percentage,
+                total_reviews
+            FROM user_analysis_history
+            WHERE user_id = %s
+            ORDER BY analyzed_at DESC, activity_id DESC
+            LIMIT 50
+            """,
+            (account["user_id"],),
+        )
+        activities = [
+            serialize_profile_activity(row)
+            for row in cursor.fetchall()
+        ]
+        connection.commit()
+        return {"activities": activities}
+
+    except HTTPException:
+        if connection is not None:
+            connection.rollback()
+        raise
+
+    except MySQLError as error:
+        if connection is not None:
+            connection.rollback()
+        raise database_error(error) from error
+
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if connection is not None and connection.is_connected():
+            connection.close()
+
+
 @app.post("/api/auth/logout")
 def logout(request: Request, response: Response):
     token = request.cookies.get(SESSION_COOKIE_NAME)
