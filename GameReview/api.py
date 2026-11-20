@@ -447,8 +447,16 @@ class SignUpRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+
+class DeleteAccountRequest(BaseModel):
+    password: str = Field(min_length=1)
+
+
 class ForgotPasswordRequest(BaseModel):
     email: str
+
+
 class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str
@@ -2193,6 +2201,37 @@ def logout(request: Request, response: Response):
         samesite="none",
     )
     return {"message": "Logged out successfully."}
+
+
+@app.delete("/api/auth/account")
+def delete_account(
+    request: DeleteAccountRequest,
+    response: Response,
+    account=Depends(get_current_account),
+):
+    try:
+        auth.delete_user_account(
+            user_id=account["user_id"],
+            password=request.password,
+        )
+    except ValueError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=str(error),
+        ) from error
+    except MySQLError as error:
+        raise database_error(error) from error
+
+    response.delete_cookie(
+        key=SESSION_COOKIE_NAME,
+        path="/",
+        httponly=True,
+        secure=True,
+        samesite="none",
+    )
+    return {"message": "Account deleted successfully."}
+
+
 # ==========================================
 # Account Security
 # Active Sessions and Logout All Devices

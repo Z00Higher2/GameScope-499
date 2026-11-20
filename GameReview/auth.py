@@ -1305,3 +1305,111 @@ def unlink_steam_account(user_id):
 
         if connection:
             connection.close()
+
+def delete_user_account(user_id, password):
+    """
+    Delete a GameScope user account.
+
+    This operation:
+    - Validates the user's password.
+    - Revokes all sessions.
+    - Deletes the user record and related data.
+    """
+
+    if not user_id or not password:
+        raise ValueError("A valid user and password are required.")
+
+    connection = None
+    cursor = None
+
+    try:
+        connection = importer.connect_database(use_database=True)
+        cursor = connection.cursor(dictionary=True)
+        connection.start_transaction()
+
+        # Validate the user's password.
+        cursor.execute(
+            """
+            SELECT password_hash
+            FROM users
+            WHERE user_id = %s
+            LIMIT 1
+            FOR UPDATE
+            """,
+            (user_id,),
+        )
+
+        user = cursor.fetchone()
+
+        try:
+            password_valid = (
+                user is not None
+                and password_hasher.verify(password, user["password_hash"])
+            )
+        except Exception:
+            password_valid = False
+
+        if not password_valid:
+            raise ValueError("Invalid password.")
+
+        cursor.execute(
+            """
+            SELECT COUNT(*) AS organization_count
+            FROM organizations
+            WHERE created_by_user_id = %s
+            """,
+            (user_id,),
+        )
+
+        if cursor.fetchone()["organization_count"] > 0:
+            raise ValueError(
+                "Transfer or delete your organizations before "
+                "deleting this account."
+            )
+
+        # Revoke all sessions for the user.
+        cursor.execute(
+            """
+            UPDATE user_sessions
+            SET revoked_at = UTC_TIMESTAMP()
+            WHERE user_id = %s
+                AND revoked_at IS NULL
+            """,
+            (user_id,),
+        )
+
+        # Delete the user account and related data.
+        cursor.execute(
+            """
+            DELETE FROM users
+            WHERE user_id = %s
+            """,
+            (user_id,),
+        )
+
+        if cursor.rowcount != 1:
+            raise ValueError("Unable to delete the account.")
+
+        connection.commit()
+
+        logger.info("Account deleted for user_id=%s.", user_id)
+        return True
+
+    except ValueError:
+        if connection:
+            connection.rollback()
+        raise
+
+    except MySQLError:
+        if connection:
+            connection.rollback()
+
+        logger.exception("Database error during account deletion.")
+        raise
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
