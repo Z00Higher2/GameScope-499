@@ -44,7 +44,7 @@ class GameNotFound(PipelineError):
 
 # ==========================================
 # Create Database Tables if Missing
-# Runs CREATE TABLE statements from the team's SQL file
+# Creates missing tables and applies required additive migrations.
 # ==========================================
 
 def ensure_schema():
@@ -94,6 +94,59 @@ def ensure_schema():
         try:
             for sql in create_tables:
                 cursor.execute(sql)
+
+            profile_columns = (
+                (
+                    "users",
+                    "display_name",
+                    "VARCHAR(30) NULL AFTER password_hash",
+                ),
+                (
+                    "users",
+                    "profile_picture_data",
+                    "MEDIUMTEXT NULL AFTER display_name",
+                ),
+                (
+                    "developer_profiles",
+                    "company_name",
+                    "VARCHAR(255) NULL AFTER organization_type",
+                ),
+                (
+                    "developer_profiles",
+                    "developer_role",
+                    "VARCHAR(100) NULL AFTER company_name",
+                ),
+                (
+                    "developer_profiles",
+                    "company_website",
+                    "VARCHAR(512) NULL AFTER developer_role",
+                ),
+            )
+            for table_name, column_name, definition in profile_columns:
+                cursor.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM information_schema.columns
+                    WHERE table_schema = %s
+                      AND table_name = %s
+                      AND column_name = %s
+                    """,
+                    (database, table_name, column_name),
+                )
+                if cursor.fetchone()[0] == 0:
+                    cursor.execute(
+                        f"ALTER TABLE {table_name} "
+                        f"ADD COLUMN {column_name} {definition}"
+                    )
+
+            cursor.execute(
+                """
+                UPDATE users
+                SET display_name = username
+                WHERE display_name IS NULL
+                """
+            )
+            connection.commit()
 
         finally:
             cursor.close()

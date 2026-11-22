@@ -30,6 +30,88 @@ CREATE TABLE IF NOT EXISTS users (
     UNIQUE KEY uq_users_email (email)
 ) ENGINE = InnoDB;
 
+-- Add the column to existing installations where CREATE TABLE did not update
+-- the pre-existing users table.
+SET @display_name_column_exists = (
+    SELECT COUNT(*)
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'users'
+      AND COLUMN_NAME = 'display_name'
+);
+SET @display_name_migration = IF(
+    @display_name_column_exists = 0,
+    'ALTER TABLE users ADD COLUMN display_name VARCHAR(30) NULL AFTER password_hash',
+    'SELECT 1'
+);
+PREPARE display_name_migration_stmt FROM @display_name_migration;
+EXECUTE display_name_migration_stmt;
+DEALLOCATE PREPARE display_name_migration_stmt;
+
+SET @profile_picture_column_exists = (
+    SELECT COUNT(*)
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'users'
+      AND COLUMN_NAME = 'profile_picture_data'
+);
+SET @profile_picture_migration = IF(
+    @profile_picture_column_exists = 0,
+    'ALTER TABLE users ADD COLUMN profile_picture_data MEDIUMTEXT NULL AFTER display_name',
+    'SELECT 1'
+);
+PREPARE profile_picture_migration_stmt FROM @profile_picture_migration;
+EXECUTE profile_picture_migration_stmt;
+DEALLOCATE PREPARE profile_picture_migration_stmt;
+
+SET @company_name_column_exists = (
+    SELECT COUNT(*)
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'developer_profiles'
+      AND COLUMN_NAME = 'company_name'
+);
+SET @company_name_migration = IF(
+    @company_name_column_exists = 0,
+    'ALTER TABLE developer_profiles ADD COLUMN company_name VARCHAR(255) NULL AFTER organization_type',
+    'SELECT 1'
+);
+PREPARE company_name_migration_stmt FROM @company_name_migration;
+EXECUTE company_name_migration_stmt;
+DEALLOCATE PREPARE company_name_migration_stmt;
+
+SET @developer_role_column_exists = (
+    SELECT COUNT(*)
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'developer_profiles'
+      AND COLUMN_NAME = 'developer_role'
+);
+SET @developer_role_migration = IF(
+    @developer_role_column_exists = 0,
+    'ALTER TABLE developer_profiles ADD COLUMN developer_role VARCHAR(100) NULL AFTER company_name',
+    'SELECT 1'
+);
+PREPARE developer_role_migration_stmt FROM @developer_role_migration;
+EXECUTE developer_role_migration_stmt;
+DEALLOCATE PREPARE developer_role_migration_stmt;
+
+SET @company_website_column_exists = (
+    SELECT COUNT(*)
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'developer_profiles'
+      AND COLUMN_NAME = 'company_website'
+);
+SET @company_website_migration = IF(
+    @company_website_column_exists = 0,
+    'ALTER TABLE developer_profiles ADD COLUMN company_website VARCHAR(512) NULL AFTER developer_role',
+    'SELECT 1'
+);
+PREPARE company_website_migration_stmt FROM @company_website_migration;
+EXECUTE company_website_migration_stmt;
+DEALLOCATE PREPARE company_website_migration_stmt;
+
 -- Existing accounts start with their current username as the display name.
 UPDATE users
 SET display_name = username
