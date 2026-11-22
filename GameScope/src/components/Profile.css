@@ -293,6 +293,26 @@
   cursor: not-allowed;
 }
 
+.profile-request-form {
+  margin-top: 18px;
+}
+
+.profile-request-status,
+.profile-request-success {
+  margin-top: 16px !important;
+  padding: 12px 14px;
+  border: 1px solid rgba(112, 101, 238, 0.2);
+  border-radius: 9px;
+  background: var(--accent-soft, rgba(112, 101, 238, 0.08));
+  color: var(--text-primary, #25243a) !important;
+  font-size: 12px !important;
+}
+
+.profile-request-success {
+  border-color: rgba(46, 160, 90, 0.25);
+  background: rgba(46, 160, 90, 0.08);
+}
+
 .profile-form-group span {
   color: var(--text-secondary, #85849a);
   font-size: 11px;
@@ -335,6 +355,11 @@
 .dark-mode .profile-form-group input {
   background: #10101a;
   border-color: rgba(255, 255, 255, 0.12);
+}
+
+.dark-mode .profile-request-status,
+.dark-mode .profile-request-success {
+  color: #f0efff !important;
 }
 
 @keyframes profileFadeIn {

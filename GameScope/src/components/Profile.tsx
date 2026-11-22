@@ -7,16 +7,23 @@ import {
   getActiveSessions,
   logoutAllDevices,
   getSteamAccount,
+  getUserProfile,
   unlinkSteamAccount,
   importSteamLibrary,
+  updateUserProfile,
+  getOrganizationMembership,
+  requestOrganizationMembership,
 } from "../api";
 
 import type {
   AccountMode,
   ActiveSession,
+  UserProfile,
+  UserProfileUpdate,
   SteamAccount,
   SteamLibraryImportGame,
   AccountRole,
+  OrganizationMembership,
 } from "../api";
 
 type SteamExtensionStatus = "checking" | "installed" | "not-installed";
@@ -61,12 +68,13 @@ interface ProfileProps {
   onSteamDisconnect: () => void;
   roles: AccountRole[];
   isAdmin: boolean;
+  activityError: string;
 
   activityHistory: {
     appId: string;
     gameName: string;
     analyzedAt: string;
-    mode: Mode;
+    mode: AccountMode;
     positivePercentage: number;
     negativePercentage: number;
     totalReviews: number;
@@ -79,6 +87,13 @@ interface DeveloperProfileData {
   companyWebsite: string;
   managedGames: string[];
 }
+
+const EMPTY_DEVELOPER_PROFILE: DeveloperProfileData = {
+  companyName: "",
+  developerRole: "",
+  companyWebsite: "",
+  managedGames: [],
+};
 
 const availableGenres = [
   "Action",
@@ -144,8 +159,11 @@ function Profile({
   roles,
   isAdmin = false,
   activityHistory,
+  activityError,
 }: ProfileProps) {
   const isPlayer = mode === "player";
+  const canRequestDeveloperAccess =
+    roles.includes("player") && !roles.includes("developer");
 
   // GameScope Chrome extension configuration.
   const [gamescopeExtensionId, setGamescopeExtensionId] = useState("");
@@ -167,6 +185,8 @@ function Profile({
   const [uploadError, setUploadError] = useState("");
   const [profileError, setProfileError] = useState("");
   const [profileSaved, setProfileSaved] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileSaving, setProfileSaving] = useState(false);
 
   // Display name
   const [displayName, setDisplayName] = useState(
@@ -190,19 +210,24 @@ function Profile({
   });
 
   // Developer profile
-  const defaultDeveloperProfile: DeveloperProfileData = {
-    companyName: "",
-    developerRole: "",
-    companyWebsite: "",
-    managedGames: [],
-  };
-
   const [developerProfile, setDeveloperProfile] =
     useState<DeveloperProfileData>(() =>
-      readSavedData(developerStorageKey, defaultDeveloperProfile)
+      readSavedData(developerStorageKey, EMPTY_DEVELOPER_PROFILE)
     );
 
   const [newGame, setNewGame] = useState("");
+  const [organizationMemberships, setOrganizationMemberships] =
+    useState<OrganizationMembership[]>([]);
+  const [organizationMembershipsLoading, setOrganizationMembershipsLoading] =
+    useState(false);
+  const [organizationMembershipsError, setOrganizationMembershipsError] =
+    useState("");
+  const [requestOrganizationName, setRequestOrganizationName] = useState("");
+  const [requestOrganizationEmail, setRequestOrganizationEmail] = useState("");
+  const [developerRequestError, setDeveloperRequestError] = useState("");
+  const [developerRequestMessage, setDeveloperRequestMessage] = useState("");
+  const [developerRequestSubmitting, setDeveloperRequestSubmitting] =
+    useState(false);
 
   // Account security
   const [sessions, setSessions] = useState<ActiveSession[]>([]);
@@ -361,6 +386,83 @@ function Profile({
       );
     } finally {
       setSessionsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!canRequestDeveloperAccess) {
+      setOrganizationMemberships([]);
+      return;
+    }
+
+    let cancelled = false;
+    const loadMemberships = async () => {
+      setOrganizationMembershipsLoading(true);
+      setOrganizationMembershipsError("");
+
+      try {
+        const response = await getOrganizationMembership();
+        if (!cancelled) {
+          setOrganizationMemberships(response.memberships);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setOrganizationMembershipsError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load your organization requests."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setOrganizationMembershipsLoading(false);
+        }
+      }
+    };
+
+    void loadMemberships();
+    return () => {
+      cancelled = true;
+    };
+  }, [canRequestDeveloperAccess]);
+
+  const handleDeveloperAccessRequest = async (
+    event: React.FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
+    if (developerRequestSubmitting) return;
+
+    setDeveloperRequestError("");
+    setDeveloperRequestMessage("");
+    setDeveloperRequestSubmitting(true);
+
+    try {
+      const response = await requestOrganizationMembership({
+        organization_name: requestOrganizationName.trim(),
+        organization_email: requestOrganizationEmail.trim(),
+      });
+      setDeveloperRequestMessage(response.message);
+      setRequestOrganizationName("");
+      setRequestOrganizationEmail("");
+      try {
+        const memberships = await getOrganizationMembership();
+        setOrganizationMemberships(memberships.memberships);
+        setOrganizationMembershipsError("");
+      } catch (error) {
+        setOrganizationMembershipsError(
+          error instanceof Error
+            ? error.message
+            : "Your request was submitted, but its status could not be refreshed."
+        );
+      }
+    } catch (error) {
+      setDeveloperRequestError(
+        error instanceof Error
+          ? error.message
+          : "Unable to submit your developer access request."
+      );
+    } finally {
+      setDeveloperRequestSubmitting(false);
     }
   };
 
@@ -682,34 +784,138 @@ function Profile({
     }
   };
 
-  // Keep account-specific information updated.
-  useEffect(() => {
-    setProfilePicture(localStorage.getItem(storageKey));
-    setUploadError("");
+  const applyProfile = (profile: UserProfile) => {
+    setDisplayName(profile.displayName);
+    setEditedName(profile.displayName);
+    setProfilePicture(profile.profilePictureData);
+    setFavoriteGenres(profile.favoriteGenres);
+    setDeveloperProfile(profile.developerProfile);
+  };
 
-    const savedName =
-      localStorage.getItem(nameStorageKey) ||
-      accountEmail.split("@")[0] ||
-      "User";
-
-    setDisplayName(savedName);
-    setEditedName(savedName);
-    setIsEditing(false);
-
+  const persistProfile = async (
+    updates: UserProfileUpdate
+  ): Promise<UserProfile> => {
+    setProfileSaving(true);
     try {
-      const savedGenres = localStorage.getItem(genresStorageKey);
-      setFavoriteGenres(savedGenres ? JSON.parse(savedGenres) : []);
-    } catch {
-      setFavoriteGenres([]);
+      return await updateUserProfile(updates);
+    } finally {
+      setProfileSaving(false);
     }
+  };
 
-    setDeveloperProfile(
-      readSavedData(developerStorageKey, defaultDeveloperProfile)
-    );
-
+  // Load server data and migrate existing browser-only profile values once.
+  useEffect(() => {
+    let cancelled = false;
+    const migratedKey = `gamescope-profile-migrated-${emailKey}`;
+    setProfilePicture(null);
+    setDisplayName(accountEmail.split("@")[0] || "User");
+    setEditedName(accountEmail.split("@")[0] || "User");
+    setFavoriteGenres([]);
+    setDeveloperProfile(EMPTY_DEVELOPER_PROFILE);
+    setUploadError("");
+    setIsEditing(false);
+    setProfileLoading(true);
     setProfileError("");
     setProfileSaved(false);
-  }, [accountEmail]);
+
+    const loadProfile = async () => {
+      try {
+        let profile = await getUserProfile();
+        let migrationWarning = "";
+
+        if (localStorage.getItem(migratedKey) !== "true") {
+          const legacyPicture = localStorage.getItem(storageKey);
+          const legacyName = localStorage.getItem(nameStorageKey)?.trim();
+          let legacyGenres: string[] = [];
+
+          try {
+            const parsedGenres = JSON.parse(
+              localStorage.getItem(genresStorageKey) || "[]"
+            );
+            if (Array.isArray(parsedGenres)) {
+              legacyGenres = parsedGenres.filter(
+                (genre): genre is string =>
+                  typeof genre === "string" &&
+                  availableGenres.includes(genre)
+              );
+            }
+          } catch {
+            legacyGenres = [];
+          }
+
+          const legacyDeveloperProfile = readSavedData(
+            developerStorageKey,
+            EMPTY_DEVELOPER_PROFILE
+          );
+          const serverHasDeveloperData =
+            profile.developerProfile.companyName !== "" ||
+            profile.developerProfile.developerRole !== "" ||
+            profile.developerProfile.companyWebsite !== "" ||
+            profile.developerProfile.managedGames.length > 0;
+          const serverHasData =
+            profile.displayName !== profile.username ||
+            profile.profilePictureData !== null ||
+            profile.favoriteGenres.length > 0 ||
+            serverHasDeveloperData;
+          const hasLegacyData = Boolean(
+            (legacyName && legacyName !== profile.username) ||
+            legacyPicture ||
+            legacyGenres.length ||
+            legacyDeveloperProfile.companyName ||
+            legacyDeveloperProfile.developerRole ||
+            legacyDeveloperProfile.companyWebsite ||
+            legacyDeveloperProfile.managedGames.length
+          );
+
+          if (!serverHasData && hasLegacyData) {
+            profile = await updateUserProfile({
+              displayName: legacyName || profile.displayName,
+              profilePictureData: legacyPicture,
+              favoriteGenres: legacyGenres,
+              developerProfile: legacyDeveloperProfile,
+            });
+          }
+
+          try {
+            localStorage.setItem(migratedKey, "true");
+          } catch {
+            migrationWarning =
+              "Profile loaded, but this browser could not save the migration marker.";
+          }
+        }
+
+        if (!cancelled) {
+          applyProfile(profile);
+          setProfileError(migrationWarning);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setProfileError(
+            error instanceof Error
+              ? error.message
+              : "Unable to load your profile."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setProfileLoading(false);
+        }
+      }
+    };
+
+    void loadProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    accountEmail,
+    developerStorageKey,
+    emailKey,
+    genresStorageKey,
+    nameStorageKey,
+    storageKey,
+  ]);
 
   // Profile picture upload.
   const handlePictureUpload = (
@@ -761,15 +967,20 @@ function Profile({
         context.drawImage(image, 0, 0, canvas.width, canvas.height);
 
         const compressedImage = canvas.toDataURL("image/jpeg", 0.82);
-
-        try {
-          localStorage.setItem(storageKey, compressedImage);
-          setProfilePicture(compressedImage);
-        } catch {
-          setUploadError(
-            "Unable to save the image. Try a smaller picture."
-          );
-        }
+        void persistProfile({
+          profilePictureData: compressedImage,
+        })
+          .then((profile) => {
+            setProfilePicture(profile.profilePictureData);
+            setUploadError("");
+          })
+          .catch((error: unknown) => {
+            setUploadError(
+              error instanceof Error
+                ? error.message
+                : "Unable to save the image."
+            );
+          });
       };
 
       image.onerror = () => {
@@ -787,10 +998,20 @@ function Profile({
     event.target.value = "";
   };
 
-  const handleRemovePicture = () => {
-    localStorage.removeItem(storageKey);
-    setProfilePicture(null);
+  const handleRemovePicture = async () => {
     setUploadError("");
+    try {
+      const profile = await persistProfile({
+        profilePictureData: null,
+      });
+      setProfilePicture(profile.profilePictureData);
+    } catch (error) {
+      setUploadError(
+        error instanceof Error
+          ? error.message
+          : "Unable to remove the profile picture."
+      );
+    }
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -798,7 +1019,7 @@ function Profile({
   };
 
   // Edit profile.
-  const handleSaveProfile = () => {
+  const handleSaveProfile = async () => {
     const trimmedName = editedName.trim();
 
     if (!trimmedName) {
@@ -806,10 +1027,21 @@ function Profile({
       return;
     }
 
-    localStorage.setItem(nameStorageKey, trimmedName);
-    setDisplayName(trimmedName);
-    setIsEditing(false);
-    setProfileError("");
+    try {
+      const profile = await persistProfile({
+        displayName: trimmedName,
+      });
+      setDisplayName(profile.displayName);
+      setEditedName(profile.displayName);
+      setIsEditing(false);
+      setProfileError("");
+    } catch (error) {
+      setProfileError(
+        error instanceof Error
+          ? error.message
+          : "Unable to save your profile."
+      );
+    }
   };
 
   const handleCancelEdit = () => {
@@ -819,17 +1051,24 @@ function Profile({
   };
 
   // Player genre preferences.
-  const handleGenreChange = (genre: string) => {
+  const handleGenreChange = async (genre: string) => {
     const updatedGenres = favoriteGenres.includes(genre)
       ? favoriteGenres.filter((item) => item !== genre)
       : [...favoriteGenres, genre];
 
-    setFavoriteGenres(updatedGenres);
-
-    localStorage.setItem(
-      genresStorageKey,
-      JSON.stringify(updatedGenres)
-    );
+    try {
+      const profile = await persistProfile({
+        favoriteGenres: updatedGenres,
+      });
+      setFavoriteGenres(profile.favoriteGenres);
+      setProfileError("");
+    } catch (error) {
+      setProfileError(
+        error instanceof Error
+          ? error.message
+          : "Unable to save favorite genres."
+      );
+    }
   };
 
   // Developer profile updates.
@@ -845,17 +1084,21 @@ function Profile({
     setProfileSaved(false);
   };
 
-  const handleSaveDeveloperProfile = () => {
+  const handleSaveDeveloperProfile = async () => {
     try {
-      localStorage.setItem(
-        developerStorageKey,
-        JSON.stringify(developerProfile)
-      );
-
+      const profile = await persistProfile({
+        developerProfile,
+      });
+      setDeveloperProfile(profile.developerProfile);
       setProfileSaved(true);
       setProfileError("");
-    } catch {
-      setProfileError("Unable to save your developer profile.");
+    } catch (error) {
+      setProfileSaved(false);
+      setProfileError(
+        error instanceof Error
+          ? error.message
+          : "Unable to save your developer profile."
+      );
     }
   };
 
@@ -920,6 +1163,14 @@ function Profile({
             Manage your account and view your
             {isPlayer ? " gaming profile." : " developer profile."}
           </p>
+          {profileLoading && (
+            <p role="status">Loading your saved profile...</p>
+          )}
+          {profileError && (
+            <p className="profile-upload-error" role="alert">
+              {profileError}
+            </p>
+          )}
         </header>
 
         {/* Profile information */}
@@ -1003,8 +1254,9 @@ function Profile({
                 type="button"
                 className="profile-save-button"
                 onClick={handleSaveProfile}
+                disabled={profileLoading || profileSaving}
               >
-                Save Changes
+                {profileSaving ? "Saving..." : "Save Changes"}
               </button>
 
               <button
@@ -1029,6 +1281,7 @@ function Profile({
               type="file"
               accept="image/*"
               onChange={handlePictureUpload}
+              disabled={profileLoading || profileSaving}
               hidden
             />
 
@@ -1036,6 +1289,7 @@ function Profile({
               type="button"
               className="profile-upload-button"
               onClick={() => fileInputRef.current?.click()}
+              disabled={profileLoading || profileSaving}
             >
               {profilePicture ? "Change Picture" : "Upload Picture"}
             </button>
@@ -1045,6 +1299,7 @@ function Profile({
                 type="button"
                 className="profile-remove-button"
                 onClick={handleRemovePicture}
+                disabled={profileLoading || profileSaving}
               >
                 Remove Picture
               </button>
@@ -1205,7 +1460,8 @@ function Profile({
                   <input
                     type="checkbox"
                     checked={favoriteGenres.includes(genre)}
-                    onChange={() => handleGenreChange(genre)}
+                    onChange={() => void handleGenreChange(genre)}
+                    disabled={profileLoading || profileSaving}
                   />
                   {genre}
                 </label>
@@ -1334,8 +1590,11 @@ function Profile({
                 type="button"
                 className="profile-save-button"
                 onClick={handleSaveDeveloperProfile}
+                disabled={profileLoading || profileSaving}
               >
-                Save Developer Profile
+                {profileSaving
+                  ? "Saving..."
+                  : "Save Developer Profile"}
               </button>
 
               {profileSaved && (
@@ -1344,6 +1603,128 @@ function Profile({
                 </span>
               )}
             </div>
+          </section>
+        )}
+
+        {canRequestDeveloperAccess && (
+          <section className="profile-section profile-developer-request">
+            <h2>Request Developer Access</h2>
+            <p>
+              Submit your organization details for administrator review.
+              The organization must already be registered with GameScope.
+              Developer tools become available after approval.
+            </p>
+
+            {organizationMembershipsLoading && (
+              <p className="profile-request-status" role="status">
+                Checking your organization requests...
+              </p>
+            )}
+
+            {organizationMembershipsError && (
+              <p className="profile-upload-error" role="alert">
+                {organizationMembershipsError}
+              </p>
+            )}
+
+            {organizationMemberships
+              .filter(
+                (membership) =>
+                  membership.affiliation_status !== "verified"
+              )
+              .map((membership) => (
+                <p
+                  className="profile-request-status"
+                  role="status"
+                  key={membership.organization_id}
+                >
+                  {membership.affiliation_status === "pending"
+                    ? `Your request for ${membership.organization_name} is pending administrator approval.`
+                    : `Your previous request for ${membership.organization_name} was rejected. You may submit another request.`}
+                </p>
+              ))}
+
+            <form
+              className="profile-request-form"
+              onSubmit={handleDeveloperAccessRequest}
+            >
+              <div className="profile-form-group">
+                <label htmlFor="developer-request-organization">
+                  Organization Name
+                </label>
+                <input
+                  id="developer-request-organization"
+                  type="text"
+                  value={requestOrganizationName}
+                  onChange={(event) =>
+                    setRequestOrganizationName(event.target.value)
+                  }
+                  minLength={2}
+                  maxLength={255}
+                  required
+                  disabled={
+                    developerRequestSubmitting ||
+                    organizationMembershipsLoading
+                  }
+                  placeholder="Your registered organization"
+                />
+              </div>
+
+              <div className="profile-form-group">
+                <label htmlFor="developer-request-email">
+                  Organization Email
+                </label>
+                <input
+                  id="developer-request-email"
+                  type="email"
+                  value={requestOrganizationEmail}
+                  onChange={(event) =>
+                    setRequestOrganizationEmail(event.target.value)
+                  }
+                  minLength={5}
+                  maxLength={255}
+                  required
+                  disabled={
+                    developerRequestSubmitting ||
+                    organizationMembershipsLoading
+                  }
+                  placeholder="you@yourcompany.com"
+                />
+              </div>
+
+              {developerRequestError && (
+                <p className="profile-upload-error" role="alert">
+                  {developerRequestError}
+                </p>
+              )}
+
+              {developerRequestMessage && (
+                <p className="profile-request-success" role="status">
+                  {developerRequestMessage}
+                </p>
+              )}
+
+              <div className="profile-edit-actions">
+                <button
+                  type="submit"
+                  className="profile-save-button"
+                  disabled={
+                    developerRequestSubmitting ||
+                    organizationMembershipsLoading ||
+                    organizationMemberships.some(
+                      (membership) =>
+                        membership.affiliation_status === "pending" &&
+                        membership.organization_name.toLowerCase() ===
+                          requestOrganizationName.trim().toLowerCase()
+                    )
+                  }
+                >
+                  {developerRequestSubmitting
+                    ? "Submitting..."
+                    : "Request Developer Access"}
+                </button>
+              </div>
+            </form>
           </section>
         )}
 
@@ -1542,6 +1923,11 @@ function Profile({
 
         {/* Recent Analysis Activity */}
         <section className="profile-section profile-activity">
+          {activityError && (
+            <p className="profile-upload-error" role="alert">
+              {activityError}
+            </p>
+          )}
           <div className="profile-activity-heading">
             <div>
               <h2>Recent Activity</h2>

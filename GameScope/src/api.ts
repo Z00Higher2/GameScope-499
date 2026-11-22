@@ -127,6 +127,42 @@ export interface SteamAccountResponse {
   steam_account: SteamAccount | null;
 }
 
+export interface DeveloperProfile {
+  companyName: string;
+  developerRole: string;
+  companyWebsite: string;
+  managedGames: string[];
+}
+
+export interface UserProfile {
+  username: string;
+  displayName: string;
+  profilePictureData: string | null;
+  favoriteGenres: string[];
+  developerProfile: DeveloperProfile;
+}
+
+export interface UserProfileUpdate {
+  displayName?: string;
+  profilePictureData?: string | null;
+  favoriteGenres?: string[];
+  developerProfile?: DeveloperProfile;
+}
+
+export interface ProfileActivity {
+  appId: string;
+  gameName: string;
+  analyzedAt: string;
+  mode: AccountMode;
+  positivePercentage: number;
+  negativePercentage: number;
+  totalReviews: number;
+}
+
+export interface ProfileActivitiesResponse {
+  activities: ProfileActivity[];
+}
+
 
 // =========================================================
 // ORGANIZATION TYPES
@@ -685,6 +721,34 @@ export function getCurrentUser() {
   return request<CurrentUserResponse>("/api/auth/me");
 }
 
+export function getUserProfile() {
+  return request<UserProfile>("/api/profile");
+}
+
+export function updateUserProfile(data: UserProfileUpdate) {
+  return request<UserProfile>("/api/profile", {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
+  });
+}
+
+export function getProfileActivities() {
+  return request<ProfileActivitiesResponse>("/api/profile/activity");
+}
+
+export function saveProfileActivities(activities: ProfileActivity[]) {
+  return request<ProfileActivitiesResponse>("/api/profile/activity", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ activities }),
+  });
+}
+
 /*
  * Revoke the current server-side session and clear the session cookie.
  */
@@ -1113,6 +1177,31 @@ export interface OrganizationMembership {
 export interface OrganizationMembershipResponse {
   memberships: OrganizationMembership[];
   count: number;
+}
+
+export interface OrganizationMembershipRequest {
+  organization_name: string;
+  organization_email: string;
+}
+
+export interface OrganizationMembershipRequestResponse {
+  message: string;
+  status: "pending";
+}
+
+export function requestOrganizationMembership(
+  data: OrganizationMembershipRequest
+): Promise<OrganizationMembershipRequestResponse> {
+  return request<OrganizationMembershipRequestResponse>(
+    "/api/organizations/request",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    }
+  );
 }
 
 export interface OrganizationGame {
