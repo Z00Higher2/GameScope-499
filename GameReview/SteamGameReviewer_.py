@@ -3,6 +3,7 @@ import json
 import os
 import re
 import time
+import unicodedata
 from datetime import datetime, timezone
 
 import requests
@@ -12,6 +13,7 @@ import requests
 # ==========================================
 
 STEAM_DETAILS_URL = "https://store.steampowered.com/api/appdetails"
+STEAMSPY_DETAILS_URL = "https://steamspy.com/api.php"
 STEAM_REVIEWS_URL = (
     "https://api.steampowered.com/"
     "IUserReviewsService/GetAppReviews/v1/"
@@ -20,6 +22,119 @@ STEAM_STORE_PAGE_URL = "https://store.steampowered.com/app/{app_id}/"
 REVIEWS_FILTER_RECENT = 1
 REVIEWS_TYPE_ALL = 0
 REVIEWS_PURCHASE_TYPE_ALL = 1
+MAX_TAG_NAME_LENGTH = 191
+
+
+def normalize_tag_name(value):
+    if not isinstance(value, str):
+        return ""
+    return " ".join(unicodedata.normalize("NFKC", value).split())
+
+
+def extract_official_tags(data):
+    tags = []
+    for field, source in (("genres", "genre"), ("categories", "category")):
+        values = data.get(field) or []
+        if not isinstance(values, list):
+            continue
+        seen = set()
+        for value in values:
+            if not isinstance(value, dict):
+                continue
+            name = normalize_tag_name(value.get("description"))
+            key = name.casefold()
+            if not name or len(name) > MAX_TAG_NAME_LENGTH or key in seen:
+                continue
+            seen.add(key)
+            tags.append(
+                {
+                    "tag_name": name,
+                    "tag_source": source,
+                    "tag_rank": len(seen),
+                }
+            )
+    return tags
+
+
+def extract_community_tags(payload):
+    raw_tags = payload.get("tags")
+    if not isinstance(raw_tags, dict):
+        return None
+
+    valid_tags = [
+        (name, count)
+        for name, count in raw_tags.items()
+        if isinstance(name, str)
+        and not isinstance(count, bool)
+        and isinstance(count, int)
+        and count >= 0
+    ]
+    tags = []
+    for name, _ in sorted(
+        valid_tags,
+        key=lambda item: (-item[1], item[0].casefold()),
+    ):
+        normalized_name = normalize_tag_name(name)
+        if not normalized_name or len(normalized_name) > MAX_TAG_NAME_LENGTH:
+            continue
+        tags.append(
+            {
+                "tag_name": normalized_name,
+                "tag_source": "community",
+                "tag_rank": len(tags) + 1,
+            }
+        )
+    return tags
+
+
+def get_community_tags(app_id):
+    try:
+        response = requests.get(
+            STEAMSPY_DETAILS_URL,
+            params={"request": "appdetails", "appid": app_id},
+            timeout=15,
+        )
+        response.raise_for_status()
+        payload = parse_steam_json(response, "community tags")
+    except requests.RequestException as error:
+        print(f"Warning: Steam community tags unavailable: {error}")
+        return [], False
+
+    if not isinstance(payload, dict):
+        print("Warning: Steam community tags returned an invalid response.")
+        return [], False
+
+    tags = extract_community_tags(payload)
+    if tags is None:
+        print("Warning: Steam community tags were missing from the response.")
+        return [], False
+    return tags, True
+
+
+def parse_user_tags(value):
+    tags = []
+    seen = set()
+    for name in (value or "").split(","):
+        normalized_name = normalize_tag_name(name)
+        key = normalized_name.casefold()
+        if len(normalized_name) > MAX_TAG_NAME_LENGTH:
+            raise ValueError(
+                f"User-defined tags must be at most "
+                f"{MAX_TAG_NAME_LENGTH} characters: {normalized_name!r}"
+            )
+        if (
+            normalized_name
+            and key not in seen
+        ):
+            seen.add(key)
+            tags.append(
+                {
+                    "tag_name": normalized_name,
+                    "tag_source": "user",
+                    "tag_rank": None,
+                }
+            )
+    return tags
 
 
 def parse_steam_json(response, endpoint):
@@ -116,6 +231,13 @@ def get_game_details(app_id):
         price = ""
 
     release_info = data.get("release_date", {})
+    tags = extract_official_tags(data)
+    community_tags, community_tags_refreshed = get_community_tags(app_id)
+    tags.extend(community_tags)
+    refreshed_sources = ["genre", "category"]
+    if community_tags_refreshed:
+        refreshed_sources.append("community")
+
     return {
         "game_name": data.get("name", ""),
         "game_release_date": parse_release_date(release_info.get("date")),
@@ -124,6 +246,8 @@ def get_game_details(app_id):
         "game_developer": ", ".join(data.get("developers") or []),
         "game_publisher": ", ".join(data.get("publishers") or []),
         "game_price": price,
+        "game_tags": tags,
+        "tag_sources_refreshed": refreshed_sources,
         # Not out yet (Steam shows "Coming soon" or "To be announced")
         "game_coming_soon": bool(release_info.get("coming_soon")),
         # Steam's genre id 70 is Early Access
@@ -229,6 +353,8 @@ def save_reviews(reviews, app_id, game):
         "game_publisher",
         "game_price",
         "game_early_access_release_date",
+        "game_tags",
+        "tag_sources_refreshed",
         "review_id",
         "review_text",
         "recommended",
@@ -257,6 +383,13 @@ def save_reviews(reviews, app_id, game):
                     "game_early_access_release_date": game[
                         "game_early_access_release_date"
                     ],
+                    "game_tags": json.dumps(
+                        game.get("game_tags", []), ensure_ascii=False
+                    ),
+                    "tag_sources_refreshed": json.dumps(
+                        game.get("tag_sources_refreshed", []),
+                        ensure_ascii=False,
+                    ),
                     **review,
                 }
             )
@@ -315,6 +448,10 @@ def main():
         if not game["game_name"]:
             raise ValueError(f"Steam returned no game name for App ID {app_id}.")
         print(f"Game found: {game['game_name']}")
+        user_tag_input = input(
+            "Optional GameScope user-defined tags (comma-separated): "
+        )
+        game["game_tags"].extend(parse_user_tags(user_tag_input))
         reviews = get_reviews(app_id, max_reviews, language)
         save_reviews(reviews, app_id, game)
     except (requests.RequestException, ValueError) as error:

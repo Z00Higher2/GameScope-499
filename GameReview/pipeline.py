@@ -246,7 +246,7 @@ def run_pipeline(app_id, max_reviews=500, language="english"):
         for review in kept
     ]
 
-    game_data, review_rows = importer.parse_rows(rows, app_id)
+    game_data, review_rows, tag_data = importer.parse_rows(rows, app_id)
 
     connection = importer.connect_database()
 
@@ -255,7 +255,8 @@ def run_pipeline(app_id, max_reviews=500, language="english"):
             connection,
             game_data,
             review_rows,
-            f"steam_api_{app_id}"
+            f"steam_api_{app_id}",
+            tag_data
         )
 
         save_filter_run(
@@ -295,6 +296,12 @@ def as_csv_row(app_id, game, review):
         **game,
         **review
     }
+    row["game_tags"] = json.dumps(
+        game.get("game_tags", []), ensure_ascii=False
+    )
+    row["tag_sources_refreshed"] = json.dumps(
+        game.get("tag_sources_refreshed", []), ensure_ascii=False
+    )
 
     return {
         key: "" if value is None else str(value)

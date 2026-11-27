@@ -319,6 +319,38 @@ CREATE TABLE IF NOT EXISTS games (
     INDEX idx_game_name (game_name)
 ) ENGINE = InnoDB;
 
+-- Steam genres/categories, SteamSpy community tags, and GameScope user tags.
+CREATE TABLE IF NOT EXISTS game_tags (
+    tag_id INT UNSIGNED AUTO_INCREMENT NOT NULL,
+    tag_name VARCHAR(191) NOT NULL,
+    tag_source ENUM('genre', 'category', 'community', 'user') NOT NULL,
+
+    PRIMARY KEY (tag_id),
+    UNIQUE KEY uq_game_tags_source_name (tag_source, tag_name),
+    INDEX idx_game_tags_name (tag_name)
+) ENGINE = InnoDB;
+
+CREATE TABLE IF NOT EXISTS game_tag_assignments (
+    game_id INT UNSIGNED NOT NULL,
+    tag_id INT UNSIGNED NOT NULL,
+    tag_rank INT UNSIGNED NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (game_id, tag_id),
+    CONSTRAINT fk_game_tag_assignments_game_id
+        FOREIGN KEY (game_id)
+        REFERENCES games(game_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT fk_game_tag_assignments_tag_id
+        FOREIGN KEY (tag_id)
+        REFERENCES game_tags(tag_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    INDEX idx_game_tag_assignments_tag_id (tag_id)
+) ENGINE = InnoDB;
+
 -- ============================================================
 -- STEAM ACCOUNTS
 -- Never store Steam passwords.
@@ -684,6 +716,8 @@ CREATE TABLE IF NOT EXISTS game_searches (
 SHOW TABLES;
 
 DESCRIBE games;
+DESCRIBE game_tags;
+DESCRIBE game_tag_assignments;
 DESCRIBE reviews;
 DESCRIBE game_updates;
 DESCRIBE reviews_import;
@@ -711,6 +745,8 @@ DESCRIBE organization_games;
 -- ============================================================
 
 SELECT * FROM games;
+SELECT * FROM game_tags;
+SELECT * FROM game_tag_assignments;
 SELECT * FROM reviews;
 SELECT * FROM game_updates;
 SELECT * FROM reviews_import;

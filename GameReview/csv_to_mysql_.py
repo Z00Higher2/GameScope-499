@@ -1,6 +1,8 @@
 import csv
+import json
 import os
 import sys
+import unicodedata
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
@@ -17,6 +19,9 @@ load_dotenv()
 
 DATABASE = os.getenv("MYSQL_DATABASE", "game_reviews")
 MAX_APP_ID = 4_294_967_295
+MAX_TAG_NAME_LENGTH = 191
+TAG_SOURCES = {"genre", "category", "community", "user"}
+REFRESHABLE_TAG_SOURCES = {"genre", "category", "community"}
 
 # ==========================================
 # Convert and Validate Dates
@@ -86,6 +91,117 @@ def required_text(row, field_name):
         raise ValueError(f"CSV is missing a value for {field_name}.")
     return value
 
+
+def normalize_tag_name(value):
+    if not isinstance(value, str):
+        return ""
+    return " ".join(unicodedata.normalize("NFKC", value).split())
+
+
+def parse_game_tags(value):
+    if not (value or "").strip():
+        return []
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as error:
+        raise ValueError("game_tags must contain a JSON array.") from error
+    if not isinstance(parsed, list):
+        raise ValueError("game_tags must contain a JSON array.")
+
+    tags = []
+    seen = set()
+    for item in parsed:
+        if not isinstance(item, dict):
+            raise ValueError("Each game tag must be a JSON object.")
+        name = normalize_tag_name(item.get("tag_name"))
+        source = item.get("tag_source")
+        rank = item.get("tag_rank")
+        if not name or len(name) > MAX_TAG_NAME_LENGTH:
+            raise ValueError("Tag names must contain 1 to 191 characters.")
+        if not isinstance(source, str) or source not in TAG_SOURCES:
+            raise ValueError(f"Invalid tag source: {source!r}.")
+        if rank is not None and (
+            isinstance(rank, bool)
+            or not isinstance(rank, int)
+            or not 0 < rank <= MAX_APP_ID
+        ):
+            raise ValueError(f"Invalid tag rank for {name!r}.")
+        key = (source, name.casefold())
+        if key in seen:
+            continue
+        seen.add(key)
+        tags.append(
+            {
+                "tag_name": name,
+                "tag_source": source,
+                "tag_rank": rank,
+            }
+        )
+    return tags
+
+
+def parse_tag_sources(value):
+    if not (value or "").strip():
+        return []
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError as error:
+        raise ValueError(
+            "tag_sources_refreshed must contain a JSON array."
+        ) from error
+    if not isinstance(parsed, list):
+        raise ValueError("tag_sources_refreshed must contain a JSON array.")
+
+    sources = []
+    for source in parsed:
+        if not isinstance(source, str) or source not in REFRESHABLE_TAG_SOURCES:
+            raise ValueError(f"Invalid refreshed tag source: {source!r}.")
+        if source not in sources:
+            sources.append(source)
+    return sources
+
+
+def sync_game_tags(cursor, game_id, tags, refreshed_sources):
+    if refreshed_sources:
+        placeholders = ", ".join(["%s"] * len(refreshed_sources))
+        cursor.execute(
+            f"""
+            DELETE assignment
+            FROM game_tag_assignments assignment
+            JOIN game_tags tag ON tag.tag_id = assignment.tag_id
+            WHERE assignment.game_id = %s
+                AND tag.tag_source IN ({placeholders})
+            """,
+            (game_id, *refreshed_sources),
+        )
+
+    for tag in tags or []:
+        cursor.execute(
+            """
+            INSERT INTO game_tags (tag_name, tag_source)
+            VALUES (%s, %s)
+            ON DUPLICATE KEY UPDATE tag_name = VALUES(tag_name)
+            """,
+            (tag["tag_name"], tag["tag_source"]),
+        )
+        cursor.execute(
+            """
+            SELECT tag_id
+            FROM game_tags
+            WHERE tag_name = %s AND tag_source = %s
+            """,
+            (tag["tag_name"], tag["tag_source"]),
+        )
+        tag_id = cursor.fetchone()[0]
+        cursor.execute(
+            """
+            INSERT INTO game_tag_assignments (game_id, tag_id, tag_rank)
+            VALUES (%s, %s, %s)
+            ON DUPLICATE KEY UPDATE tag_rank = VALUES(tag_rank)
+            """,
+            (game_id, tag_id, tag["tag_rank"]),
+        )
+
 # ==========================================
 # Read and Validate the CSV File
 # ==========================================
@@ -130,6 +246,7 @@ def parse_rows(rows, requested_app_id):
 
     games = []
     reviews = []
+    tag_payloads = []
     for line_number, row in enumerate(rows, start=2):
         try:
             app_id = int(required_text(row, "app_id"))
@@ -164,6 +281,16 @@ def parse_rows(rows, requested_app_id):
                 row.get("review_updated_at") or row.get("updated_at"),
                 "review_updated_at",
             )
+            game_tags = (
+                parse_game_tags(row.get("game_tags"))
+                if "game_tags" in row
+                else None
+            )
+            refreshed_sources = (
+                parse_tag_sources(row.get("tag_sources_refreshed"))
+                if "tag_sources_refreshed" in row
+                else []
+            )
         except (ValueError, InvalidOperation) as error:
             raise ValueError(f"Invalid CSV data on line {line_number}: {error}") from error
 
@@ -191,11 +318,15 @@ def parse_rows(rows, requested_app_id):
                 updated_at,
             )
         )
+        tag_payloads.append((game_tags, refreshed_sources))
 
     game_data = games[0]
     if any(game != game_data for game in games[1:]):
         raise ValueError("Game metadata differs between rows in the CSV.")
-    return game_data, reviews
+    tag_data = tag_payloads[0]
+    if any(tags != tag_data for tags in tag_payloads[1:]):
+        raise ValueError("Game tags differ between rows in the CSV.")
+    return game_data, reviews, tag_data
 
 # ==========================================
 # Connect to MySQL Database
@@ -234,7 +365,7 @@ def connect_database(use_database=True):
 # Import Game and Reviews into MySQL
 # ==========================================
 
-def import_reviews(connection, game_data, reviews, input_file):
+def import_reviews(connection, game_data, reviews, input_file, tag_data=None):
     cursor = connection.cursor()
     import_id = None
     game_id = None
@@ -278,6 +409,9 @@ def import_reviews(connection, game_data, reviews, input_file):
                 game_data,
             )
             game_id = cursor.lastrowid
+        if tag_data is not None:
+            tags, refreshed_sources = tag_data
+            sync_game_tags(cursor, game_id, tags, refreshed_sources)
         connection.commit()
 
         cursor.execute(
@@ -370,7 +504,7 @@ def main():
     input_file = f"steam_reviews_filtered_{app_id}.csv"
 
     try:
-        game_data, reviews = load_csv(input_file, app_id)
+        game_data, reviews, tag_data = load_csv(input_file, app_id)
     except (OSError, ValueError) as error:
         print(f"Error: {error}")
         return 1
@@ -379,7 +513,7 @@ def main():
     try:
         connection = connect_database()
         game_id, imported, skipped = import_reviews(
-            connection, game_data, reviews, input_file
+            connection, game_data, reviews, input_file, tag_data
         )
     except (Error, ValueError, RuntimeError) as error:
         print(f"Import failed: {error}")
